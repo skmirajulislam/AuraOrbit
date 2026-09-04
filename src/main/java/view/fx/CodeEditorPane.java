@@ -217,6 +217,11 @@ public class CodeEditorPane extends StackPane {
             return new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create();
         }
 
+        // Safety limit for massive files (> 500KB) to prevent CPU spikes / regex backtracking
+        if (text.length() > 500_000) {
+            return new StyleSpansBuilder<Collection<String>>().add(Collections.singleton("plain"), text.length()).create();
+        }
+
         // For plain text logs or CSV, skip syntax tokenizing
         if (fileType != null && (fileType.equals("txt") || fileType.equals("log") || fileType.equals("csv") || fileType.equals("tsv"))) {
             return new StyleSpansBuilder<Collection<String>>().add(Collections.singleton("plain"), text.length()).create();

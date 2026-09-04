@@ -2044,7 +2044,13 @@ public class TerminalPane extends BorderPane {
             }
         }
 
+        private static final int MAX_TERMINAL_OUTPUT_NODES = 2000;
+        private static final int TERMINAL_TRIM_COUNT = 200;
+
         private void appendOutputText(String text) {
+            if (outputFlow.getChildren().size() >= MAX_TERMINAL_OUTPUT_NODES) {
+                outputFlow.getChildren().subList(0, TERMINAL_TRIM_COUNT).clear();
+            }
             Text textNode = new Text(text);
             textNode.getStyleClass().add("terminal-output-text");
             outputFlow.getChildren().add(textNode);
