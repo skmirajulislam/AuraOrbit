@@ -228,6 +228,25 @@ public class FxEditorController {
                 }
             }
         });
+
+        terminalPane.setOnProblemsUpdated((errors, warnings) -> {
+            Platform.runLater(() -> statusBar.setProblems(errors, warnings));
+        });
+    }
+
+    /**
+     * Ensure the bottom dock panel is visible and switch to the specified dock tab.
+     */
+    public void showDockPanel(TerminalPane.DockTab tab) {
+        if (!terminalPane.isTerminalVisible()) {
+            terminalPane.showTerminal();
+            if (!editorTerminalSplitPane.getItems().contains(terminalPane)) {
+                editorTerminalSplitPane.getItems().add(terminalPane);
+                editorTerminalSplitPane.setDividerPosition(
+                        editorTerminalSplitPane.getItems().size() - 2, 0.7);
+            }
+        }
+        terminalPane.switchDockTab(tab);
     }
 
     /**
@@ -326,28 +345,18 @@ public class FxEditorController {
         });
 
         statusBar.setOnGitBranchClicked(() -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Git Source Control");
-            Path root = sidebarExplorer.getRootPath();
-            alert.setHeaderText("Active Git Workspace: " + (root != null ? root.toAbsolutePath() : "None"));
-            alert.setContentText("Local repository is tracked and synchronized.");
-            alert.showAndWait();
+            showDockPanel(TerminalPane.DockTab.OUTPUT);
+            terminalPane.refreshGitOutput();
         });
 
         statusBar.setOnProblemsClicked(() -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("AuraOrbit Diagnostics");
-            alert.setHeaderText("Workspace Diagnostics: 0 Errors, 0 Warnings");
-            alert.setContentText("No compilation or syntax issues detected in the current workspace.");
-            alert.showAndWait();
+            showDockPanel(TerminalPane.DockTab.PROBLEMS);
+            terminalPane.scanWorkspaceForProblems();
         });
 
         statusBar.setOnBellClicked(() -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Notifications");
-            alert.setHeaderText("AuraOrbit Notification Center");
-            alert.setContentText("• System is healthy\n• AuraOrbit Copilot AI Studio is active\n• Terminal integrated shell ready");
-            alert.showAndWait();
+            showDockPanel(TerminalPane.DockTab.OUTPUT);
+            terminalPane.selectOutputChannel("AuraOrbit (System)");
         });
     }
 
@@ -621,7 +630,11 @@ public class FxEditorController {
             targetFile = chooser.showSaveDialog(stage);
             if (targetFile == null) return false;
         }
-        return tc.save(forceSaveAs, targetFile);
+        boolean saved = tc.save(forceSaveAs, targetFile);
+        if (saved) {
+            terminalPane.scanWorkspaceForProblems();
+        }
+        return saved;
     }
 
     public void handleFind(boolean withReplace) {

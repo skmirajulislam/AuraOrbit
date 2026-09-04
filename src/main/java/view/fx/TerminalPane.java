@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
+import javax.tools.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -103,6 +104,7 @@ public class TerminalPane extends BorderPane {
     private Supplier<Path> workspaceSupplier;
     private Runnable onCloseRequested;
     private BiConsumer<String, Integer> onProblemNavigated;
+    private BiConsumer<Integer, Integer> onProblemsUpdated;
 
     // Dock Tab State
     private DockTab currentTab = DockTab.TERMINAL;
@@ -133,21 +135,34 @@ public class TerminalPane extends BorderPane {
     // PORTS Tab State
     public static class PortEntry {
         public final int port;
-        public final String protocol;
+        public String protocol;
         public boolean listening;
-        public String label;
+        public String processName;
+        public long pid;
         public String localAddress;
+        public boolean isCustom;
 
-        public PortEntry(int port, String protocol, boolean listening, String label) {
+        public PortEntry(int port, String protocol, boolean listening, String processName, long pid, boolean isCustom) {
             this.port = port;
             this.protocol = protocol;
             this.listening = listening;
-            this.label = label;
+            this.processName = (processName != null && !processName.isEmpty()) ? processName : "Unknown Process";
+            this.pid = pid;
+            this.isCustom = isCustom;
             this.localAddress = "http://localhost:" + port;
+        }
+
+        public String getLabel() {
+            return processName;
         }
     }
     private final ObservableList<PortEntry> portEntries = FXCollections.observableArrayList();
+    private final ObservableList<PortEntry> filteredPortEntries = FXCollections.observableArrayList();
+    private final Set<Integer> userTrackedPorts = new LinkedHashSet<>();
     private VBox portsTableContainer;
+    private VBox portsEmptyState;
+    private TextField portFilterField;
+    private Label portCountBadge;
 
     public TerminalPane() {
         getStyleClass().add("terminal-pane");
@@ -561,6 +576,10 @@ public class TerminalPane extends BorderPane {
         this.onProblemNavigated = callback;
     }
 
+    public void setOnProblemsUpdated(BiConsumer<Integer, Integer> callback) {
+        this.onProblemsUpdated = callback;
+    }
+
     public int getSessionsCount() {
         return sessions.size();
     }
@@ -702,6 +721,10 @@ public class TerminalPane extends BorderPane {
         problemsTabBtn.setText("PROBLEMS " + problemItems.size());
 
         filterProblems(problemFilterField != null ? problemFilterField.getText() : "");
+
+        if (onProblemsUpdated != null) {
+            onProblemsUpdated.accept((int) errors, (int) warnings);
+        }
     }
 
     private void renderProblemItems() {
@@ -755,6 +778,7 @@ public class TerminalPane extends BorderPane {
             if (root == null) root = Paths.get(".");
 
             List<ProblemItem> found = new ArrayList<>();
+            List<Path> javaFiles = new ArrayList<>();
             try {
                 Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), 4, new SimpleFileVisitor<>() {
                     @Override
@@ -762,6 +786,9 @@ public class TerminalPane extends BorderPane {
                         String name = file.getFileName().toString();
                         if (name.endsWith(".java") || name.endsWith(".css") || name.endsWith(".json") || name.endsWith(".xml")) {
                             checkFileDiagnostics(file, found);
+                            if (name.endsWith(".java")) {
+                                javaFiles.add(file);
+                            }
                         }
                         return FileVisitResult.CONTINUE;
                     }
@@ -775,6 +802,48 @@ public class TerminalPane extends BorderPane {
                     }
                 });
             } catch (Exception ignored) {}
+
+            // Dynamic batch javac compiler diagnostics
+            if (!javaFiles.isEmpty()) {
+                try {
+                    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+                    if (compiler != null) {
+                        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+                        StandardJavaFileManager fm = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8);
+                        Iterable<? extends JavaFileObject> units = fm.getJavaFileObjectsFromPaths(javaFiles);
+                        Path tempClasses = Files.createTempDirectory("auraorbit_diag");
+                        tempClasses.toFile().deleteOnExit();
+
+                        JavaCompiler.CompilationTask task = compiler.getTask(
+                                null, fm, diagnostics,
+                                Arrays.asList("-proc:none", "-nowarn", "-d", tempClasses.toString()),
+                                null, units
+                        );
+                        task.call();
+                        for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
+                            if (d.getKind() == Diagnostic.Kind.ERROR) {
+                                String sourceName = "source";
+                                if (d.getSource() != null) {
+                                    try {
+                                        sourceName = Paths.get(d.getSource().toUri()).getFileName().toString();
+                                    } catch (Exception e) {
+                                        sourceName = d.getSource().getName();
+                                    }
+                                }
+                                found.add(new ProblemItem(
+                                        Codicons.ERROR, "Error",
+                                        d.getMessage(Locale.getDefault()),
+                                        sourceName,
+                                        (int) Math.max(1, d.getLineNumber()),
+                                        (int) Math.max(1, d.getColumnNumber()),
+                                        "javac"
+                                ));
+                            }
+                        }
+                        try { fm.close(); } catch (Exception ignored) {}
+                    }
+                } catch (Exception ignored) {}
+            }
 
             Platform.runLater(() -> {
                 for (ProblemItem item : found) {
@@ -790,6 +859,7 @@ public class TerminalPane extends BorderPane {
             List<String> lines = Files.readAllLines(file);
             int braceDepth = 0;
             int parenDepth = 0;
+            int bracketDepth = 0;
             String fileName = file.getFileName().toString();
 
             for (int i = 0; i < lines.size(); i++) {
@@ -801,12 +871,29 @@ public class TerminalPane extends BorderPane {
                     found.add(new ProblemItem(Codicons.INFO, "Info", clean, fileName, lineNum, 1, "todo"));
                 }
 
+                // Check string escaping & bracket balances
+                boolean inString = false;
                 for (int c = 0; c < line.length(); c++) {
                     char ch = line.charAt(c);
-                    if (ch == '{') braceDepth++;
-                    else if (ch == '}') braceDepth--;
-                    else if (ch == '(') parenDepth++;
-                    else if (ch == ')') parenDepth--;
+                    if (ch == '\\' && c + 1 < line.length()) {
+                        c++; // skip escaped char
+                        continue;
+                    }
+                    if (ch == '"') {
+                        inString = !inString;
+                        continue;
+                    }
+                    if (!inString) {
+                        if (ch == '{') braceDepth++;
+                        else if (ch == '}') braceDepth--;
+                        else if (ch == '(') parenDepth++;
+                        else if (ch == ')') parenDepth--;
+                        else if (ch == '[') bracketDepth++;
+                        else if (ch == ']') bracketDepth--;
+                    }
+                }
+                if (inString && !line.trim().startsWith("//") && !line.trim().startsWith("*")) {
+                    found.add(new ProblemItem(Codicons.ERROR, "Error", "Unclosed string literal", fileName, lineNum, line.length(), "syntax"));
                 }
             }
 
@@ -815,6 +902,9 @@ public class TerminalPane extends BorderPane {
             }
             if (parenDepth != 0) {
                 found.add(new ProblemItem(Codicons.WARNING, "Warning", "Mismatched parentheses (depth: " + parenDepth + ")", fileName, lines.size(), 1, "syntax"));
+            }
+            if (bracketDepth != 0) {
+                found.add(new ProblemItem(Codicons.WARNING, "Warning", "Mismatched square brackets (depth: " + bracketDepth + ")", fileName, lines.size(), 1, "syntax"));
             }
         } catch (Exception ignored) {}
     }
@@ -848,6 +938,9 @@ public class TerminalPane extends BorderPane {
             String selected = outputChannelCombo.getValue();
             for (Map.Entry<String, TextArea> entry : outputChannels.entrySet()) {
                 entry.getValue().setVisible(entry.getKey().equals(selected));
+            }
+            if ("Git".equals(selected)) {
+                refreshGitOutput();
             }
         });
 
@@ -928,6 +1021,61 @@ public class TerminalPane extends BorderPane {
             content.putString(area.getText());
             javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
         }
+    }
+
+    public void selectOutputChannel(String channel) {
+        Platform.runLater(() -> {
+            if (outputChannelCombo != null && outputChannels.containsKey(channel)) {
+                outputChannelCombo.getSelectionModel().select(channel);
+                for (Map.Entry<String, TextArea> entry : outputChannels.entrySet()) {
+                    entry.getValue().setVisible(entry.getKey().equals(channel));
+                }
+            }
+        });
+    }
+
+    public void refreshGitOutput() {
+        selectOutputChannel("Git");
+        logOutput("Git", "==================================================");
+        logOutput("Git", "Dynamic Git Status & Commit History query...");
+        logOutput("Git", "==================================================");
+
+        ioExecutor.submit(() -> {
+            try {
+                File wd = getWorkingDirectory();
+                ProcessBuilder pbStatus = new ProcessBuilder("git", "status", "-s");
+                pbStatus.directory(wd);
+                pbStatus.redirectErrorStream(true);
+                Process p1 = pbStatus.start();
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(p1.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    boolean hasChanges = false;
+                    while ((line = r.readLine()) != null) {
+                        hasChanges = true;
+                        logOutput("Git", line);
+                    }
+                    if (!hasChanges) {
+                        logOutput("Git", "Working tree clean: all files synchronized with git repository.");
+                    }
+                }
+                p1.waitFor();
+
+                logOutput("Git", "\n--- Recent Commits (git log -n 5) ---");
+                ProcessBuilder pbLog = new ProcessBuilder("git", "log", "-n", "5", "--oneline");
+                pbLog.directory(wd);
+                pbLog.redirectErrorStream(true);
+                Process p2 = pbLog.start();
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(p2.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = r.readLine()) != null) {
+                        logOutput("Git", line);
+                    }
+                }
+                p2.waitFor();
+            } catch (Exception e) {
+                logOutput("Git", "Git query error: " + e.getMessage());
+            }
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1141,63 +1289,120 @@ public class TerminalPane extends BorderPane {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // TAB 5: PORTS VIEW (Live Socket Probing, Forwarding, Browser Launch)
+    // TAB 5: PORTS VIEW (Live OS Port Discovery, Process Termination, Browser Launch)
     // ─────────────────────────────────────────────────────────────────────────
     private VBox buildPortsView() {
         VBox root = new VBox(0);
         root.getStyleClass().add("dock-content-pane");
         VBox.setVgrow(root, Priority.ALWAYS);
 
-        // Seed common web dev ports
-        portEntries.addAll(
-                new PortEntry(3000, "TCP", false, "Frontend (React / Next.js)"),
-                new PortEntry(5173, "TCP", false, "Vite Dev Server"),
-                new PortEntry(8080, "TCP", false, "Java / Spring Boot"),
-                new PortEntry(5000, "TCP", false, "Python / Flask"),
-                new PortEntry(8000, "TCP", false, "Django / PHP")
-        );
+        // Subheader with filter, counter and action buttons
+        HBox subHeader = new HBox(12);
+        subHeader.setAlignment(Pos.CENTER_LEFT);
+        subHeader.setPadding(new Insets(6, 12, 6, 12));
+        subHeader.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: transparent transparent -border-color transparent; -fx-border-width: 0 0 1 0;");
+
+        portFilterField = new TextField();
+        portFilterField.setPromptText("Filter ports (e.g. port, process, pid)...");
+        portFilterField.getStyleClass().add("dock-filter-input");
+        portFilterField.setPrefWidth(280);
+        portFilterField.textProperty().addListener((obs, oldVal, newVal) -> filterPorts(newVal));
+
+        portCountBadge = new Label("● 0 Ports Listening");
+        portCountBadge.setStyle("-fx-text-fill: #89d185; -fx-font-size: 11px; -fx-font-weight: bold;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button scanBtn = new Button("Scan Ports");
+        scanBtn.setGraphic(IconFactory.getIcon(Codicons.REFRESH, 12));
+        scanBtn.getStyleClass().add("dock-action-btn");
+        scanBtn.setOnAction(e -> scanLocalPorts());
+
+        Button addPortBtn = new Button("Forward Port");
+        addPortBtn.setGraphic(IconFactory.getIcon(Codicons.ADD, 12));
+        addPortBtn.getStyleClass().add("dock-action-btn");
+        addPortBtn.setOnAction(e -> showAddPortDialog());
+
+        subHeader.getChildren().addAll(portFilterField, portCountBadge, spacer, scanBtn, addPortBtn);
 
         portsTableContainer = new VBox(0);
-        portsTableContainer.setPadding(new Insets(6, 12, 12, 12));
+        portsTableContainer.setPadding(new Insets(0));
 
         ScrollPane scrollPane = new ScrollPane(portsTableContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.getStyleClass().add("terminal-scroll-pane");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        renderPortsTable();
+        portsEmptyState = new VBox(8);
+        portsEmptyState.setAlignment(Pos.CENTER);
+        portsEmptyState.setPadding(new Insets(30));
+        FontIcon towerIcon = IconFactory.getIcon(Codicons.RADIO_TOWER, 28, "#6e7681");
+        Label emptyTitle = new Label("No active listening ports detected on localhost.");
+        emptyTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: -text-primary;");
+        Label emptySubtitle = new Label("Start a dev server or click 'Scan Ports' to detect active network processes.");
+        emptySubtitle.setStyle("-fx-font-size: 11.5px; -fx-text-fill: -text-secondary;");
+        portsEmptyState.getChildren().addAll(towerIcon, emptyTitle, emptySubtitle);
 
-        root.getChildren().add(scrollPane);
+        root.getChildren().addAll(subHeader, scrollPane);
 
-        // Initial background probe
+        // Initial scan of actual OS listening ports
         scanLocalPorts();
         return root;
     }
 
+    private void filterPorts(String query) {
+        filteredPortEntries.clear();
+        if (query == null || query.trim().isEmpty()) {
+            filteredPortEntries.addAll(portEntries);
+        } else {
+            String lower = query.toLowerCase();
+            for (PortEntry entry : portEntries) {
+                if (String.valueOf(entry.port).contains(lower) ||
+                    entry.processName.toLowerCase().contains(lower) ||
+                    String.valueOf(entry.pid).contains(lower) ||
+                    entry.protocol.toLowerCase().contains(lower)) {
+                    filteredPortEntries.add(entry);
+                }
+            }
+        }
+        renderPortsRows();
+    }
+
     private void renderPortsTable() {
+        long listeningCount = portEntries.stream().filter(p -> p.listening).count();
+        portCountBadge.setText("● " + listeningCount + " Ports Listening");
+        filterPorts(portFilterField != null ? portFilterField.getText() : "");
+    }
+
+    private void renderPortsRows() {
         portsTableContainer.getChildren().clear();
 
         // Table Header
         HBox header = new HBox(12);
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(6, 10, 6, 10));
+        header.setPadding(new Insets(6, 12, 6, 12));
         header.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: transparent transparent -border-color transparent; -fx-border-width: 0 0 1 0;");
 
         Label colPort = new Label("PORT");
-        colPort.setPrefWidth(90);
+        colPort.setPrefWidth(80);
         colPort.setStyle("-fx-text-fill: -text-secondary; -fx-font-weight: bold; -fx-font-size: 11px;");
 
+        Label colPid = new Label("PID");
+        colPid.setPrefWidth(70);
+        colPid.setStyle("-fx-text-fill: -text-secondary; -fx-font-weight: bold; -fx-font-size: 11px;");
+
+        Label colService = new Label("PROCESS / COMMAND");
+        colService.setPrefWidth(200);
+        colService.setStyle("-fx-text-fill: -text-secondary; -fx-font-weight: bold; -fx-font-size: 11px;");
+
         Label colProto = new Label("PROTOCOL");
-        colProto.setPrefWidth(80);
+        colProto.setPrefWidth(90);
         colProto.setStyle("-fx-text-fill: -text-secondary; -fx-font-weight: bold; -fx-font-size: 11px;");
 
         Label colStatus = new Label("STATUS");
-        colStatus.setPrefWidth(120);
+        colStatus.setPrefWidth(110);
         colStatus.setStyle("-fx-text-fill: -text-secondary; -fx-font-weight: bold; -fx-font-size: 11px;");
-
-        Label colService = new Label("LABEL / SERVICE");
-        colService.setPrefWidth(220);
-        colService.setStyle("-fx-text-fill: -text-secondary; -fx-font-weight: bold; -fx-font-size: 11px;");
 
         Label colAddress = new Label("LOCAL ADDRESS");
         HBox.setHgrow(colAddress, Priority.ALWAYS);
@@ -1208,70 +1413,295 @@ public class TerminalPane extends BorderPane {
         colActions.setAlignment(Pos.CENTER_RIGHT);
         colActions.setStyle("-fx-text-fill: -text-secondary; -fx-font-weight: bold; -fx-font-size: 11px;");
 
-        header.getChildren().addAll(colPort, colProto, colStatus, colService, colAddress, colActions);
+        header.getChildren().addAll(colPort, colPid, colService, colProto, colStatus, colAddress, colActions);
         portsTableContainer.getChildren().add(header);
 
+        if (filteredPortEntries.isEmpty()) {
+            portsTableContainer.getChildren().add(portsEmptyState);
+            return;
+        }
+
         // Table Rows
-        for (PortEntry entry : portEntries) {
+        for (PortEntry entry : filteredPortEntries) {
             HBox row = new HBox(12);
             row.setAlignment(Pos.CENTER_LEFT);
-            row.setPadding(new Insets(6, 10, 6, 10));
-            row.setStyle("-fx-border-color: transparent transparent #2d2d2d transparent; -fx-border-width: 0 0 1 0;");
+            row.setPadding(new Insets(6, 12, 6, 12));
+            row.setStyle("-fx-border-color: transparent transparent #252526 transparent; -fx-border-width: 0 0 1 0;");
 
             Label p = new Label(String.valueOf(entry.port));
-            p.setPrefWidth(90);
-            p.setStyle("-fx-text-fill: -text-primary; -fx-font-family: monospace; -fx-font-weight: bold;");
+            p.setPrefWidth(80);
+            p.setStyle("-fx-text-fill: -text-primary; -fx-font-family: monospace; -fx-font-weight: bold; -fx-font-size: 12px;");
+
+            Label pidLbl = new Label(entry.pid > 0 ? String.valueOf(entry.pid) : "-");
+            pidLbl.setPrefWidth(70);
+            pidLbl.setStyle("-fx-text-fill: -text-secondary; -fx-font-family: monospace; -fx-font-size: 11px;");
+
+            Label srv = new Label(entry.processName);
+            srv.setPrefWidth(200);
+            srv.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12px; -fx-font-weight: 500;");
 
             Label proto = new Label(entry.protocol);
-            proto.setPrefWidth(80);
+            proto.setPrefWidth(90);
             proto.setStyle("-fx-text-fill: -text-secondary; -fx-font-size: 11px;");
 
             Label status = new Label(entry.listening ? "● LISTENING" : "○ INACTIVE");
-            status.setPrefWidth(120);
+            status.setPrefWidth(110);
             status.setStyle(entry.listening ? "-fx-text-fill: #89d185; -fx-font-weight: bold; -fx-font-size: 11px;" : "-fx-text-fill: #6e7681; -fx-font-size: 11px;");
-
-            Label srv = new Label(entry.label);
-            srv.setPrefWidth(220);
-            srv.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12px;");
 
             Hyperlink link = new Hyperlink(entry.localAddress);
             HBox.setHgrow(link, Priority.ALWAYS);
             link.setStyle("-fx-font-family: monospace; -fx-font-size: 11.5px; -fx-text-fill: -accent-color; -fx-padding: 0;");
             link.setOnAction(e -> openUrlInBrowser(entry.localAddress));
 
-            HBox actions = new HBox(6);
+            HBox actions = new HBox(4);
             actions.setPrefWidth(120);
             actions.setAlignment(Pos.CENTER_RIGHT);
 
             Button openBtn = new Button();
             openBtn.setGraphic(IconFactory.getIcon(Codicons.LINK_EXTERNAL, 12));
             openBtn.getStyleClass().add("dock-action-btn");
-            openBtn.setTooltip(new Tooltip("Open in Browser"));
+            openBtn.setTooltip(new Tooltip("Open in Browser (" + entry.localAddress + ")"));
             openBtn.setOnAction(e -> openUrlInBrowser(entry.localAddress));
+
+            // Stop Process Button (Red Stop Icon)
+            Button stopBtn = new Button();
+            stopBtn.setGraphic(IconFactory.getIcon(Codicons.DEBUG_STOP, 12, "#f14c4c"));
+            stopBtn.getStyleClass().add("dock-action-btn");
+            stopBtn.setTooltip(new Tooltip(entry.pid > 0 ? "Stop process '" + entry.processName + "' (PID: " + entry.pid + ")" : "Stop process on port " + entry.port));
+            stopBtn.setDisable(!entry.listening);
+            stopBtn.setOnAction(e -> stopPortProcess(entry));
 
             Button removeBtn = new Button();
             removeBtn.setGraphic(IconFactory.getIcon(Codicons.TRASH, 12));
             removeBtn.getStyleClass().add("dock-action-btn");
-            removeBtn.setTooltip(new Tooltip("Remove Port"));
+            removeBtn.setTooltip(new Tooltip("Remove from list"));
             removeBtn.setOnAction(e -> {
+                userTrackedPorts.remove(entry.port);
                 portEntries.remove(entry);
                 renderPortsTable();
             });
 
-            actions.getChildren().addAll(openBtn, removeBtn);
-            row.getChildren().addAll(p, proto, status, srv, link, actions);
+            actions.getChildren().addAll(openBtn, stopBtn, removeBtn);
+            row.getChildren().addAll(p, pidLbl, srv, proto, status, link, actions);
             portsTableContainer.getChildren().add(row);
         }
     }
 
     public void scanLocalPorts() {
         ioExecutor.submit(() -> {
-            for (PortEntry entry : portEntries) {
-                boolean alive = checkPortListening(entry.port);
-                entry.listening = alive;
+            PlatformOS os = getPlatformOS();
+            Map<Integer, PortEntry> discovered = new LinkedHashMap<>();
+
+            if (os == PlatformOS.MAC || os == PlatformOS.LINUX) {
+                scanUnixListeningPorts(discovered);
+            } else {
+                scanWindowsListeningPorts(discovered);
             }
-            Platform.runLater(this::renderPortsTable);
+
+            // Also probe any user-tracked custom ports
+            for (Integer userPort : userTrackedPorts) {
+                if (!discovered.containsKey(userPort)) {
+                    boolean alive = checkPortListening(userPort);
+                    discovered.put(userPort, new PortEntry(userPort, "TCP", alive, "Forwarded Port " + userPort, -1, true));
+                }
+            }
+
+            Platform.runLater(() -> {
+                portEntries.setAll(discovered.values());
+                renderPortsTable();
+            });
         });
+    }
+
+    private void scanUnixListeningPorts(Map<Integer, PortEntry> discovered) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("lsof", "-nP", "-iTCP", "-sTCP:LISTEN");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.isEmpty() || line.startsWith("COMMAND")) continue;
+
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 9) {
+                        String cmd = parts[0];
+                        long pid = -1;
+                        try { pid = Long.parseLong(parts[1]); } catch (NumberFormatException ignored) {}
+                        String type = parts.length > 4 ? parts[4] : "IPv4";
+
+                        String addressToken = "";
+                        for (int i = parts.length - 1; i >= 0; i--) {
+                            if (parts[i].contains(":") && !parts[i].equals("(LISTEN)")) {
+                                addressToken = parts[i];
+                                break;
+                            }
+                        }
+
+                        if (!addressToken.isEmpty()) {
+                            int colon = addressToken.lastIndexOf(':');
+                            if (colon != -1) {
+                                String portStr = addressToken.substring(colon + 1).replaceAll("[^0-9]", "");
+                                if (!portStr.isEmpty()) {
+                                    try {
+                                        int port = Integer.parseInt(portStr);
+                                        if (port > 0 && port <= 65535) {
+                                            PortEntry existing = discovered.get(port);
+                                            if (existing != null) {
+                                                if (!existing.protocol.contains(type)) {
+                                                    existing.protocol = "TCP (IPv4/IPv6)";
+                                                }
+                                            } else {
+                                                String friendlyName = resolveProcessName(pid, cmd);
+                                                discovered.put(port, new PortEntry(port, "TCP (" + type + ")", true, friendlyName, pid, false));
+                                            }
+                                        }
+                                    } catch (NumberFormatException ignored) {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            p.waitFor(1500, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            fallbackSocketScan(discovered);
+        }
+    }
+
+    private void scanWindowsListeningPorts(Map<Integer, PortEntry> discovered) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("netstat", "-ano", "-p", "tcp");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (!line.toUpperCase().contains("LISTENING")) continue;
+
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 4) {
+                        String localAddr = parts[1];
+                        long pid = -1;
+                        try {
+                            pid = Long.parseLong(parts[parts.length - 1]);
+                        } catch (NumberFormatException ignored) {}
+
+                        int colon = localAddr.lastIndexOf(':');
+                        if (colon != -1) {
+                            String portStr = localAddr.substring(colon + 1);
+                            try {
+                                int port = Integer.parseInt(portStr);
+                                if (port > 0 && port <= 65535 && !discovered.containsKey(port)) {
+                                    String friendlyName = resolveProcessName(pid, "Process " + pid);
+                                    discovered.put(port, new PortEntry(port, "TCP", true, friendlyName, pid, false));
+                                }
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+                }
+            }
+            p.waitFor(1500, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            fallbackSocketScan(discovered);
+        }
+    }
+
+    private void fallbackSocketScan(Map<Integer, PortEntry> discovered) {
+        int[] commonPorts = {3000, 3001, 5000, 5173, 7000, 8000, 8080, 8081, 9000};
+        for (int port : commonPorts) {
+            if (checkPortListening(port) && !discovered.containsKey(port)) {
+                discovered.put(port, new PortEntry(port, "TCP", true, "Local Service", -1, false));
+            }
+        }
+    }
+
+    private String resolveProcessName(long pid, String fallback) {
+        if (pid > 0) {
+            try {
+                Optional<ProcessHandle> ph = ProcessHandle.of(pid);
+                if (ph.isPresent()) {
+                    Optional<String> cmd = ph.get().info().command();
+                    if (cmd.isPresent() && !cmd.get().isEmpty()) {
+                        String path = cmd.get();
+                        int sep = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+                        String name = (sep >= 0) ? path.substring(sep + 1) : path;
+                        if (name.equalsIgnoreCase("java") || name.equalsIgnoreCase("javaw")) {
+                            return "Java (AuraOrbit/App)";
+                        } else if (name.equalsIgnoreCase("node")) {
+                            return "Node.js Server";
+                        } else if (name.toLowerCase().contains("python")) {
+                            return "Python Server";
+                        } else if (name.equalsIgnoreCase("ControlCenter")) {
+                            return "ControlCenter (AirPlay)";
+                        }
+                        return name;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        if (fallback.equalsIgnoreCase("ControlCe")) return "ControlCenter (AirPlay)";
+        return fallback;
+    }
+
+    public void stopPortProcess(PortEntry entry) {
+        logOutput("AuraOrbit (System)", "Terminating process '" + entry.processName + "' on port " + entry.port + "...");
+        ioExecutor.submit(() -> {
+            boolean stopped = false;
+            if (entry.pid > 0) {
+                try {
+                    Optional<ProcessHandle> ph = ProcessHandle.of(entry.pid);
+                    if (ph.isPresent()) {
+                        ProcessHandle h = ph.get();
+                        h.destroy();
+                        try {
+                            h.onExit().get(400, TimeUnit.MILLISECONDS);
+                            stopped = true;
+                        } catch (Exception ignored) {
+                            h.destroyForcibly();
+                            stopped = true;
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (entry.pid > 0) {
+                try {
+                    PlatformOS os = getPlatformOS();
+                    if (os == PlatformOS.WINDOWS) {
+                        new ProcessBuilder("taskkill", "/F", "/PID", String.valueOf(entry.pid)).start().waitFor(800, TimeUnit.MILLISECONDS);
+                    } else {
+                        new ProcessBuilder("kill", "-9", String.valueOf(entry.pid)).start().waitFor(800, TimeUnit.MILLISECONDS);
+                    }
+                    stopped = true;
+                } catch (Exception ignored) {}
+            }
+
+            // Fallback kill by port
+            killProcessByPort(entry.port);
+
+            logOutput("AuraOrbit (System)", "[Ports] Process '" + entry.processName + "' (PID: " + entry.pid + ") on port " + entry.port + " stopped.");
+
+            try { Thread.sleep(400); } catch (InterruptedException ignored) {}
+            scanLocalPorts();
+        });
+    }
+
+    private void killProcessByPort(int port) {
+        try {
+            PlatformOS os = getPlatformOS();
+            if (os == PlatformOS.WINDOWS) {
+                Process p = new ProcessBuilder("cmd.exe", "/c", "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :" + port + "') do taskkill /f /pid %a").start();
+                p.waitFor(800, TimeUnit.MILLISECONDS);
+            } else {
+                Process p = new ProcessBuilder("sh", "-c", "lsof -ti tcp:" + port + " | xargs kill -9").start();
+                p.waitFor(800, TimeUnit.MILLISECONDS);
+            }
+        } catch (Exception ignored) {}
     }
 
     private boolean checkPortListening(int port) {
@@ -1292,8 +1722,7 @@ public class TerminalPane extends BorderPane {
             try {
                 int p = Integer.parseInt(str.trim());
                 if (p > 0 && p <= 65535) {
-                    PortEntry entry = new PortEntry(p, "TCP", false, "Custom Port " + p);
-                    portEntries.add(entry);
+                    userTrackedPorts.add(p);
                     scanLocalPorts();
                 }
             } catch (NumberFormatException ignored) {}
@@ -1306,6 +1735,14 @@ public class TerminalPane extends BorderPane {
                 Desktop.getDesktop().browse(new URI(url));
             }
         } catch (Exception ignored) {}
+    }
+
+    public int getPortsCount() {
+        return portEntries.size();
+    }
+
+    public void refreshPorts() {
+        scanLocalPorts();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1419,13 +1856,17 @@ public class TerminalPane extends BorderPane {
         private static String getCleanHostName() {
             try {
                 String host = InetAddress.getLocalHost().getHostName();
-                if (host.endsWith(".local")) {
-                    host = host.substring(0, host.length() - 6);
+                if (host != null && !host.isBlank()) {
+                    if (host.endsWith(".local")) {
+                        host = host.substring(0, host.length() - 6);
+                    }
+                    return host;
                 }
-                return host;
-            } catch (Exception e) {
-                return "SKs-MacBook-Air";
-            }
+            } catch (Exception ignored) {}
+            String envHost = System.getenv("HOSTNAME");
+            if (envHost == null || envHost.isBlank()) envHost = System.getenv("COMPUTERNAME");
+            if (envHost != null && !envHost.isBlank()) return envHost;
+            return "localhost";
         }
 
         void start() {

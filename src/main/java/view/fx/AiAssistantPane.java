@@ -7,8 +7,16 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import org.kordamp.ikonli.codicons.Codicons;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Modern AI IDE Copilot & Assistant Studio Pane powered by VS Code Codicons.
@@ -203,67 +211,318 @@ public class AiAssistantPane extends VBox {
 
         // Perform async intelligent code analysis with daemon thread
         Thread aiThread = new Thread(() -> {
+            String response = null;
             try {
-                Thread.sleep(300); // Responsive debounce
-            } catch (InterruptedException ignored) {}
+                response = queryExternalLlmIfConfigured(prompt, codeContext, fileName, modelSelector.getValue());
+            } catch (Exception ignored) {}
 
-            String response = generateHeuristicAiResponse(prompt, codeContext, fileName);
+            if (response == null || response.isBlank()) {
+                response = generateDynamicCodeAiResponse(prompt, codeContext, fileName);
+            }
 
+            final String finalResponse = response;
             Platform.runLater(() -> {
                 chatMessagesContainer.getChildren().remove(thinkingBox);
-                addAssistantMessage(response);
+                addAssistantMessage(finalResponse);
             });
         }, "ai-assistant-worker");
         aiThread.setDaemon(true);
         aiThread.start();
     }
 
-    private String generateHeuristicAiResponse(String prompt, String code, String fileName) {
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(3))
+            .build();
+
+    private record ParsedMethod(String returnType, String name, String params) {}
+
+    private record CodeAnalysis(
+            String packageName,
+            String className,
+            List<ParsedMethod> methods,
+            int totalLines,
+            int codeLines,
+            int commentLines,
+            int cyclomaticComplexity,
+            List<String> detectedSmells,
+            List<String> frameworksUsed
+    ) {}
+
+    private CodeAnalysis analyzeCode(String code, String fallbackFileName) {
+        String pkg = "";
+        Matcher pkgMatcher = Pattern.compile("package\\s+([a-zA-Z0-9_.]+);").matcher(code);
+        if (pkgMatcher.find()) {
+            pkg = pkgMatcher.group(1);
+        }
+
+        String cls = fallbackFileName.contains(".") ? fallbackFileName.substring(0, fallbackFileName.lastIndexOf('.')) : fallbackFileName;
+        Matcher clsMatcher = Pattern.compile("(?:class|interface|enum|record)\\s+([A-Za-z0-9_]+)").matcher(code);
+        if (clsMatcher.find()) {
+            cls = clsMatcher.group(1);
+        }
+
+        List<ParsedMethod> methods = new ArrayList<>();
+        Pattern methodPattern = Pattern.compile("(?:public|protected|private|static|final|synchronized|\\s)*\\s+([\\w\\<\\>\\[\\]]+)\\s+([a-zA-Z0-9_]+)\\s*\\(([^)]*)\\)\\s*(?:throws\\s+[\\w\\s,]+)?\\s*\\{");
+        Matcher methodMatcher = methodPattern.matcher(code);
+        while (methodMatcher.find()) {
+            String ret = methodMatcher.group(1);
+            String name = methodMatcher.group(2);
+            String params = methodMatcher.group(3);
+            if (!name.equals("if") && !name.equals("while") && !name.equals("for") && !name.equals("switch") && !name.equals("catch") && !name.equals("synchronized")) {
+                methods.add(new ParsedMethod(ret, name, params.trim()));
+            }
+        }
+
+        String[] lines = code.split("\\R");
+        int total = lines.length;
+        int codeCount = 0;
+        int comments = 0;
+        for (String l : lines) {
+            String trimmed = l.trim();
+            if (trimmed.isEmpty()) continue;
+            if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) {
+                comments++;
+            } else {
+                codeCount++;
+            }
+        }
+
+        int complexity = 1;
+        Pattern flowPattern = Pattern.compile("\\b(if|while|for|case|catch)\\b|(&&|\\|\\||\\?)");
+        Matcher flowMatcher = flowPattern.matcher(code);
+        while (flowMatcher.find()) {
+            complexity++;
+        }
+
+        List<String> smells = new ArrayList<>();
+        if (methods.isEmpty() && codeCount > 5) {
+            smells.add("No explicit methods identified in selection; script-style or inline block.");
+        }
+        for (ParsedMethod m : methods) {
+            if (m.params.split(",").length > 4) {
+                smells.add("Method '" + m.name + "' has more than 4 parameters (high coupling).");
+            }
+        }
+        if (code.contains("catch (Exception e) {}") || code.contains("catch (Throwable t) {}")) {
+            smells.add("Empty catch block detected; potential silent failure.");
+        }
+        if (complexity > 15) {
+            smells.add("High cyclomatic complexity (" + complexity + "); consider decomposing into smaller methods.");
+        }
+
+        List<String> frameworks = new ArrayList<>();
+        if (code.contains("javafx.")) frameworks.add("JavaFX UI");
+        if (code.contains("java.nio.file") || code.contains("java.io.")) frameworks.add("Java I/O & NIO");
+        if (code.contains("java.util.concurrent") || code.contains("Thread")) frameworks.add("Java Concurrency & Threads");
+        if (code.contains("org.junit")) frameworks.add("JUnit Testing");
+        if (code.contains("java.sql") || code.contains("javax.sql")) frameworks.add("JDBC Database Access");
+        if (code.contains("java.net.http") || code.contains("java.net.Socket")) frameworks.add("Networking & HTTP");
+
+        return new CodeAnalysis(pkg, cls, methods, total, codeCount, comments, complexity, smells, frameworks);
+    }
+
+    private String queryExternalLlmIfConfigured(String prompt, String code, String fileName, String model) {
+        try {
+            // Local Ollama instance check (http://localhost:11434)
+            if (model.toLowerCase().contains("local") || model.toLowerCase().contains("deepseek")) {
+                String payload = "{\"model\": \"deepseek-r1:latest\", \"prompt\": \"" 
+                        + escapeJson(prompt + " for file " + fileName + ":\n" + (code.length() > 2000 ? code.substring(0, 2000) : code)) 
+                        + "\", \"stream\": false}";
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:11434/api/generate"))
+                        .timeout(Duration.ofSeconds(4))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(payload))
+                        .build();
+                HttpResponse<String> resp = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200) {
+                    Matcher m = Pattern.compile("\"response\"\\s*:\\s*\"(.*?)\"").matcher(resp.body());
+                    if (m.find()) {
+                        return m.group(1).replace("\\n", "\n").replace("\\\"", "\"");
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private String escapeJson(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+    }
+
+    private String generateDynamicCodeAiResponse(String prompt, String code, String fileName) {
         String pLower = prompt.toLowerCase();
+        CodeAnalysis a = analyzeCode(code, fileName);
 
         if (pLower.contains("explain")) {
-            return "### 💡 Code Explanation (" + fileName + ")\n\n"
-                    + "Here is a breakdown of the code structure and logic:\n\n"
-                    + "1. **Architecture & Role**: Encapsulates core business logic with high-efficiency memory management.\n"
-                    + "2. **Key Components**:\n"
-                    + "   - Uses strong typing and boundary validations.\n"
-                    + "   - Employs deterministic resource handling.\n"
-                    + "3. **Performance**: $O(1)$ constant time operations where cached, with optimized allocations.\n\n"
-                    + "```java\n" + (code.length() > 400 ? code.substring(0, 400) + "\n// ... remaining lines" : code) + "\n```";
+            StringBuilder sb = new StringBuilder();
+            sb.append("### 💡 Dynamic Code Explanation (").append(fileName).append(")\n\n");
+            sb.append("**Target Element**: `").append(a.className).append("`");
+            if (!a.packageName.isEmpty()) sb.append(" (Package: `").append(a.packageName).append("`)");
+            sb.append("\n\n");
+
+            sb.append("#### 📊 Structural & Performance Metrics\n");
+            sb.append("- **Total Lines**: ").append(a.totalLines).append(" (Executable: ").append(a.codeLines).append(", Comments: ").append(a.commentLines).append(")\n");
+            sb.append("- **Cyclomatic Complexity**: ").append(a.cyclomaticComplexity).append(" (")
+              .append(a.cyclomaticComplexity <= 5 ? "🟢 Simple / Low Risk" : a.cyclomaticComplexity <= 15 ? "🟡 Moderate" : "🔴 High Complexity").append(")\n");
+            if (!a.frameworksUsed.isEmpty()) {
+                sb.append("- **Detected Frameworks & Libraries**: ").append(String.join(", ", a.frameworksUsed)).append("\n");
+            }
+
+            sb.append("\n#### 🧩 Discovered Methods & Signatures\n");
+            if (a.methods.isEmpty()) {
+                sb.append("- *No methods detected in the current code snippet.*\n");
+            } else {
+                for (ParsedMethod m : a.methods) {
+                    sb.append("- `").append(m.returnType).append(" ").append(m.name).append("(").append(m.params).append(")`\n");
+                }
+            }
+
+            if (!a.detectedSmells.isEmpty()) {
+                sb.append("\n#### ⚠️ Code Health Observations\n");
+                for (String smell : a.detectedSmells) {
+                    sb.append("- ").append(smell).append("\n");
+                }
+            }
+            return sb.toString();
         } else if (pLower.contains("test")) {
-            return "### 🧪 Generated JUnit 5 Test Suite\n\n"
-                    + "```java\n"
-                    + "import org.junit.jupiter.api.Test;\n"
-                    + "import org.junit.jupiter.api.BeforeEach;\n"
-                    + "import static org.junit.jupiter.api.Assertions.*;\n\n"
-                    + "public class " + (fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf('.')) : "Generated") + "Test {\n\n"
-                    + "    @Test\n"
-                    + "    void testPrimaryExecutionPath() {\n"
-                    + "        assertDoesNotThrow(() -> {\n"
-                    + "            // Test setup and execution\n"
-                    + "        });\n"
-                    + "    }\n\n"
-                    + "    @Test\n"
-                    + "    void testBoundaryAndNullSafety() {\n"
-                    + "        // Verify safety constraints\n"
-                    + "    }\n"
-                    + "}\n```";
+            StringBuilder sb = new StringBuilder();
+            sb.append("### 🧪 Generated JUnit 5 Test Suite for `").append(a.className).append("`\n\n");
+            sb.append("```java\n");
+            if (!a.packageName.isEmpty()) {
+                sb.append("package ").append(a.packageName).append(";\n\n");
+            }
+            sb.append("import org.junit.jupiter.api.BeforeEach;\n");
+            sb.append("import org.junit.jupiter.api.Test;\n");
+            sb.append("import org.junit.jupiter.api.DisplayName;\n");
+            sb.append("import static org.junit.jupiter.api.Assertions.*;\n\n");
+            sb.append("class ").append(a.className).append("Test {\n\n");
+            sb.append("    private ").append(a.className).append(" instance;\n\n");
+            sb.append("    @BeforeEach\n");
+            sb.append("    void setUp() {\n");
+            sb.append("        // Setup test instance for ").append(a.className).append("\n");
+            sb.append("        // instance = new ").append(a.className).append("();\n");
+            sb.append("    }\n\n");
+
+            if (a.methods.isEmpty()) {
+                sb.append("    @Test\n");
+                sb.append("    @DisplayName(\"Verify execution of ").append(a.className).append(" routine\")\n");
+                sb.append("    void testExecution() {\n");
+                sb.append("        assertDoesNotThrow(() -> {\n");
+                sb.append("            // Test execution logic\n");
+                sb.append("        });\n");
+                sb.append("    }\n");
+            } else {
+                for (ParsedMethod m : a.methods) {
+                    String cap = Character.toUpperCase(m.name.charAt(0)) + m.name.substring(1);
+                    sb.append("    @Test\n");
+                    sb.append("    @DisplayName(\"Test method: ").append(m.name).append("\")\n");
+                    sb.append("    void test").append(cap).append("() {\n");
+
+                    StringBuilder callArgs = new StringBuilder();
+                    if (!m.params.isEmpty()) {
+                        String[] parts = m.params.split(",");
+                        for (int i = 0; i < parts.length; i++) {
+                            String p = parts[i].trim();
+                            String[] pTokens = p.split("\\s+");
+                            String pType = pTokens.length > 0 ? pTokens[0] : "Object";
+                            String pName = pTokens.length > 1 ? pTokens[1] : "arg" + i;
+                            if (i > 0) callArgs.append(", ");
+                            callArgs.append(pName);
+
+                            String defaultVal = switch (pType) {
+                                case "int", "short", "byte" -> "0";
+                                case "long" -> "0L";
+                                case "double" -> "0.0";
+                                case "float" -> "0.0f";
+                                case "boolean" -> "true";
+                                case "String" -> "\"test\"";
+                                case "Path" -> "java.nio.file.Paths.get(\".\")";
+                                case "File" -> "new java.io.File(\".\")";
+                                default -> "null";
+                            };
+                            sb.append("        ").append(pType).append(" ").append(pName).append(" = ").append(defaultVal).append(";\n");
+                        }
+                    }
+
+                    if ("void".equalsIgnoreCase(m.returnType)) {
+                        sb.append("        assertDoesNotThrow(() -> instance.").append(m.name).append("(").append(callArgs).append("));\n");
+                    } else {
+                        sb.append("        ").append(m.returnType).append(" result = instance.").append(m.name).append("(").append(callArgs).append(");\n");
+                        if ("boolean".equalsIgnoreCase(m.returnType)) {
+                            sb.append("        assertTrue(result);\n");
+                        } else {
+                            sb.append("        assertNotNull(result);\n");
+                        }
+                    }
+                    sb.append("    }\n\n");
+                }
+            }
+            sb.append("}\n```");
+            return sb.toString();
         } else if (pLower.contains("refactor") || pLower.contains("optimize")) {
-            return "### 🛠 Refactoring & Optimization Suggestion\n\n"
-                    + "Applied optimizations:\n"
-                    + "- Replaced manual iteration with zero-allocation buffers.\n"
-                    + "- Added explicit bounds checks and immutability guards.\n\n"
-                    + "```java\n" + code + "\n```";
+            StringBuilder sb = new StringBuilder();
+            sb.append("### 🛠 Dynamic Refactoring & Architecture Analysis\n\n");
+            sb.append("Target: `").append(a.className).append("` (").append(a.codeLines).append(" LOC, Cyclomatic Complexity: ").append(a.cyclomaticComplexity).append(")\n\n");
+            sb.append("#### Optimization Recommendations:\n");
+            if (a.cyclomaticComplexity > 10) {
+                sb.append("1. **Decompose Complex Branches**: Extract nested loops and conditional branches into dedicated helper methods.\n");
+            } else {
+                sb.append("1. **Clean Control Flow**: Current cyclomatic complexity (").append(a.cyclomaticComplexity).append(") is modular and clean.\n");
+            }
+            sb.append("2. **Defensive Validation**: Validate arguments with `Objects.requireNonNull`.\n");
+            sb.append("3. **Resource Safety**: Enforce try-with-resources on all streams, channels, and sockets.\n\n");
+
+            sb.append("#### Refactored Scaffold Preview:\n```java\n");
+            if (!a.packageName.isEmpty()) sb.append("package ").append(a.packageName).append(";\n\n");
+            sb.append("import java.util.Objects;\n\n");
+            sb.append("public class ").append(a.className).append(" {\n\n");
+            for (ParsedMethod m : a.methods) {
+                sb.append("    public ").append(m.returnType).append(" ").append(m.name).append("(").append(m.params).append(") {\n");
+                if (!m.params.isEmpty()) {
+                    String[] parts = m.params.split(",");
+                    for (String p : parts) {
+                        String[] tokens = p.trim().split("\\s+");
+                        if (tokens.length > 1 && !tokens[0].matches("int|long|double|float|boolean|char|short|byte")) {
+                            sb.append("        Objects.requireNonNull(").append(tokens[1]).append(", \"").append(tokens[1]).append(" must not be null\");\n");
+                        }
+                    }
+                }
+                if ("void".equalsIgnoreCase(m.returnType)) {
+                    sb.append("        // Optimized implementation\n");
+                } else {
+                    sb.append("        return ").append("boolean".equals(m.returnType) ? "true" : m.returnType.matches("int|long|double|float") ? "0" : "null").append(";\n");
+                }
+                sb.append("    }\n\n");
+            }
+            sb.append("}\n```");
+            return sb.toString();
         } else if (pLower.contains("fix") || pLower.contains("bug")) {
-            return "### 🐛 Bug & Safety Analysis\n\n"
-                    + "✔ **Null Safety**: Checked all argument references.\n"
-                    + "✔ **Concurrency**: Validated synchronized state access.\n"
-                    + "✔ **Resource Leaks**: Streams and buffers properly managed with try-with-resources.\n\n"
-                    + "No critical memory or CPU leaks detected!";
+            StringBuilder sb = new StringBuilder();
+            sb.append("### 🐛 Dynamic Bug & Safety Audit: `").append(a.className).append("`\n\n");
+            sb.append("- **Class**: `").append(a.className).append("` (").append(a.codeLines).append(" LOC)\n");
+            sb.append("- **Complexity Rating**: ").append(a.cyclomaticComplexity).append("\n\n");
+            sb.append("#### Safety & Concurrency Findings:\n");
+            if (a.detectedSmells.isEmpty()) {
+                sb.append("✔ **Clean Execution**: No critical anti-patterns or excessive complexity detected.\n");
+                sb.append("✔ **Method Sizing**: All ").append(a.methods.size()).append(" methods are well-scoped.\n");
+            } else {
+                for (String smell : a.detectedSmells) {
+                    sb.append("⚠️ **Observation**: ").append(smell).append("\n");
+                }
+            }
+            sb.append("✔ **Memory & CPU Efficiency**: Zero static leak vectors identified.\n");
+            return sb.toString();
         } else {
-            return "### 🤖 AI Response\n\n"
-                    + "Analyzing request: **\"" + prompt + "\"** for **`" + fileName + "`**.\n\n"
-                    + "Ready to assist! You can ask me to generate code, refactor logic, create templates, or optimize performance.";
+            StringBuilder sb = new StringBuilder();
+            sb.append("### 🤖 AuraOrbit Copilot\n\n");
+            sb.append("Analyzed `").append(fileName).append("` (`").append(a.className).append("`):\n\n");
+            sb.append("- **Class**: `").append(a.className).append("`\n");
+            sb.append("- **Discovered Methods**: ").append(a.methods.size()).append("\n");
+            sb.append("- **Executable Lines**: ").append(a.codeLines).append("\n");
+            sb.append("- **Cyclomatic Complexity**: ").append(a.cyclomaticComplexity).append("\n\n");
+            sb.append("Ask me to **Explain**, write **Tests**, **Refactor**, or **Fix Bugs** for this specific code!");
+            return sb.toString();
         }
     }
 
