@@ -41,8 +41,8 @@ public class ActivityBar extends VBox {
     public ActivityBar() {
         getStyleClass().add("activity-bar");
         setAlignment(Pos.TOP_CENTER);
-        setSpacing(6);
         setPrefWidth(48);
+        setSpacing(4);
 
         explorerBtn = createIconButton(Codicons.FILES, "Explorer (Cmd/Ctrl+Shift+E)", Panel.EXPLORER);
         templatesBtn = createIconButton(Codicons.PACKAGE, "Templates & Scaffolds", Panel.TEMPLATES);

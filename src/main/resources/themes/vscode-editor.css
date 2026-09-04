@@ -49,3 +49,386 @@
 .vscode-code-editor .scroll-bar:vertical {
     -fx-opacity: 0.8;
 }
+
+/* ── Soft / modern shell: rounded panels, pills, subtle separators ── */
+
+.main-container {
+    -fx-background-color: -bg-primary;
+}
+
+.activity-bar {
+    -fx-padding: 6 4 6 4;
+    -fx-border-color: transparent -border-color transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+.activity-button {
+    -fx-background-radius: 8;
+    -fx-background-insets: 0;
+    -fx-padding: 7 6 7 6;
+}
+
+.sidebar {
+    -fx-background-color: -bg-sidebar;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-background-insets: 6 3 6 4;
+    -fx-border-insets: 6 3 6 4;
+    -fx-padding: 6 3 6 4;
+}
+
+.sidebar-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent derive(-border-color, 10%) transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-background-radius: 12 12 0 0;
+}
+
+.tree-cell {
+    -fx-background-radius: 4;
+    -fx-background-insets: 1 6 1 6;
+}
+
+.editor-split-pane {
+    -fx-background-color: -bg-primary;
+    -fx-padding: 0;
+}
+
+.editor-split-pane > .split-pane-divider {
+    -fx-background-color: transparent;
+    -fx-padding: 0 2 0 2;
+}
+
+.editor-split-pane:vertical > .split-pane-divider {
+    -fx-padding: 2 0 2 0;
+}
+
+.tab-pane {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+}
+
+.tab-pane > .tab-header-area {
+    -fx-background-color: transparent;
+    -fx-padding: 4 6 0 6;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-radius: 6 6 0 0;
+    -fx-border-radius: 6 6 0 0;
+    -fx-border-width: 1 1 0 1;
+    -fx-border-color: transparent;
+    -fx-padding: 6 12 6 12;
+}
+
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-border-color: -border-color -border-color transparent -border-color;
+    -fx-border-width: 1 1 0 1;
+    -fx-background-radius: 6 6 0 0;
+}
+
+.tab-pane > .tab-content-area {
+    -fx-background-color: -bg-editor;
+    -fx-background-radius: 0 8 8 8;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-border-radius: 0 8 8 8;
+    -fx-background-insets: 0 6 6 6;
+    -fx-border-insets: 0 6 6 6;
+}
+
+.status-bar {
+    -fx-padding: 2 8 2 8;
+    -fx-spacing: 2;
+}
+
+.status-item {
+    -fx-padding: 2 8 2 8;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+
+.status-item:hover {
+    -fx-background-color: derive(-bg-status-bar, 18%);
+    -fx-background-radius: 4;
+}
+
+.btn-modern {
+    -fx-background-radius: 999;
+    -fx-padding: 6 16 6 16;
+}
+
+.editor-run-button {
+    -fx-background-color: rgba(137, 209, 133, 0.14);
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-color: rgba(137, 209, 133, 0.38);
+    -fx-border-width: 1;
+    -fx-padding: 4 14 4 12;
+    -fx-cursor: hand;
+}
+
+.editor-run-button.run-blocked {
+    -fx-background-color: rgba(241, 76, 76, 0.14);
+    -fx-border-color: rgba(241, 76, 76, 0.38);
+}
+
+.ai-assistant-pane {
+    -fx-background-color: -bg-sidebar;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-background-insets: 6 6 6 3;
+    -fx-border-insets: 6 6 6 3;
+    -fx-padding: 0;
+}
+
+.ai-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 0 4 0 0;
+}
+
+.ai-panel-tab {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-padding: 8 10 7 10;
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-cursor: hand;
+}
+
+.ai-panel-tab.active {
+    -fx-text-fill: -text-primary;
+    -fx-border-color: transparent transparent -accent-color transparent;
+}
+
+.ai-icon-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-padding: 4 6 4 6;
+    -fx-cursor: hand;
+    -fx-min-width: 26;
+    -fx-min-height: 26;
+}
+
+.ai-icon-btn:hover {
+    -fx-background-color: -bg-hover;
+}
+
+.ai-quick-actions {
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.ai-quick-scroll, .ai-chat-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.ai-action-chip {
+    -fx-background-color: derive(-bg-editor, 8%);
+    -fx-text-fill: -text-primary;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-font-size: 11px;
+    -fx-padding: 3 10 3 8;
+    -fx-cursor: hand;
+}
+
+.ai-action-chip:hover {
+    -fx-background-color: -bg-hover;
+}
+
+.ai-context-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-secondary;
+    -fx-padding: 0 2 0 2;
+}
+
+.ai-composer {
+    -fx-background-color: derive(-bg-editor, 4%);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-padding: 8 8 8 8;
+}
+
+.ai-composer:focused-within {
+    -fx-border-color: -accent-color;
+}
+
+.ai-composer-bar {
+    -fx-padding: 2 0 0 0;
+}
+
+.ai-prompt-input {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-text-fill: -text-primary;
+    -fx-prompt-text-fill: -text-secondary;
+    -fx-font-size: 13px;
+    -fx-padding: 0;
+}
+
+.ai-prompt-input .content {
+    -fx-background-color: transparent;
+    -fx-padding: 2 4 2 4;
+}
+
+.ai-prompt-input .prompt-text {
+    -fx-fill: -text-secondary;
+}
+
+.ai-prompt-input:focused {
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+}
+
+.ai-model-pill {
+    -fx-background-color: -bg-secondary;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-color: -border-color;
+    -fx-padding: 0 4 0 8;
+    -fx-font-size: 11px;
+}
+
+.ai-model-pill .list-cell {
+    -fx-font-size: 11px;
+    -fx-padding: 3 8 3 8;
+}
+
+.ai-send-btn {
+    -fx-background-color: -accent-color;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 0;
+    -fx-min-width: 28;
+    -fx-min-height: 28;
+    -fx-max-width: 28;
+    -fx-max-height: 28;
+    -fx-cursor: hand;
+}
+
+.ai-send-btn:hover {
+    -fx-background-color: -accent-hover;
+}
+
+.ai-send-btn:disabled {
+    -fx-opacity: 0.45;
+}
+
+.terminal-pane {
+    -fx-background-color: -bg-secondary;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-background-insets: 2 6 6 6;
+    -fx-border-insets: 2 6 6 6;
+}
+
+.terminal-header {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8 8 0 0;
+}
+
+.dock-segment {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-spacing: 2;
+}
+
+.dock-tab-btn {
+    -fx-background-radius: 0;
+    -fx-padding: 6 10 5 10;
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-font-weight: 600;
+    -fx-font-size: 11px;
+}
+
+.dock-tab-btn.active {
+    -fx-background-color: transparent;
+    -fx-text-fill: -text-primary;
+    -fx-border-color: transparent transparent -accent-color transparent;
+}
+
+.terminal-session-chip {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.terminal-header-btn {
+    -fx-background-radius: 999;
+}
+
+.dock-filter-input {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.dock-action-btn {
+    -fx-background-radius: 999;
+}
+
+.command-palette-box {
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 22, 0, 0, 8);
+}
+
+.command-palette-input {
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.shortcut-badge {
+    -fx-background-radius: 999;
+    -fx-padding: 2 8 2 8;
+}
+
+.search-bar {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.text-field {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
+.scroll-bar .thumb {
+    -fx-background-radius: 8;
+}
+
+.combo-box {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+.ai-prompt-input .scroll-pane,
+.ai-prompt-input .scroll-pane .viewport,
+.ai-prompt-input .scroll-pane .content {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+
+.ai-prompt-input .scroll-bar:vertical {
+    -fx-pref-width: 8;
+}

@@ -121,12 +121,12 @@ public class FxEditorController {
         // Create default initial tab
         createNewTab("untitled.txt");
 
-        // Dynamic initial scan for workspace problems and warnings
-        Platform.runLater(() -> {
+        // Deferred workspace scan — avoid hitching the first paint
+        diagnosticDebounceExecutor.schedule(() -> Platform.runLater(() -> {
             if (terminalPane != null) {
                 terminalPane.scanWorkspaceForProblems();
             }
-        });
+        }), 1200, TimeUnit.MILLISECONDS);
 
         // Initial run button state
         refreshRunAvailability();
@@ -889,25 +889,20 @@ public class FxEditorController {
         final String finalMissingTool = missingTool;
         final boolean finalCanRun = canRun;
         Platform.runLater(() -> {
+            runButton.getStyleClass().removeAll("run-ready", "run-blocked");
             if (finalCanRun) {
-                runButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #89d185; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
+                runButton.getStyleClass().add("run-ready");
                 runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#89d185"));
+                runButton.setTextFill(javafx.scene.paint.Color.web("#89d185"));
                 runButton.setTooltip(new Tooltip("Run Active File (F5)"));
-                runButton.setOnMouseClicked(e -> runActiveFile());
             } else {
-                runButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #f14c4c; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
+                runButton.getStyleClass().add("run-blocked");
                 runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#f14c4c"));
-                String tooltipText = finalMissingTool != null 
-                    ? "Install " + finalMissingTool + " to run this file" 
+                runButton.setTextFill(javafx.scene.paint.Color.web("#f14c4c"));
+                String tooltipText = finalMissingTool != null
+                    ? "Install " + finalMissingTool + " to run this file"
                     : "No runner configured for this file type";
                 runButton.setTooltip(new Tooltip(tooltipText));
-                runButton.setOnMouseClicked(e -> {
-                    if (finalMissingTool != null) {
-                        showRunMessage("Required tool not found: " + finalMissingTool + "\n\nPlease install " + finalMissingTool + " to run this file.");
-                    } else {
-                        showRunMessage("No runner is configured for this file type.\n\nSupported: Java, Python, JavaScript, Bash, Ruby, C, and C++.");
-                    }
-                });
             }
         });
     }

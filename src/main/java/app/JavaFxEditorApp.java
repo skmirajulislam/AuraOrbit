@@ -76,8 +76,8 @@ public class JavaFxEditorApp extends Application {
         runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#89d185"));
         runButton.setTooltip(new Tooltip("Run Active File (F5). Type runtime input in the terminal."));
         runButton.getStyleClass().add("editor-run-button");
-        runButton.setStyle("-fx-background-color: transparent; -fx-text-fill: -text-primary; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
         runButton.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        runButton.setPickOnBounds(true);
         runButton.setOnAction(e -> controller.runActiveFile());
         editorCenterStack.getChildren().add(runButton);
         StackPane.setAlignment(runButton, Pos.TOP_RIGHT);

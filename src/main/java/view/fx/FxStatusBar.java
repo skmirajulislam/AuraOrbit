@@ -45,8 +45,8 @@ public class FxStatusBar extends HBox {
     public FxStatusBar(ThemeService themeService) {
         getStyleClass().add("status-bar");
         setAlignment(Pos.CENTER_LEFT);
-        setSpacing(10);
-        setPadding(new Insets(2, 10, 2, 10));
+        setSpacing(4);
+        setPadding(new Insets(2, 8, 2, 8));
 
         // 1. Left items: Git Branch + Sync + Problems
         gitBranchLabel = new Label(" " + detectGitBranch());

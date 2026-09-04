@@ -164,6 +164,7 @@ public class TerminalPane extends BorderPane {
     private VBox portsEmptyState;
     private TextField portFilterField;
     private Label portCountBadge;
+    private boolean portsScannedOnce;
 
     public TerminalPane() {
         getStyleClass().add("terminal-pane");
@@ -204,10 +205,10 @@ public class TerminalPane extends BorderPane {
     // Header & Tab Switching
     // ─────────────────────────────────────────────────────────────────────────
     private HBox buildDockHeader() {
-        HBox header = new HBox(12);
+        HBox header = new HBox(8);
         header.getStyleClass().add("terminal-header");
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(3, 10, 3, 14));
+        header.setPadding(new Insets(4, 10, 4, 10));
 
         problemsTabBtn = createTabButton("PROBLEMS", "0", DockTab.PROBLEMS);
         outputTabBtn = createTabButton("OUTPUT", null, DockTab.OUTPUT);
@@ -215,21 +216,19 @@ public class TerminalPane extends BorderPane {
         terminalTabBtn = createTabButton("TERMINAL", null, DockTab.TERMINAL);
         portsTabBtn = createTabButton("PORTS", null, DockTab.PORTS);
 
+        HBox dockSegment = new HBox(2);
+        dockSegment.getStyleClass().add("dock-segment");
+        dockSegment.setAlignment(Pos.CENTER_LEFT);
+        dockSegment.getChildren().addAll(
+                problemsTabBtn, outputTabBtn, debugTabBtn, terminalTabBtn, portsTabBtn);
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         contextualActionsBox = new HBox(6);
         contextualActionsBox.setAlignment(Pos.CENTER_RIGHT);
 
-        header.getChildren().addAll(
-                problemsTabBtn,
-                outputTabBtn,
-                debugTabBtn,
-                terminalTabBtn,
-                portsTabBtn,
-                spacer,
-                contextualActionsBox
-        );
+        header.getChildren().addAll(dockSegment, spacer, contextualActionsBox);
         return header;
     }
 
@@ -287,6 +286,10 @@ public class TerminalPane extends BorderPane {
             case PORTS -> {
                 portsTabBtn.getStyleClass().add("active");
                 portsView.setVisible(true);
+                if (!portsScannedOnce) {
+                    portsScannedOnce = true;
+                    scanLocalPorts();
+                }
             }
         }
     }
@@ -1345,9 +1348,6 @@ public class TerminalPane extends BorderPane {
         portsEmptyState.getChildren().addAll(towerIcon, emptyTitle, emptySubtitle);
 
         root.getChildren().addAll(subHeader, scrollPane);
-
-        // Initial scan of actual OS listening ports
-        scanLocalPorts();
         return root;
     }
 

@@ -48,15 +48,14 @@ public class AiAssistantPane extends VBox {
         setMaxWidth(460);
         VBox.setVgrow(this, Priority.ALWAYS);
 
-        // Header
-        HBox header = new HBox(8);
+        // Header — VS Code Chat-style tabs + icon actions
+        HBox header = new HBox(4);
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(14, 12, 12, 12));
+        header.setPadding(new Insets(4, 8, 0, 10));
         header.getStyleClass().add("ai-header");
 
-        Label title = new Label(" AI COPILOT");
-        title.setGraphic(IconFactory.getIcon(Codicons.HUBOT, 14, "#4ea8de"));
-        title.setStyle("-fx-font-weight: bold; -fx-font-size: 11.5px; -fx-text-fill: -accent-color;");
+        Label chatTab = new Label("Chat");
+        chatTab.getStyleClass().addAll("ai-panel-tab", "active");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -70,14 +69,14 @@ public class AiAssistantPane extends VBox {
                 "DeepSeek-R1 14B (Local / Ollama)",
                 "Offline Copilot (Built-in)"
         );
-        // The offline model works immediately; external models remain opt-in
-        // after the user has configured the corresponding API key.
         modelSelector.getSelectionModel().select("Offline Copilot (Built-in)");
-        modelSelector.setStyle("-fx-font-size: 11px; -fx-pref-width: 155px;");
+        modelSelector.getStyleClass().add("ai-model-pill");
+        modelSelector.setMaxWidth(168);
+        modelSelector.setPrefWidth(168);
 
         Button keyBtn = new Button();
         keyBtn.setGraphic(IconFactory.getIcon(Codicons.KEY, 13, "#cca700"));
-        keyBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 0 4 0 4;");
+        keyBtn.getStyleClass().add("ai-icon-btn");
         keyBtn.setTooltip(new Tooltip("Configure API Keys (Gemini, GPT, Grok)"));
         keyBtn.setOnAction(e -> {
             if (onConfigureApiKeysRequested != null) onConfigureApiKeysRequested.run();
@@ -85,65 +84,57 @@ public class AiAssistantPane extends VBox {
 
         Button closeBtn = new Button();
         closeBtn.setGraphic(IconFactory.getIcon(Codicons.CLOSE, 12));
-        closeBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 0 4 0 4;");
+        closeBtn.getStyleClass().add("ai-icon-btn");
         closeBtn.setOnAction(e -> {
             if (onCloseRequested != null) onCloseRequested.run();
         });
 
-        header.getChildren().addAll(title, spacer, modelSelector, keyBtn, closeBtn);
+        header.getChildren().addAll(chatTab, spacer, keyBtn, closeBtn);
 
         // Quick Actions Bar
         HBox quickActions = new HBox(6);
-        quickActions.setPadding(new Insets(10, 12, 10, 12));
+        quickActions.setPadding(new Insets(8, 12, 8, 12));
         quickActions.setAlignment(Pos.CENTER_LEFT);
-        quickActions.setStyle("-fx-border-color: transparent transparent -border-color transparent; -fx-border-width: 0 0 1 0;");
+        quickActions.getStyleClass().add("ai-quick-actions");
 
         Button explainBtn = createActionChip(Codicons.LIGHTBULB, "Explain", () -> handleQuickAction("Explain this code step-by-step with complexity analysis."));
         Button refactorBtn = createActionChip(Codicons.TOOLS, "Refactor", () -> handleQuickAction("Refactor this code for readability, performance, and clean architecture."));
         Button testsBtn = createActionChip(Codicons.BEAKER, "Tests", () -> handleQuickAction("Write comprehensive JUnit 5 unit tests for this code covering all edge cases."));
         Button fixBugsBtn = createActionChip(Codicons.BUG, "Fix Bugs", () -> handleQuickAction("Analyze this code for potential null pointer exceptions, resource leaks, or concurrency bugs, and provide the fix."));
 
-        // Keep the padded bar itself as the scroll content; previously this
-        // accidentally used a new HBox and discarded the requested spacing.
         quickActions.getChildren().addAll(explainBtn, refactorBtn, testsBtn, fixBugsBtn);
         ScrollPane quickScroll = new ScrollPane(quickActions);
         quickScroll.setFitToHeight(true);
+        quickScroll.setFitToWidth(true);
         quickScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         quickScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        quickScroll.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-padding: 2 6 2 6;");
+        quickScroll.getStyleClass().add("ai-quick-scroll");
 
         // Chat messages log
-        chatMessagesContainer = new VBox(10);
-        chatMessagesContainer.setPadding(new Insets(12));
-        chatMessagesContainer.setStyle("-fx-background-color: transparent;");
+        chatMessagesContainer = new VBox(8);
+        chatMessagesContainer.setPadding(new Insets(8, 12, 8, 12));
+        chatMessagesContainer.getStyleClass().add("ai-chat-list");
 
         scrollPane = new ScrollPane(chatMessagesContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        scrollPane.getStyleClass().add("ai-chat-scroll");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        // Initial welcome message
         addAssistantMessage("Hello! I'm **AuraOrbit Copilot**.\n\n"
                 + "I can help you write code, debug issues, generate tests, and refactor your project.\n\n"
                 + "Select code in the editor or click one of the quick actions above to start!");
 
-        // Context Badge
-        contextLabel = new Label(" Active context: (none)");
-        contextLabel.setGraphic(IconFactory.getIcon(Codicons.FILE_CODE, 12));
-        contextLabel.setStyle("-fx-font-size: 10.5px; -fx-text-fill: -text-secondary; -fx-padding: 2 12 8 12;");
-
-        // Input Area
-        VBox inputArea = new VBox(6);
-        inputArea.setPadding(new Insets(8, 12, 10, 12));
-        inputArea.setStyle("-fx-border-color: -border-color transparent transparent transparent; -fx-border-width: 1 0 0 0;");
+        contextLabel = new Label(" No file");
+        contextLabel.setGraphic(IconFactory.getIcon(Codicons.FILE_CODE, 11));
+        contextLabel.getStyleClass().add("ai-context-label");
 
         promptInput = new TextArea();
-        promptInput.setPromptText("Ask Copilot anything — Cmd/Ctrl+Enter to send");
-        promptInput.setPrefRowCount(3);
+        promptInput.setPromptText("Do anything");
+        promptInput.setPrefRowCount(2);
+        promptInput.setMinHeight(52);
         promptInput.setWrapText(true);
         promptInput.getStyleClass().add("ai-prompt-input");
-
         promptInput.setOnKeyPressed(e -> {
             if (e.isShortcutDown() && e.getCode() == javafx.scene.input.KeyCode.ENTER) {
                 sendMessage();
@@ -151,36 +142,45 @@ public class AiAssistantPane extends VBox {
             }
         });
 
-        HBox sendBar = new HBox(8);
-        sendBar.setAlignment(Pos.CENTER_RIGHT);
-
-        Button clearBtn = new Button("Clear Chat");
-        clearBtn.setGraphic(IconFactory.getIcon(Codicons.CLEAR_ALL, 12));
-        clearBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: -text-secondary; -fx-font-size: 11px; -fx-cursor: hand;");
-        clearBtn.setOnAction(e -> {
+        Button newChatBtn = new Button();
+        newChatBtn.setGraphic(IconFactory.getIcon(Codicons.ADD, 13));
+        newChatBtn.getStyleClass().add("ai-icon-btn");
+        newChatBtn.setTooltip(new Tooltip("New chat"));
+        newChatBtn.setOnAction(e -> {
             chatMessagesContainer.getChildren().clear();
             addAssistantMessage("Chat history cleared. Ready for your next request!");
         });
 
-        Region inputSpacer = new Region();
-        HBox.setHgrow(inputSpacer, Priority.ALWAYS);
+        Region composerSpacer = new Region();
+        HBox.setHgrow(composerSpacer, Priority.ALWAYS);
 
-        sendButton = new Button("Send ");
-        sendButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 11, "#ffffff"));
-        sendButton.getStyleClass().add("btn-modern");
-        sendButton.setStyle("-fx-font-size: 11px; -fx-font-weight: bold;");
+        sendButton = new Button();
+        sendButton.setGraphic(IconFactory.getIcon(Codicons.ARROW_UP, 13, "#ffffff"));
+        sendButton.getStyleClass().add("ai-send-btn");
+        sendButton.setTooltip(new Tooltip("Send (Cmd/Ctrl+Enter)"));
         sendButton.setOnAction(e -> sendMessage());
 
-        sendBar.getChildren().addAll(clearBtn, inputSpacer, sendButton);
-        inputArea.getChildren().addAll(promptInput, sendBar);
+        HBox composerBar = new HBox(6);
+        composerBar.setAlignment(Pos.CENTER_LEFT);
+        composerBar.getStyleClass().add("ai-composer-bar");
+        composerBar.getChildren().addAll(newChatBtn, composerSpacer, modelSelector, sendButton);
 
-        getChildren().addAll(header, quickScroll, scrollPane, contextLabel, inputArea);
+        VBox composer = new VBox(4);
+        composer.getStyleClass().add("ai-composer");
+        composer.getChildren().addAll(promptInput, composerBar);
+
+        VBox inputArea = new VBox(6);
+        inputArea.setPadding(new Insets(4, 10, 10, 10));
+        inputArea.getStyleClass().add("ai-input-area");
+        inputArea.getChildren().addAll(contextLabel, composer);
+
+        getChildren().addAll(header, quickScroll, scrollPane, inputArea);
     }
 
     private Button createActionChip(Codicons icon, String text, Runnable action) {
         Button btn = new Button(" " + text);
         btn.setGraphic(IconFactory.getIcon(icon, 12));
-        btn.setStyle("-fx-background-color: -bg-secondary; -fx-text-fill: -text-primary; -fx-border-color: -border-color; -fx-border-radius: 12; -fx-background-radius: 12; -fx-font-size: 11px; -fx-padding: 3 8 3 8; -fx-cursor: hand;");
+        btn.getStyleClass().add("ai-action-chip");
         btn.setOnAction(e -> action.run());
         return btn;
     }
@@ -587,7 +587,7 @@ public class AiAssistantPane extends VBox {
         Label label = new Label(text);
         label.setWrapText(true);
         label.maxWidthProperty().bind(scrollPane.widthProperty().subtract(56));
-        label.setStyle("-fx-background-color: -accent-color; -fx-text-fill: #ffffff; -fx-padding: 8 12 8 12; -fx-background-radius: 12 12 2 12; -fx-font-size: 12.5px;");
+        label.setStyle("-fx-background-color: -accent-color; -fx-text-fill: #ffffff; -fx-padding: 7 11 7 11; -fx-background-radius: 10 10 3 10; -fx-font-size: 12.5px;");
 
         msgBox.getChildren().add(label);
         chatMessagesContainer.getChildren().add(msgBox);
@@ -602,7 +602,7 @@ public class AiAssistantPane extends VBox {
 
         VBox contentBox = new VBox(8);
         contentBox.maxWidthProperty().bind(scrollPane.widthProperty().subtract(44));
-        contentBox.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-padding: 10 12 10 12; -fx-background-radius: 2 12 12 12; -fx-border-radius: 2 12 12 12;");
+        contentBox.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-padding: 9 11 9 11; -fx-background-radius: 3 10 10 10; -fx-border-radius: 3 10 10 10;");
 
         // Split markdown by code fences ```
         String[] parts = markdown.split("```");

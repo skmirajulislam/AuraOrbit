@@ -52,7 +52,7 @@ public class ModalOverlayPane extends StackPane {
         // instead of stretching it to the available window height.
         dialogCard.setMaxHeight(Region.USE_PREF_SIZE);
         dialogCard.setAlignment(Pos.TOP_LEFT);
-        dialogCard.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 24, 0, 0, 8);");
+        dialogCard.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-border-radius: 14; -fx-background-radius: 14; -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 24, 0, 0, 8);");
         dialogCard.setOnMouseClicked(javafx.event.Event::consume);
 
         // Header
