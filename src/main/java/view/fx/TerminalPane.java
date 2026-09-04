@@ -43,7 +43,7 @@ public class TerminalPane extends BorderPane {
         ThreadFactory daemonFactory = r -> {
             Thread t = new Thread(r);
             t.setDaemon(true);
-            t.setName("terminal-io-" + t.getId());
+            t.setName("terminal-io-" + t.threadId());
             return t;
         };
         ioExecutor = Executors.newCachedThreadPool(daemonFactory);
@@ -219,14 +219,15 @@ public class TerminalPane extends BorderPane {
             return new String[]{"cmd.exe", "/Q"};
         } else {
             // macOS / Linux — use SHELL env or fallback to /bin/zsh then /bin/bash
+            // Do NOT use -i (interactive) flag — ProcessBuilder has no PTY, causing TTY read errors
             String shell = System.getenv("SHELL");
             if (shell != null && new File(shell).exists()) {
-                return new String[]{shell, "-i"};
+                return new String[]{shell};
             }
             if (new File("/bin/zsh").exists()) {
-                return new String[]{"/bin/zsh", "-i"};
+                return new String[]{"/bin/zsh"};
             }
-            return new String[]{"/bin/bash", "-i"};
+            return new String[]{"/bin/bash"};
         }
     }
 
@@ -394,6 +395,9 @@ public class TerminalPane extends BorderPane {
                 historyIndex = commandHistory.size();
             }
 
+            // Echo command to terminal output
+            appendOutput("❯ " + command + "\n");
+
             try {
                 processWriter.write(command);
                 processWriter.newLine();
@@ -461,8 +465,16 @@ public class TerminalPane extends BorderPane {
                 try { processWriter.close(); } catch (IOException ignored) {}
             }
             if (process != null) {
-                process.descendants().forEach(ProcessHandle::destroyForcibly);
-                process.destroyForcibly();
+                process.destroy(); // graceful SIGTERM
+                try {
+                    // Wait briefly for graceful exit
+                    if (!process.waitFor(500, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                        process.destroyForcibly(); // force SIGKILL if still alive
+                    }
+                } catch (InterruptedException e) {
+                    process.destroyForcibly();
+                    Thread.currentThread().interrupt();
+                }
             }
         }
     }

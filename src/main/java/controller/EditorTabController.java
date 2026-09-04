@@ -1,6 +1,6 @@
 package controller;
 
-import command.CommandManager;
+
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
@@ -30,7 +30,7 @@ public class EditorTabController {
     private final Tab tab;
     private final CodeEditorPane editorPane;
     private final FileService fileService;
-    private final CommandManager commandManager;
+
 
     private final HBox tabHeaderBox;
     private final Label titleLabel;
@@ -47,7 +47,6 @@ public class EditorTabController {
 
     public EditorTabController(String initialName, FileService fileService) {
         this.fileService = fileService;
-        this.commandManager = new CommandManager(100);
         this.document = new Document(initialName);
         this.editorPane = new CodeEditorPane();
         this.tab = new Tab("", editorPane);
@@ -89,7 +88,6 @@ public class EditorTabController {
 
     public EditorTabController(Path filePath, FileService fileService) throws IOException {
         this.fileService = fileService;
-        this.commandManager = new CommandManager(100);
         this.editorPane = new CodeEditorPane();
         this.tab = new Tab("", editorPane);
         this.tab.setClosable(false);

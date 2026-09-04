@@ -78,6 +78,7 @@
                     <mainClass>Main</mainClass>
                     <options>
                         <option>--enable-native-access=ALL-UNNAMED,javafx.graphics</option>
+                        <option>--sun-misc-unsafe-memory-access=allow</option>
                         <option>-Dprism.marlin.offheap=false</option>
                         <option>-Dprism.verbose=false</option>
                     </options>

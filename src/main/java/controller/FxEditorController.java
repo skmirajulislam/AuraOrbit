@@ -1,7 +1,6 @@
 package controller;
 
 import javafx.application.Platform;
-import javafx.geometry.Orientation;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
