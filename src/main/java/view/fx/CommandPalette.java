@@ -73,7 +73,8 @@ public class CommandPalette extends VBox {
         setSpacing(6);
         setPadding(new Insets(8));
         setPrefWidth(540);
-        setMaxWidth(580);
+        setMaxWidth(540);
+        setMaxHeight(Region.USE_PREF_SIZE);
         setVisible(false);
         setManaged(false);
 
@@ -82,7 +83,8 @@ public class CommandPalette extends VBox {
         searchField.getStyleClass().add("command-palette-input");
 
         listView = new ListView<>(filteredCommands);
-        listView.setPrefHeight(260);
+        listView.setPrefHeight(280);
+        listView.setMaxHeight(280);
         listView.getStyleClass().add("command-palette-list");
 
         // Custom Cell Factory for VS Code styling
@@ -159,6 +161,20 @@ public class CommandPalette extends VBox {
         listView.setOnMouseClicked(e -> {
             if (e.getClickCount() == 1 || e.getClickCount() == 2) {
                 executeSelected();
+            }
+        });
+
+        // Click outside anywhere in scene dismisses Command Palette
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null) {
+                newScene.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+                    if (isVisible()) {
+                        javafx.geometry.Bounds bounds = localToScene(getBoundsInLocal());
+                        if (bounds != null && !bounds.contains(e.getSceneX(), e.getSceneY())) {
+                            hidePalette();
+                        }
+                    }
+                });
             }
         });
 

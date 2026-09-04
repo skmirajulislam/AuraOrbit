@@ -9,11 +9,11 @@ import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.javafx.FontIcon;
+import service.CodeDiagnosticsService;
 
 import java.awt.Desktop;
 import java.io.*;
@@ -22,7 +22,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.URI;
-import javax.tools.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -108,6 +107,7 @@ public class TerminalPane extends BorderPane {
 
     // Dock Tab State
     private DockTab currentTab = DockTab.TERMINAL;
+    public DockTab getCurrentTab() { return currentTab; }
 
     // PROBLEMS Tab State
     public record ProblemItem(Codicons icon, String severity, String message, String file, int line, int column, String source) {}
@@ -124,6 +124,7 @@ public class TerminalPane extends BorderPane {
     private final Map<String, TextArea> outputChannels = new LinkedHashMap<>();
     private ComboBox<String> outputChannelCombo;
     private StackPane outputAreaStack;
+    private final java.util.concurrent.atomic.AtomicBoolean isGitQueryRunning = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     // DEBUG CONSOLE Tab State
     private VBox debugHistoryBox;
@@ -751,7 +752,11 @@ public class TerminalPane extends BorderPane {
                 Region spacer = new Region();
                 HBox.setHgrow(spacer, Priority.ALWAYS);
 
-                Label locLabel = new Label(item.file + ":" + item.line + ":" + item.column);
+                String displayFileName = item.file;
+                try {
+                    displayFileName = Paths.get(item.file).getFileName().toString();
+                } catch (Exception ignored) {}
+                Label locLabel = new Label(displayFileName + ":" + item.line + ":" + item.column);
                 locLabel.setStyle("-fx-text-fill: -text-secondary; -fx-font-size: 11px; -fx-font-family: monospace;");
 
                 Label srcLabel = new Label("[" + item.source + "]");
@@ -780,12 +785,16 @@ public class TerminalPane extends BorderPane {
             List<ProblemItem> found = new ArrayList<>();
             List<Path> javaFiles = new ArrayList<>();
             try {
-                Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), 4, new SimpleFileVisitor<>() {
+                Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), 20, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                         String name = file.getFileName().toString();
-                        if (name.endsWith(".java") || name.endsWith(".css") || name.endsWith(".json") || name.endsWith(".xml")) {
-                            checkFileDiagnostics(file, found);
+                        if (name.endsWith(".java") || name.endsWith(".py") || name.endsWith(".js") ||
+                            name.endsWith(".ts") || name.endsWith(".jsx") || name.endsWith(".tsx") ||
+                            name.endsWith(".css") || name.endsWith(".scss") || name.endsWith(".json") ||
+                            name.endsWith(".xml") || name.endsWith(".yaml") || name.endsWith(".yml") ||
+                            name.endsWith(".md") || name.endsWith(".html")) {
+                            found.addAll(CodeDiagnosticsService.analyzeFile(file));
                             if (name.endsWith(".java")) {
                                 javaFiles.add(file);
                             }
@@ -795,7 +804,8 @@ public class TerminalPane extends BorderPane {
                     @Override
                     public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                         String dirName = dir.getFileName().toString();
-                        if (dirName.startsWith(".") || dirName.equals("target") || dirName.equals("node_modules")) {
+                        if (dirName.startsWith(".") || dirName.equals("target") || dirName.equals("node_modules") ||
+                            dirName.equals("build") || dirName.equals("bin") || dirName.equals(".gradle")) {
                             return FileVisitResult.SKIP_SUBTREE;
                         }
                         return FileVisitResult.CONTINUE;
@@ -803,46 +813,9 @@ public class TerminalPane extends BorderPane {
                 });
             } catch (Exception ignored) {}
 
-            // Dynamic batch javac compiler diagnostics
+            // Dynamic batch javac compiler diagnostics (with full classpath and lints)
             if (!javaFiles.isEmpty()) {
-                try {
-                    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-                    if (compiler != null) {
-                        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-                        StandardJavaFileManager fm = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8);
-                        Iterable<? extends JavaFileObject> units = fm.getJavaFileObjectsFromPaths(javaFiles);
-                        Path tempClasses = Files.createTempDirectory("auraorbit_diag");
-                        tempClasses.toFile().deleteOnExit();
-
-                        JavaCompiler.CompilationTask task = compiler.getTask(
-                                null, fm, diagnostics,
-                                Arrays.asList("-proc:none", "-nowarn", "-d", tempClasses.toString()),
-                                null, units
-                        );
-                        task.call();
-                        for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
-                            if (d.getKind() == Diagnostic.Kind.ERROR) {
-                                String sourceName = "source";
-                                if (d.getSource() != null) {
-                                    try {
-                                        sourceName = Paths.get(d.getSource().toUri()).getFileName().toString();
-                                    } catch (Exception e) {
-                                        sourceName = d.getSource().getName();
-                                    }
-                                }
-                                found.add(new ProblemItem(
-                                        Codicons.ERROR, "Error",
-                                        d.getMessage(Locale.getDefault()),
-                                        sourceName,
-                                        (int) Math.max(1, d.getLineNumber()),
-                                        (int) Math.max(1, d.getColumnNumber()),
-                                        "javac"
-                                ));
-                            }
-                        }
-                        try { fm.close(); } catch (Exception ignored) {}
-                    }
-                } catch (Exception ignored) {}
+                found.addAll(CodeDiagnosticsService.runJavaCompilerDiagnostics(javaFiles));
             }
 
             Platform.runLater(() -> {
@@ -854,59 +827,17 @@ public class TerminalPane extends BorderPane {
         });
     }
 
-    private void checkFileDiagnostics(Path file, List<ProblemItem> found) {
-        try {
-            List<String> lines = Files.readAllLines(file);
-            int braceDepth = 0;
-            int parenDepth = 0;
-            int bracketDepth = 0;
-            String fileName = file.getFileName().toString();
-
-            for (int i = 0; i < lines.size(); i++) {
-                String line = lines.get(i);
-                int lineNum = i + 1;
-
-                if (line.contains("TODO:") || line.contains("FIXME:")) {
-                    String clean = line.trim();
-                    found.add(new ProblemItem(Codicons.INFO, "Info", clean, fileName, lineNum, 1, "todo"));
-                }
-
-                // Check string escaping & bracket balances
-                boolean inString = false;
-                for (int c = 0; c < line.length(); c++) {
-                    char ch = line.charAt(c);
-                    if (ch == '\\' && c + 1 < line.length()) {
-                        c++; // skip escaped char
-                        continue;
-                    }
-                    if (ch == '"') {
-                        inString = !inString;
-                        continue;
-                    }
-                    if (!inString) {
-                        if (ch == '{') braceDepth++;
-                        else if (ch == '}') braceDepth--;
-                        else if (ch == '(') parenDepth++;
-                        else if (ch == ')') parenDepth--;
-                        else if (ch == '[') bracketDepth++;
-                        else if (ch == ']') bracketDepth--;
-                    }
-                }
-                if (inString && !line.trim().startsWith("//") && !line.trim().startsWith("*")) {
-                    found.add(new ProblemItem(Codicons.ERROR, "Error", "Unclosed string literal", fileName, lineNum, line.length(), "syntax"));
-                }
-            }
-
-            if (braceDepth != 0) {
-                found.add(new ProblemItem(Codicons.ERROR, "Error", "Mismatched braces (depth: " + braceDepth + ")", fileName, lines.size(), 1, "syntax"));
-            }
-            if (parenDepth != 0) {
-                found.add(new ProblemItem(Codicons.WARNING, "Warning", "Mismatched parentheses (depth: " + parenDepth + ")", fileName, lines.size(), 1, "syntax"));
-            }
-            if (bracketDepth != 0) {
-                found.add(new ProblemItem(Codicons.WARNING, "Warning", "Mismatched square brackets (depth: " + bracketDepth + ")", fileName, lines.size(), 1, "syntax"));
-            }
-        } catch (Exception ignored) {}
+    public void updateFileProblems(Path file) {
+        if (file == null) return;
+        ioExecutor.submit(() -> {
+            List<ProblemItem> fileProblems = CodeDiagnosticsService.analyzeFile(file);
+            String targetPath = file.toAbsolutePath().normalize().toString();
+            Platform.runLater(() -> {
+                problemItems.removeIf(p -> p.file != null && p.file.equals(targetPath));
+                problemItems.addAll(fileProblems);
+                updateProblemsDisplay();
+            });
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -936,11 +867,9 @@ public class TerminalPane extends BorderPane {
 
         outputChannelCombo.setOnAction(e -> {
             String selected = outputChannelCombo.getValue();
+            if (selected == null) return;
             for (Map.Entry<String, TextArea> entry : outputChannels.entrySet()) {
                 entry.getValue().setVisible(entry.getKey().equals(selected));
-            }
-            if ("Git".equals(selected)) {
-                refreshGitOutput();
             }
         });
 
@@ -1026,7 +955,9 @@ public class TerminalPane extends BorderPane {
     public void selectOutputChannel(String channel) {
         Platform.runLater(() -> {
             if (outputChannelCombo != null && outputChannels.containsKey(channel)) {
-                outputChannelCombo.getSelectionModel().select(channel);
+                if (!Objects.equals(outputChannelCombo.getValue(), channel)) {
+                    outputChannelCombo.getSelectionModel().select(channel);
+                }
                 for (Map.Entry<String, TextArea> entry : outputChannels.entrySet()) {
                     entry.getValue().setVisible(entry.getKey().equals(channel));
                 }
@@ -1035,7 +966,16 @@ public class TerminalPane extends BorderPane {
     }
 
     public void refreshGitOutput() {
+        if (!isGitQueryRunning.compareAndSet(false, true)) {
+            return;
+        }
         selectOutputChannel("Git");
+        Platform.runLater(() -> {
+            TextArea gitArea = outputChannels.get("Git");
+            if (gitArea != null) {
+                gitArea.clear();
+            }
+        });
         logOutput("Git", "==================================================");
         logOutput("Git", "Dynamic Git Status & Commit History query...");
         logOutput("Git", "==================================================");
@@ -1074,6 +1014,8 @@ public class TerminalPane extends BorderPane {
                 p2.waitFor();
             } catch (Exception e) {
                 logOutput("Git", "Git query error: " + e.getMessage());
+            } finally {
+                isGitQueryRunning.set(false);
             }
         });
     }
@@ -1684,7 +1626,11 @@ public class TerminalPane extends BorderPane {
             // Fallback kill by port
             killProcessByPort(entry.port);
 
-            logOutput("AuraOrbit (System)", "[Ports] Process '" + entry.processName + "' (PID: " + entry.pid + ") on port " + entry.port + " stopped.");
+            if (stopped) {
+                logOutput("AuraOrbit (System)", "[Ports] Process '" + entry.processName + "' (PID: " + entry.pid + ") on port " + entry.port + " stopped.");
+            } else {
+                logOutput("AuraOrbit (System)", "[Ports] Termination signal sent for '" + entry.processName + "' on port " + entry.port + ".");
+            }
 
             try { Thread.sleep(400); } catch (InterruptedException ignored) {}
             scanLocalPorts();

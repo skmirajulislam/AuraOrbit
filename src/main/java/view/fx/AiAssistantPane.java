@@ -30,6 +30,9 @@ public class AiAssistantPane extends VBox {
     private final Button sendButton;
     private final Label contextLabel;
 
+    private final service.AiService aiService = new service.AiService();
+    private Runnable onConfigureApiKeysRequested;
+
     private Supplier<String> activeFileSupplier;
     private Supplier<String> selectedCodeSupplier;
     private Supplier<String> entireFileContentSupplier;
@@ -59,13 +62,24 @@ public class AiAssistantPane extends VBox {
 
         modelSelector = new ComboBox<>();
         modelSelector.getItems().addAll(
-                "Gemini 2.0 Flash",
-                "Claude 3.5 Sonnet",
-                "GPT-4o",
-                "DeepSeek-R1 (Local)"
+                "Gemini 2.0 Flash (Google)",
+                "Gemini 1.5 Pro (Google)",
+                "GPT-4o (OpenAI)",
+                "GPT-4o-mini (OpenAI)",
+                "Grok-2 (xAI)",
+                "DeepSeek-R1 (Local / Ollama)",
+                "Offline Copilot (Built-in)"
         );
         modelSelector.getSelectionModel().selectFirst();
-        modelSelector.setStyle("-fx-font-size: 11px; -fx-pref-width: 140px;");
+        modelSelector.setStyle("-fx-font-size: 11px; -fx-pref-width: 155px;");
+
+        Button keyBtn = new Button();
+        keyBtn.setGraphic(IconFactory.getIcon(Codicons.KEY, 13, "#cca700"));
+        keyBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 0 4 0 4;");
+        keyBtn.setTooltip(new Tooltip("Configure API Keys (Gemini, GPT, Grok)"));
+        keyBtn.setOnAction(e -> {
+            if (onConfigureApiKeysRequested != null) onConfigureApiKeysRequested.run();
+        });
 
         Button closeBtn = new Button();
         closeBtn.setGraphic(IconFactory.getIcon(Codicons.CLOSE, 12));
@@ -74,7 +88,7 @@ public class AiAssistantPane extends VBox {
             if (onCloseRequested != null) onCloseRequested.run();
         });
 
-        header.getChildren().addAll(title, spacer, modelSelector, closeBtn);
+        header.getChildren().addAll(title, spacer, modelSelector, keyBtn, closeBtn);
 
         // Quick Actions Bar
         HBox quickActions = new HBox(6);
@@ -199,10 +213,12 @@ public class AiAssistantPane extends VBox {
     }
 
     private void generateAiResponse(String prompt, String codeContext, String fileName) {
+        String selectedModel = modelSelector.getValue();
+
         // Show thinking indicator
         VBox thinkingBox = new VBox(4);
         thinkingBox.setStyle("-fx-background-color: -bg-secondary; -fx-padding: 8 10 8 10; -fx-background-radius: 6;");
-        Label thinkingLbl = new Label(" Analyzing " + fileName + " with " + modelSelector.getValue() + "...");
+        Label thinkingLbl = new Label(" Analyzing " + fileName + " with " + selectedModel + "...");
         thinkingLbl.setGraphic(IconFactory.getIcon(Codicons.LIGHTBULB_AUTOFIX, 12, "#4ea8de"));
         thinkingLbl.setStyle("-fx-text-fill: -accent-color; -fx-font-size: 11.5px; -fx-font-style: italic;");
         thinkingBox.getChildren().add(thinkingLbl);
@@ -212,9 +228,22 @@ public class AiAssistantPane extends VBox {
         // Perform async intelligent code analysis with daemon thread
         Thread aiThread = new Thread(() -> {
             String response = null;
-            try {
-                response = queryExternalLlmIfConfigured(prompt, codeContext, fileName, modelSelector.getValue());
-            } catch (Exception ignored) {}
+
+            if (selectedModel != null && !selectedModel.startsWith("Offline")) {
+                try {
+                    response = aiService.generateResponse(selectedModel, prompt, codeContext, fileName);
+                } catch (Exception ex) {
+                    String err = ex.getMessage();
+                    if (err != null && err.contains("not configured")) {
+                        response = "⚠️ **API Key Required**\n\n" + err + "\n\n"
+                                + "Click the **Key 🔑** icon in the header above to configure your API key.";
+                    } else {
+                        response = "⚠️ **" + selectedModel + " Notice:**\n\n" + (err != null ? err : "Network request error.")
+                                + "\n\n*Falling back to dynamic offline copilot analysis:*\n\n"
+                                + generateDynamicCodeAiResponse(prompt, codeContext, fileName);
+                    }
+                }
+            }
 
             if (response == null || response.isBlank()) {
                 response = generateDynamicCodeAiResponse(prompt, codeContext, fileName);
@@ -545,53 +574,97 @@ public class AiAssistantPane extends VBox {
         msgBox.setAlignment(Pos.CENTER_LEFT);
         msgBox.setPadding(new Insets(2, 20, 2, 0));
 
-        VBox contentBox = new VBox(6);
+        VBox contentBox = new VBox(8);
         contentBox.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-padding: 10 12 10 12; -fx-background-radius: 2 12 12 12; -fx-border-radius: 2 12 12 12;");
 
-        Label label = new Label(markdown);
-        label.setWrapText(true);
-        label.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12.5px;");
+        // Split markdown by code fences ```
+        String[] parts = markdown.split("```");
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            if (part == null || part.isBlank()) continue;
 
-        contentBox.getChildren().add(label);
+            if (i % 2 == 0) {
+                // Regular prose/explanation
+                Label textLabel = new Label(part.trim());
+                textLabel.setWrapText(true);
+                textLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12.5px; -fx-line-spacing: 2;");
+                contentBox.getChildren().add(textLabel);
+            } else {
+                // Code block
+                int firstNewline = part.indexOf('\n');
+                String lang = "CODE";
+                String codeContent = part;
+                if (firstNewline != -1) {
+                    String possibleLang = part.substring(0, firstNewline).trim();
+                    if (!possibleLang.isEmpty()) {
+                        lang = possibleLang.toUpperCase();
+                    }
+                    codeContent = part.substring(firstNewline + 1);
+                }
+                final String snippet = codeContent.stripTrailing();
 
-        // Check if message contains code block to add "Insert" button
-        if (markdown.contains("```")) {
-            HBox codeActions = new HBox(8);
-            codeActions.setAlignment(Pos.CENTER_LEFT);
+                // Sleek VS Code Code Card
+                VBox codeCard = new VBox(0);
+                codeCard.setStyle("-fx-background-color: -bg-primary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6;");
 
-            String extractedCode = extractCodeBlock(markdown);
+                // Card Header: [LANG            [Copy] [Insert] [Replace]]
+                HBox cardHeader = new HBox(6);
+                cardHeader.setAlignment(Pos.CENTER_LEFT);
+                cardHeader.setPadding(new Insets(4, 8, 4, 8));
+                cardHeader.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: transparent transparent -border-color transparent; -fx-border-width: 0 0 1 0;");
 
-            Button insertBtn = new Button(" Insert in Editor");
-            insertBtn.setGraphic(IconFactory.getIcon(Codicons.DIFF_ADDED, 12, "#ffffff"));
-            insertBtn.setStyle("-fx-background-color: -accent-color; -fx-text-fill: #ffffff; -fx-font-size: 10.5px; -fx-padding: 3 8 3 8; -fx-cursor: hand; -fx-background-radius: 4;");
-            insertBtn.setOnAction(e -> {
-                if (onInsertCodeToEditor != null) onInsertCodeToEditor.accept(extractedCode);
-            });
+                Label langLabel = new Label(lang);
+                langLabel.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: -text-secondary;");
 
-            Button replaceBtn = new Button(" Replace Selection");
-            replaceBtn.setGraphic(IconFactory.getIcon(Codicons.REPLACE, 12));
-            replaceBtn.setStyle("-fx-background-color: transparent; -fx-border-color: -border-color; -fx-text-fill: -text-primary; -fx-font-size: 10.5px; -fx-padding: 3 8 3 8; -fx-cursor: hand; -fx-background-radius: 4;");
-            replaceBtn.setOnAction(e -> {
-                if (onReplaceSelectionInEditor != null) onReplaceSelectionInEditor.accept(extractedCode);
-            });
+                Region cardSpacer = new Region();
+                HBox.setHgrow(cardSpacer, Priority.ALWAYS);
 
-            codeActions.getChildren().addAll(insertBtn, replaceBtn);
-            contentBox.getChildren().add(codeActions);
+                Button copyBtn = new Button("Copy");
+                copyBtn.setGraphic(IconFactory.getIcon(Codicons.CLIPPY, 11));
+                copyBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: -text-secondary; -fx-font-size: 10.5px; -fx-padding: 2 6 2 6; -fx-cursor: hand;");
+                copyBtn.setOnAction(e -> {
+                    javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
+                    cc.putString(snippet);
+                    javafx.scene.input.Clipboard.getSystemClipboard().setContent(cc);
+                    copyBtn.setText("Copied!");
+                    copyBtn.setGraphic(IconFactory.getIcon(Codicons.CHECK, 11, "#89d185"));
+                    javafx.animation.PauseTransition pt = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(2));
+                    pt.setOnFinished(ev -> {
+                        copyBtn.setText("Copy");
+                        copyBtn.setGraphic(IconFactory.getIcon(Codicons.CLIPPY, 11));
+                    });
+                    pt.play();
+                });
+
+                Button insertBtn = new Button("Insert");
+                insertBtn.setGraphic(IconFactory.getIcon(Codicons.DIFF_ADDED, 11, "#ffffff"));
+                insertBtn.setStyle("-fx-background-color: -accent-color; -fx-text-fill: #ffffff; -fx-font-size: 10.5px; -fx-padding: 2 8 2 8; -fx-cursor: hand; -fx-background-radius: 3;");
+                insertBtn.setOnAction(e -> {
+                    if (onInsertCodeToEditor != null) onInsertCodeToEditor.accept(snippet);
+                });
+
+                Button replaceBtn = new Button("Replace");
+                replaceBtn.setGraphic(IconFactory.getIcon(Codicons.REPLACE, 11));
+                replaceBtn.setStyle("-fx-background-color: transparent; -fx-border-color: -border-color; -fx-text-fill: -text-primary; -fx-font-size: 10.5px; -fx-padding: 2 6 2 6; -fx-cursor: hand; -fx-background-radius: 3;");
+                replaceBtn.setOnAction(e -> {
+                    if (onReplaceSelectionInEditor != null) onReplaceSelectionInEditor.accept(snippet);
+                });
+
+                cardHeader.getChildren().addAll(langLabel, cardSpacer, copyBtn, insertBtn, replaceBtn);
+
+                // Code body
+                Label codeLabel = new Label(snippet);
+                codeLabel.setWrapText(true);
+                codeLabel.setStyle("-fx-font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Consolas', monospace; -fx-font-size: 11.5px; -fx-text-fill: -text-primary; -fx-padding: 8 10 8 10;");
+
+                codeCard.getChildren().addAll(cardHeader, codeLabel);
+                contentBox.getChildren().add(codeCard);
+            }
         }
 
         msgBox.getChildren().add(contentBox);
         chatMessagesContainer.getChildren().add(msgBox);
         scrollToBottom();
-    }
-
-    private String extractCodeBlock(String markdown) {
-        int start = markdown.indexOf("```");
-        if (start == -1) return markdown;
-        int nextLine = markdown.indexOf('\n', start);
-        if (nextLine == -1) return markdown;
-        int end = markdown.indexOf("```", nextLine);
-        if (end == -1) return markdown.substring(nextLine + 1);
-        return markdown.substring(nextLine + 1, end).trim();
     }
 
     public void updateActiveContext(String fileName, int lineCount, int selectedChars) {
@@ -608,6 +681,8 @@ public class AiAssistantPane extends VBox {
         Platform.runLater(() -> scrollPane.setVvalue(1.0));
     }
 
+    public service.AiService getAiService() { return aiService; }
+    public void setOnConfigureApiKeysRequested(Runnable onConfigureApiKeysRequested) { this.onConfigureApiKeysRequested = onConfigureApiKeysRequested; }
     public void setActiveFileSupplier(Supplier<String> activeFileSupplier) { this.activeFileSupplier = activeFileSupplier; }
     public void setSelectedCodeSupplier(Supplier<String> selectedCodeSupplier) { this.selectedCodeSupplier = selectedCodeSupplier; }
     public void setEntireFileContentSupplier(Supplier<String> entireFileContentSupplier) { this.entireFileContentSupplier = entireFileContentSupplier; }

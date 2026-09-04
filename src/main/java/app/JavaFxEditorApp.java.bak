@@ -52,12 +52,12 @@ public class JavaFxEditorApp extends Application {
 
         // Welcome Watermark Pane (Displayed when no editor tabs are open)
         WelcomeWatermarkPane welcomeWatermarkPane = new WelcomeWatermarkPane(
-        () -> controller.createNewTab("untitled.txt"),
-        controller::handleOpenFile,
-        controller::showCommandPalette,
-        controller::toggleTerminal,
-        controller::toggleAiPanel
-    );
+                () -> controller.createNewTab("untitled.txt"),
+                controller::handleOpenFile,
+                controller::showCommandPalette,
+                controller::toggleTerminal,
+                controller::toggleAiPanel
+        );
         welcomeWatermarkPane.setVisible(false);
         welcomeWatermarkPane.setManaged(false);
 
@@ -99,20 +99,20 @@ public class JavaFxEditorApp extends Application {
 
         // Initialize Controller
         controller.initializeComponents(
-        tabPaneLeft,
-        tabPaneRight,
-        editorSplitPane,
-        welcomeWatermarkPane,
-        masterSplitPane,
-        activityBar,
-        sidebarExplorer,
-        aiAssistantPane,
-        statusBar,
-        commandPalette,
-        terminalPane,
-        editorTerminalSplitPane,
-        modalOverlayPane
-    );
+                tabPaneLeft,
+                tabPaneRight,
+                editorSplitPane,
+                welcomeWatermarkPane,
+                masterSplitPane,
+                activityBar,
+                sidebarExplorer,
+                aiAssistantPane,
+                statusBar,
+                commandPalette,
+                terminalPane,
+                editorTerminalSplitPane,
+                modalOverlayPane
+        );
 
         // Scene Setup
         Scene scene = new Scene(rootStackPane, 1200, 780);

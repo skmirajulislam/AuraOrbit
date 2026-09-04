@@ -74,9 +74,9 @@ public class ActivityBar extends VBox {
         btn.setOnAction(e -> {
             if (activePanel == panel) {
                 // Toggle off
-                setActivePanel(null);
+                setActivePanel(null, true);
             } else {
-                setActivePanel(panel);
+                setActivePanel(panel, true);
             }
         });
         return btn;
@@ -91,6 +91,10 @@ public class ActivityBar extends VBox {
     }
 
     public void setActivePanel(Panel panel) {
+        setActivePanel(panel, false);
+    }
+
+    public void setActivePanel(Panel panel, boolean notifyListener) {
         this.activePanel = panel;
         explorerBtn.getStyleClass().remove("active");
         templatesBtn.getStyleClass().remove("active");
@@ -104,7 +108,7 @@ public class ActivityBar extends VBox {
         else if (panel == Panel.AI_COPILOT) aiBtn.getStyleClass().add("active");
         else if (panel == Panel.TERMINAL) terminalBtn.getStyleClass().add("active");
 
-        if (onPanelToggled != null) {
+        if (notifyListener && onPanelToggled != null) {
             onPanelToggled.accept(panel);
         }
     }

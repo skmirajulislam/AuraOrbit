@@ -29,12 +29,16 @@
     -accent-hover: #fff066;
 
     /* Syntax Highlighting */
-    -syntax-keyword: #ff007f;
-    -syntax-string: #ffe600;
-    -syntax-comment: #7a00ff;
-    -syntax-number: #00ffff;
-    -syntax-annotation: #00ff66;
+    -syntax-control: #ff0055;
+    -syntax-keyword: #00ffff;
     -syntax-type: #00ff66;
+    -syntax-function: #ffe600;
+    -syntax-string: #ff7700;
+    -syntax-comment: #727b99;
+    -syntax-number: #bd00ff;
+    -syntax-annotation: #00f0ff;
+    -syntax-variable: #00ffea;
+    -syntax-constant: #ff007f;
 }
 
 .main-container {
@@ -226,14 +230,49 @@
     -fx-fill: -text-primary;
 }
 
-/* Syntax Highlighting */
-.keyword { -fx-fill: -syntax-keyword; -fx-font-weight: bold; }
-.string { -fx-fill: -syntax-string; }
-.comment { -fx-fill: -syntax-comment; -fx-font-style: italic; }
-.number { -fx-fill: -syntax-number; }
-.annotation { -fx-fill: -syntax-annotation; }
-.paren, .brace, .bracket, .semicolon { -fx-fill: #ffe600; }
-.plain { -fx-fill: -text-primary; }
+/* Syntax Highlighting with high specificity for RichTextFX text nodes */
+.styled-text-area .text.control-keyword, .code-area .text.control-keyword, .control-keyword {
+    -fx-fill: -syntax-control;
+    -fx-font-weight: bold;
+}
+.styled-text-area .text.keyword, .code-area .text.keyword, .keyword {
+    -fx-fill: -syntax-keyword;
+    -fx-font-weight: bold;
+}
+.styled-text-area .text.type, .code-area .text.type, .type {
+    -fx-fill: -syntax-type;
+}
+.styled-text-area .text.function, .code-area .text.function, .function {
+    -fx-fill: -syntax-function;
+}
+.styled-text-area .text.string, .code-area .text.string, .string {
+    -fx-fill: -syntax-string;
+}
+.styled-text-area .text.comment, .code-area .text.comment, .comment {
+    -fx-fill: -syntax-comment;
+    -fx-font-style: italic;
+}
+.styled-text-area .text.number, .code-area .text.number, .number {
+    -fx-fill: -syntax-number;
+}
+.styled-text-area .text.annotation, .code-area .text.annotation, .annotation {
+    -fx-fill: -syntax-annotation;
+}
+.styled-text-area .text.constant, .code-area .text.constant, .constant {
+    -fx-fill: -syntax-constant;
+}
+.styled-text-area .text.variable, .code-area .text.variable, .variable {
+    -fx-fill: -syntax-variable;
+}
+.styled-text-area .text.paren, .code-area .text.paren,
+.styled-text-area .text.brace, .code-area .text.brace,
+.styled-text-area .text.bracket, .code-area .text.bracket,
+.styled-text-area .text.semicolon, .code-area .text.semicolon {
+    -fx-fill: #ff007f;
+}
+.styled-text-area .text.plain, .code-area .text.plain, .plain {
+    -fx-fill: -text-primary;
+}
 
 /* Status Bar */
 .status-bar {
@@ -432,4 +471,35 @@
 }
 .terminal-tab-pane > .tab-header-area > .headers-region > .tab:selected .terminal-tab-label {
     -fx-text-fill: -text-primary;
+}
+
+/* Context Menu Styling */
+.context-menu, .editor-context-menu {
+    -fx-background-color: #120e24;
+    -fx-border-color: #00ffcc;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 4px 0px 4px 0px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 255, 204, 0.35), 14, 0, 0, 4);
+}
+.context-menu .menu-item, .editor-context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 5px 16px 5px 12px;
+}
+.context-menu .menu-item .label, .editor-context-menu .menu-item .label {
+    -fx-text-fill: #ff007f;
+    -fx-font-size: 12px;
+}
+.context-menu .menu-item:focused, .editor-context-menu .menu-item:focused,
+.context-menu .menu-item:hover, .editor-context-menu .menu-item:hover {
+    -fx-background-color: #00ffcc;
+}
+.context-menu .menu-item:focused .label, .editor-context-menu .menu-item:focused .label,
+.context-menu .menu-item:hover .label, .editor-context-menu .menu-item:hover .label {
+    -fx-text-fill: #120e24;
+}
+.context-menu .separator .line, .editor-context-menu .separator .line {
+    -fx-border-color: #332652;
+    -fx-border-width: 1px 0 0 0;
 }

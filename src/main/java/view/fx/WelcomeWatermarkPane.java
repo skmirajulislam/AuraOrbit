@@ -62,15 +62,21 @@ public class WelcomeWatermarkPane extends VBox {
         actionsBox.setMaxWidth(380);
 
         actionsBox.getChildren().addAll(
-                createActionRow(Codicons.TERMINAL, "Show All Commands", cmdKey + "P", onCommandPalette),
-                createActionRow(Codicons.NEW_FILE, "New File", cmdKey + "N", onNewFile),
-                createActionRow(Codicons.FOLDER_OPENED, "Open File...", cmdKey + "O", onOpenFile),
-                createActionRow(Codicons.TERMINAL, "Toggle Terminal", "Ctrl+`", onToggleTerminal),
-                createActionRow(Codicons.HUBOT, "AuraOrbit Copilot", shiftKey + cmdKey + "A", onToggleAi)
+                createActionRow(Codicons.TERMINAL, "Show All Commands", cmdKey + "P", this.onCommandPalette),
+                createActionRow(Codicons.NEW_FILE, "New File", cmdKey + "N", this.onNewFile),
+                createActionRow(Codicons.FOLDER_OPENED, "Open File...", cmdKey + "O", this.onOpenFile),
+                createActionRow(Codicons.TERMINAL, "Toggle Terminal", "Ctrl+`", this.onToggleTerminal),
+                createActionRow(Codicons.HUBOT, "AuraOrbit Copilot", shiftKey + cmdKey + "A", this.onToggleAi)
         );
 
         getChildren().addAll(brandBox, actionsBox);
     }
+
+    public Runnable getOnNewFile() { return onNewFile; }
+    public Runnable getOnOpenFile() { return onOpenFile; }
+    public Runnable getOnCommandPalette() { return onCommandPalette; }
+    public Runnable getOnToggleTerminal() { return onToggleTerminal; }
+    public Runnable getOnToggleAi() { return onToggleAi; }
 
     private HBox createActionRow(Codicons iconCode, String labelText, String shortcutText, Runnable action) {
         HBox row = new HBox(12);

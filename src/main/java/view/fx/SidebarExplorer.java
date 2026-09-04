@@ -43,11 +43,13 @@ public class SidebarExplorer extends VBox {
     private Label workspaceTitleLabel;
     private FontIcon workspaceChevron;
     private TreeView<FileItem> fileTreeView;
+    private VBox emptyWorkspaceBox;
     private Path currentWorkspacePath;
 
     private Consumer<Path> onFileSelected;
     private Consumer<TemplateChoice> onTemplateSelected;
     private Runnable onNewFileRequested;
+    private Runnable onOpenFolderRequested;
     private Consumer<Path> onWorkspaceChanged;
 
     /**
@@ -165,7 +167,13 @@ public class SidebarExplorer extends VBox {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Button newFileBtn = createActionButton(Codicons.NEW_FILE, "New File...");
-        newFileBtn.setOnAction(e -> startInlineCreation(false));
+        newFileBtn.setOnAction(e -> {
+            if (currentWorkspacePath == null && onNewFileRequested != null) {
+                onNewFileRequested.run();
+            } else {
+                startInlineCreation(false);
+            }
+        });
 
         Button newFolderBtn = createActionButton(Codicons.NEW_FOLDER, "New Folder...");
         newFolderBtn.setOnAction(e -> startInlineCreation(true));
@@ -178,7 +186,10 @@ public class SidebarExplorer extends VBox {
         Button collapseAllBtn = createActionButton(Codicons.COLLAPSE_ALL, "Collapse Folders in Explorer");
         collapseAllBtn.setOnAction(e -> collapseAll());
 
-        HBox actionToolbar = new HBox(2, newFileBtn, newFolderBtn, refreshBtn, collapseAllBtn);
+        Button closeFolderBtn = createActionButton(Codicons.CLOSE, "Close Folder / Remove from Workspace");
+        closeFolderBtn.setOnAction(e -> closeWorkspaceFolder());
+
+        HBox actionToolbar = new HBox(2, newFileBtn, newFolderBtn, refreshBtn, collapseAllBtn, closeFolderBtn);
         actionToolbar.setAlignment(Pos.CENTER_RIGHT);
 
         workspaceHeader.getChildren().addAll(titleBox, spacer, actionToolbar);
@@ -192,7 +203,28 @@ public class SidebarExplorer extends VBox {
         setupTreeCellFactory();
         setupTreeInteractions();
 
-        pane.getChildren().addAll(workspaceHeader, fileTreeView);
+        // Empty Workspace State
+        emptyWorkspaceBox = new VBox(12);
+        emptyWorkspaceBox.setAlignment(Pos.CENTER);
+        emptyWorkspaceBox.setPadding(new Insets(40, 16, 20, 16));
+        emptyWorkspaceBox.setVisible(false);
+        emptyWorkspaceBox.setManaged(false);
+        VBox.setVgrow(emptyWorkspaceBox, Priority.ALWAYS);
+
+        Label noFolderLbl = new Label("You have not opened a folder.");
+        noFolderLbl.setStyle("-fx-text-fill: -text-secondary; -fx-font-size: 12px;");
+        noFolderLbl.setWrapText(true);
+        noFolderLbl.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+
+        Button openFolderBtn = new Button("Open Folder");
+        openFolderBtn.setGraphic(IconFactory.getIcon(Codicons.FOLDER_OPENED, 13, "#ffffff"));
+        openFolderBtn.getStyleClass().add("btn-modern");
+        openFolderBtn.setStyle("-fx-background-color: -accent-color; -fx-text-fill: #ffffff; -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 6 16 6 16; -fx-cursor: hand;");
+        openFolderBtn.setOnAction(e -> promptOpenFolder());
+
+        emptyWorkspaceBox.getChildren().addAll(noFolderLbl, openFolderBtn);
+
+        pane.getChildren().addAll(workspaceHeader, fileTreeView, emptyWorkspaceBox);
         return pane;
     }
 
@@ -587,6 +619,10 @@ public class SidebarExplorer extends VBox {
             }
         });
 
+        MenuItem closeFolder = new MenuItem("Close Folder");
+        closeFolder.setGraphic(IconFactory.getIcon(Codicons.CLOSE, 12));
+        closeFolder.setOnAction(e -> closeWorkspaceFolder());
+
         MenuItem refresh = new MenuItem("Refresh");
         refresh.setGraphic(IconFactory.getIcon(Codicons.REFRESH, 12));
         refresh.setOnAction(e -> {
@@ -597,7 +633,7 @@ public class SidebarExplorer extends VBox {
         collapse.setGraphic(IconFactory.getIcon(Codicons.COLLAPSE_ALL, 12));
         collapse.setOnAction(e -> collapseAll());
 
-        menu.getItems().addAll(openFolder, refresh, collapse);
+        menu.getItems().addAll(openFolder, closeFolder, new SeparatorMenuItem(), refresh, collapse);
         menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 0);
     }
 
@@ -658,22 +694,70 @@ public class SidebarExplorer extends VBox {
     }
 
     public void setWorkspacePath(Path path) {
+        if (path == null) {
+            closeWorkspaceFolder();
+            return;
+        }
+
         this.currentWorkspacePath = path.toAbsolutePath().normalize();
         File rootFile = this.currentWorkspacePath.toFile();
 
-        // Update workspace name in the section header (e.g. "Coding")
+        // Update workspace name in the section header (e.g. "CODING")
         String folderName = rootFile.getName().isEmpty() ? rootFile.getAbsolutePath() : rootFile.getName();
         if (workspaceTitleLabel != null) {
-            workspaceTitleLabel.setText(folderName);
+            workspaceTitleLabel.setText(folderName.toUpperCase());
         }
 
         TreeItem<FileItem> rootItem = new LazyTreeItem(new FileItem(rootFile));
         rootItem.setExpanded(true);
         fileTreeView.setRoot(rootItem);
+        fileTreeView.setVisible(true);
+        fileTreeView.setManaged(true);
+        if (emptyWorkspaceBox != null) {
+            emptyWorkspaceBox.setVisible(false);
+            emptyWorkspaceBox.setManaged(false);
+        }
 
         if (onWorkspaceChanged != null) {
             onWorkspaceChanged.accept(this.currentWorkspacePath);
         }
+    }
+
+    public void closeWorkspaceFolder() {
+        this.currentWorkspacePath = null;
+        if (workspaceTitleLabel != null) {
+            workspaceTitleLabel.setText("NO FOLDER OPENED");
+        }
+        fileTreeView.setRoot(null);
+        fileTreeView.setVisible(false);
+        fileTreeView.setManaged(false);
+        if (emptyWorkspaceBox != null) {
+            emptyWorkspaceBox.setVisible(true);
+            emptyWorkspaceBox.setManaged(true);
+        }
+
+        if (onWorkspaceChanged != null) {
+            onWorkspaceChanged.accept(null);
+        }
+    }
+
+    public void promptOpenFolder() {
+        if (onOpenFolderRequested != null) {
+            onOpenFolderRequested.run();
+            return;
+        }
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        chooser.setTitle("Open Workspace Folder");
+        if (getScene() != null && getScene().getWindow() != null) {
+            File folder = chooser.showDialog(getScene().getWindow());
+            if (folder != null) {
+                setWorkspacePath(folder.toPath());
+            }
+        }
+    }
+
+    public void setOnOpenFolderRequested(Runnable onOpenFolderRequested) {
+        this.onOpenFolderRequested = onOpenFolderRequested;
     }
 
     /**
@@ -740,6 +824,7 @@ public class SidebarExplorer extends VBox {
     public void setOnFileSelected(Consumer<Path> onFileSelected) { this.onFileSelected = onFileSelected; }
     public void setOnTemplateSelected(Consumer<TemplateChoice> onTemplateSelected) { this.onTemplateSelected = onTemplateSelected; }
     public void setOnNewFileRequested(Runnable onNewFileRequested) { this.onNewFileRequested = onNewFileRequested; }
+    public Runnable getOnNewFileRequested() { return this.onNewFileRequested; }
     public void setOnWorkspaceChanged(Consumer<Path> onWorkspaceChanged) { this.onWorkspaceChanged = onWorkspaceChanged; }
 
     public Path getRootPath() {

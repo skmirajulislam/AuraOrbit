@@ -10,7 +10,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import org.kordamp.ikonli.codicons.Codicons;
-import org.kordamp.ikonli.javafx.FontIcon;
 import service.ThemeService;
 
 import java.io.File;
@@ -229,6 +228,12 @@ public class FxStatusBar extends HBox {
 
     public void setOnThemeSelected(Consumer<ThemeService.Theme> onThemeSelected) {
         this.onThemeSelected = onThemeSelected;
+    }
+
+    public void updateThemeDisplay(String themeName) {
+        if (themeButton != null && themeName != null) {
+            themeButton.setText(" " + themeName);
+        }
     }
 
     public void updateGitBranch(Path workspaceDir) {

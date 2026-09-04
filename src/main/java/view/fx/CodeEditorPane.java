@@ -1,12 +1,19 @@
 package view.fx;
 
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Pos;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.StackPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
+import service.CodeFormatterService;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -18,46 +25,72 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Modern high-performance virtualized code editor pane with syntax highlighting,
- * line numbers, and search integration.
+ * Modern high-performance virtualized code editor pane with VS Code-grade
+ * syntax highlighting, line numbers, code formatting, and search integration.
  */
 public class CodeEditorPane extends StackPane {
 
     private final CodeArea codeArea;
     private final FindReplaceBar findReplaceBar;
     private final ExecutorService highlightExecutor;
-    private String fileType = "txt";
+    private String fileType = "java";
 
-    // Java Syntax Highlighting Patterns
-    private static final String[] KEYWORDS = new String[] {
-            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
-            "continue", "default", "do", "double", "else", "enum", "extends", "final", "finally", "float",
-            "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native",
-            "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super",
-            "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void", "volatile", "while",
-            "var", "record", "sealed", "permits", "yield", "non-sealed"
+    // 1. Control flow keywords (purple/magenta in Dark+, red in Light)
+    private static final String[] CONTROL_KEYWORDS = new String[] {
+            "if", "else", "switch", "case", "default", "break", "continue",
+            "return", "try", "catch", "finally", "throw", "throws", "while",
+            "for", "do", "yield"
     };
 
+    // 2. Declaration & storage keywords (blue in Dark+, red in Light)
+    private static final String[] KEYWORDS = new String[] {
+            "abstract", "assert", "class", "const", "enum", "extends", "final",
+            "goto", "implements", "import", "instanceof", "interface", "native", "new",
+            "package", "private", "protected", "public", "static", "strictfp", "super",
+            "synchronized", "this", "transient", "volatile", "record", "sealed",
+            "permits", "non-sealed", "var", "def", "function", "let", "lambda"
+    };
+
+    // 3. Builtin primitives & types
+    private static final String[] PRIMITIVE_TYPES = new String[] {
+            "boolean", "byte", "char", "double", "float", "int", "long", "short", "void"
+    };
+
+    // 4. Literals & Constants
+    private static final String[] CONSTANTS = new String[] {
+            "true", "false", "null", "undefined", "nil", "None", "True", "False"
+    };
+
+    private static final String CONTROL_KEYWORD_PATTERN = "\\b(" + String.join("|", CONTROL_KEYWORDS) + ")\\b";
     private static final String KEYWORD_PATTERN = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
+    private static final String PRIMITIVE_PATTERN = "\\b(" + String.join("|", PRIMITIVE_TYPES) + ")\\b";
+    private static final String CONSTANT_PATTERN = "\\b(" + String.join("|", CONSTANTS) + ")\\b";
+    private static final String TYPE_PATTERN = "\\b[A-Z][a-zA-Z0-9_]*\\b";
+    private static final String FUNCTION_PATTERN = "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()";
+    private static final String ANNOTATION_PATTERN = "@[a-zA-Z_0-9]+";
+    private static final String STRING_PATTERN = "\"\"\"(?:.|[\\n\\r])*?\"\"\"|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'";
+    private static final String COMMENT_PATTERN = "//[^\n]*|/\\*(?:.|[\\n\\r])*?\\*/|#[^\n]*";
+    private static final String NUMBER_PATTERN = "\\b0[xX][0-9a-fA-F]+|\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?[fFdDlL]?\\b";
     private static final String PAREN_PATTERN = "\\(|\\)";
     private static final String BRACE_PATTERN = "\\{|\\}";
     private static final String BRACKET_PATTERN = "\\[|\\]";
     private static final String SEMICOLON_PATTERN = "\\;";
-    private static final String STRING_PATTERN = "\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'";
-    private static final String COMMENT_PATTERN = "//[^\n]*" + "|" + "/\\*(.|\\R)*?\\*/";
-    private static final String NUMBER_PATTERN = "\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?[fFdDlL]?\\b";
-    private static final String ANNOTATION_PATTERN = "@[a-zA-Z_0-9]+";
 
     private static final Pattern PATTERN = Pattern.compile(
-            "(?<KEYWORD>" + KEYWORD_PATTERN + ")"
+            "(?<COMMENT>" + COMMENT_PATTERN + ")"
+                    + "|(?<STRING>" + STRING_PATTERN + ")"
+                    + "|(?<ANNOTATION>" + ANNOTATION_PATTERN + ")"
+                    + "|(?<CONTROL>" + CONTROL_KEYWORD_PATTERN + ")"
+                    + "|(?<KEYWORD>" + KEYWORD_PATTERN + ")"
+                    + "|(?<CONSTANT>" + CONSTANT_PATTERN + ")"
+                    + "|(?<PRIMITIVE>" + PRIMITIVE_PATTERN + ")"
+                    + "|(?<FUNCTION>" + FUNCTION_PATTERN + ")"
+                    + "|(?<TYPE>" + TYPE_PATTERN + ")"
+                    + "|(?<NUMBER>" + NUMBER_PATTERN + ")"
                     + "|(?<PAREN>" + PAREN_PATTERN + ")"
                     + "|(?<BRACE>" + BRACE_PATTERN + ")"
                     + "|(?<BRACKET>" + BRACKET_PATTERN + ")"
                     + "|(?<SEMICOLON>" + SEMICOLON_PATTERN + ")"
-                    + "|(?<STRING>" + STRING_PATTERN + ")"
-                    + "|(?<COMMENT>" + COMMENT_PATTERN + ")"
-                    + "|(?<NUMBER>" + NUMBER_PATTERN + ")"
-                    + "|(?<ANNOTATION>" + ANNOTATION_PATTERN + ")"
     );
 
     public CodeEditorPane() {
@@ -72,7 +105,7 @@ public class CodeEditorPane extends StackPane {
 
         // Async debounced syntax highlighting
         this.codeArea.multiPlainChanges()
-                .successionEnds(Duration.ofMillis(100))
+                .successionEnds(Duration.ofMillis(80))
                 .retainLatestUntilLater(highlightExecutor)
                 .supplyTask(this::computeHighlightingAsync)
                 .awaitLatest(codeArea.multiPlainChanges())
@@ -90,8 +123,66 @@ public class CodeEditorPane extends StackPane {
         StackPane.setAlignment(findReplaceBar, Pos.TOP_RIGHT);
 
         setupFindReplaceActions();
+        setupEditorContextMenu();
+
+        // Keyboard Shortcut: Shift+Alt+F (Format Document)
+        this.codeArea.setOnKeyPressed(e -> {
+            if (e.isAltDown() && e.isShiftDown() && e.getCode() == KeyCode.F) {
+                formatCode();
+                e.consume();
+            }
+        });
 
         getChildren().addAll(codeArea, findReplaceBar);
+    }
+
+    private void setupEditorContextMenu() {
+        ContextMenu menu = new ContextMenu();
+        menu.getStyleClass().add("editor-context-menu");
+
+        MenuItem formatItem = new MenuItem("Format Document (Shift+Alt+F)");
+        formatItem.setOnAction(e -> formatCode());
+
+        MenuItem cutItem = new MenuItem("Cut");
+        cutItem.setOnAction(e -> codeArea.cut());
+
+        MenuItem copyItem = new MenuItem("Copy");
+        copyItem.setOnAction(e -> codeArea.copy());
+
+        MenuItem pasteItem = new MenuItem("Paste");
+        pasteItem.setOnAction(e -> codeArea.paste());
+
+        MenuItem selectAllItem = new MenuItem("Select All");
+        selectAllItem.setOnAction(e -> codeArea.selectAll());
+
+        menu.getItems().addAll(
+                formatItem,
+                new SeparatorMenuItem(),
+                cutItem,
+                copyItem,
+                pasteItem,
+                new SeparatorMenuItem(),
+                selectAllItem
+        );
+
+        codeArea.setContextMenu(menu);
+    }
+
+    /**
+     * Formats code according to active language syntax rules.
+     */
+    public void formatCode() {
+        String currentText = codeArea.getText();
+        if (currentText == null || currentText.isEmpty()) return;
+
+        int originalCaret = codeArea.getCaretPosition();
+        String formatted = CodeFormatterService.formatCode(currentText, fileType);
+
+        if (!formatted.equals(currentText)) {
+            codeArea.replaceText(formatted);
+            int newCaret = Math.min(originalCaret, formatted.length());
+            codeArea.moveTo(newCaret);
+        }
     }
 
     private Task<StyleSpans<Collection<String>>> computeHighlightingAsync() {
@@ -115,9 +206,9 @@ public class CodeEditorPane extends StackPane {
             return new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create();
         }
 
-        // For plain text, logs, or simple documents, skip expensive multi-group regex matching
+        // For plain text logs or CSV, skip syntax tokenizing
         if (fileType != null && (fileType.equals("txt") || fileType.equals("log") || fileType.equals("csv") || fileType.equals("tsv"))) {
-            return new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
+            return new StyleSpansBuilder<Collection<String>>().add(Collections.singleton("plain"), text.length()).create();
         }
 
         Matcher matcher = PATTERN.matcher(text);
@@ -126,22 +217,27 @@ public class CodeEditorPane extends StackPane {
 
         while (matcher.find()) {
             String styleClass =
-                    matcher.group("KEYWORD") != null ? "keyword" :
-                    matcher.group("STRING") != null ? "string" :
                     matcher.group("COMMENT") != null ? "comment" :
-                    matcher.group("NUMBER") != null ? "number" :
+                    matcher.group("STRING") != null ? "string" :
                     matcher.group("ANNOTATION") != null ? "annotation" :
+                    matcher.group("CONTROL") != null ? "control-keyword" :
+                    matcher.group("KEYWORD") != null ? "keyword" :
+                    matcher.group("PRIMITIVE") != null ? "keyword" :
+                    matcher.group("CONSTANT") != null ? "constant" :
+                    matcher.group("FUNCTION") != null ? "function" :
+                    matcher.group("TYPE") != null ? "type" :
+                    matcher.group("NUMBER") != null ? "number" :
                     matcher.group("PAREN") != null ? "paren" :
                     matcher.group("BRACE") != null ? "brace" :
                     matcher.group("BRACKET") != null ? "bracket" :
                     matcher.group("SEMICOLON") != null ? "semicolon" :
                     null;
 
-            spansBuilder.add(Collections.emptyList(), matcher.start() - lastKwEnd);
+            spansBuilder.add(Collections.singleton("plain"), matcher.start() - lastKwEnd);
             spansBuilder.add(Collections.singleton(styleClass != null ? styleClass : "plain"), matcher.end() - matcher.start());
             lastKwEnd = matcher.end();
         }
-        spansBuilder.add(Collections.emptyList(), text.length() - lastKwEnd);
+        spansBuilder.add(Collections.singleton("plain"), text.length() - lastKwEnd);
         return spansBuilder.create();
     }
 
@@ -258,7 +354,22 @@ public class CodeEditorPane extends StackPane {
     }
 
     public void setFileType(String fileType) {
-        this.fileType = fileType;
+        this.fileType = fileType != null ? fileType.toLowerCase() : "java";
+        // Trigger immediate re-highlighting with new file type
+        Platform.runLater(() -> applyHighlighting(computeHighlighting(codeArea.getText())));
+    }
+
+    public void navigateToLineAndHighlight(int line1Indexed) {
+        if (line1Indexed <= 0) return;
+        int pIndex = Math.max(0, line1Indexed - 1);
+        if (pIndex < codeArea.getParagraphs().size()) {
+            codeArea.showParagraphAtCenter(pIndex);
+            int startPos = codeArea.getAbsolutePosition(pIndex, 0);
+            int len = codeArea.getParagraph(pIndex).length();
+            codeArea.moveTo(pIndex, 0);
+            codeArea.selectRange(startPos, startPos + len);
+            codeArea.requestFocus();
+        }
     }
 
     public void dispose() {

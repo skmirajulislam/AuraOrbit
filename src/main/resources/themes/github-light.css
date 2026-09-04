@@ -29,12 +29,16 @@
     -accent-hover: #085cc0;
 
     /* Syntax Highlighting */
+    -syntax-control: #cf222e;
     -syntax-keyword: #cf222e;
+    -syntax-type: #953800;
+    -syntax-function: #8250df;
     -syntax-string: #0a3069;
     -syntax-comment: #6e7781;
     -syntax-number: #0550ae;
     -syntax-annotation: #8250df;
-    -syntax-type: #953800;
+    -syntax-variable: #24292f;
+    -syntax-constant: #cf222e;
 }
 
 .main-container {
@@ -226,14 +230,49 @@
     -fx-fill: -text-primary;
 }
 
-/* Syntax Highlighting */
-.keyword { -fx-fill: -syntax-keyword; -fx-font-weight: bold; }
-.string { -fx-fill: -syntax-string; }
-.comment { -fx-fill: -syntax-comment; -fx-font-style: italic; }
-.number { -fx-fill: -syntax-number; }
-.annotation { -fx-fill: -syntax-annotation; }
-.paren, .brace, .bracket, .semicolon { -fx-fill: #57606a; }
-.plain { -fx-fill: -text-primary; }
+/* Syntax Highlighting with high specificity for RichTextFX text nodes */
+.styled-text-area .text.control-keyword, .code-area .text.control-keyword, .control-keyword {
+    -fx-fill: -syntax-control;
+    -fx-font-weight: bold;
+}
+.styled-text-area .text.keyword, .code-area .text.keyword, .keyword {
+    -fx-fill: -syntax-keyword;
+    -fx-font-weight: bold;
+}
+.styled-text-area .text.type, .code-area .text.type, .type {
+    -fx-fill: -syntax-type;
+}
+.styled-text-area .text.function, .code-area .text.function, .function {
+    -fx-fill: -syntax-function;
+}
+.styled-text-area .text.string, .code-area .text.string, .string {
+    -fx-fill: -syntax-string;
+}
+.styled-text-area .text.comment, .code-area .text.comment, .comment {
+    -fx-fill: -syntax-comment;
+    -fx-font-style: italic;
+}
+.styled-text-area .text.number, .code-area .text.number, .number {
+    -fx-fill: -syntax-number;
+}
+.styled-text-area .text.annotation, .code-area .text.annotation, .annotation {
+    -fx-fill: -syntax-annotation;
+}
+.styled-text-area .text.constant, .code-area .text.constant, .constant {
+    -fx-fill: -syntax-constant;
+}
+.styled-text-area .text.variable, .code-area .text.variable, .variable {
+    -fx-fill: -syntax-variable;
+}
+.styled-text-area .text.paren, .code-area .text.paren,
+.styled-text-area .text.brace, .code-area .text.brace,
+.styled-text-area .text.bracket, .code-area .text.bracket,
+.styled-text-area .text.semicolon, .code-area .text.semicolon {
+    -fx-fill: #57606a;
+}
+.styled-text-area .text.plain, .code-area .text.plain, .plain {
+    -fx-fill: -text-primary;
+}
 
 /* Status Bar */
 .status-bar {
@@ -684,4 +723,33 @@
     -fx-border-color: -accent-color;
 }
 
-
+/* Context Menu Styling */
+.context-menu, .editor-context-menu {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d0d7de;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 4px 0px 4px 0px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.15), 12, 0, 0, 4);
+}
+.context-menu .menu-item, .editor-context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 5px 16px 5px 12px;
+}
+.context-menu .menu-item .label, .editor-context-menu .menu-item .label {
+    -fx-text-fill: #24292f;
+    -fx-font-size: 12px;
+}
+.context-menu .menu-item:focused, .editor-context-menu .menu-item:focused,
+.context-menu .menu-item:hover, .editor-context-menu .menu-item:hover {
+    -fx-background-color: #0969da;
+}
+.context-menu .menu-item:focused .label, .editor-context-menu .menu-item:focused .label,
+.context-menu .menu-item:hover .label, .editor-context-menu .menu-item:hover .label {
+    -fx-text-fill: #ffffff;
+}
+.context-menu .separator .line, .editor-context-menu .separator .line {
+    -fx-border-color: #d0d7de;
+    -fx-border-width: 1px 0 0 0;
+}

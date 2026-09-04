@@ -1,10 +1,7 @@
 package controller;
 
 import javafx.application.Platform;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.StackPane;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -14,12 +11,12 @@ import template.Template;
 import view.fx.*;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 
 /**
  * Master JavaFX Controller orchestrating multi-tab documents, sidebars,
@@ -43,9 +40,17 @@ public class FxEditorController {
     private SplitPane masterSplitPane;
     private TerminalPane terminalPane;
     private SplitPane editorTerminalSplitPane;
+    private ModalOverlayPane modalOverlayPane;
 
     private final List<EditorTabController> tabControllers = new ArrayList<>();
     private boolean isSplitEditorActive = false;
+
+    private final ScheduledExecutorService diagnosticDebounceExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "Diagnostic-Debounce");
+        t.setDaemon(true);
+        return t;
+    });
+    private ScheduledFuture<?> pendingDiagnosticFuture;
 
     public FxEditorController(Stage stage, ThemeService themeService) {
         this.stage = stage;
@@ -65,7 +70,8 @@ public class FxEditorController {
             FxStatusBar statusBar,
             CommandPalette commandPalette,
             TerminalPane terminalPane,
-            SplitPane editorTerminalSplitPane
+            SplitPane editorTerminalSplitPane,
+            ModalOverlayPane modalOverlayPane
     ) {
         this.tabPaneLeft = tabPaneLeft;
         this.tabPaneRight = tabPaneRight;
@@ -79,6 +85,7 @@ public class FxEditorController {
         this.commandPalette = commandPalette;
         this.terminalPane = terminalPane;
         this.editorTerminalSplitPane = editorTerminalSplitPane;
+        this.modalOverlayPane = modalOverlayPane;
 
         setupTabPanes();
         setupSidebar();
@@ -90,6 +97,13 @@ public class FxEditorController {
 
         // Create default initial tab
         createNewTab("untitled.txt");
+
+        // Dynamic initial scan for workspace problems and warnings
+        Platform.runLater(() -> {
+            if (terminalPane != null) {
+                terminalPane.scanWorkspaceForProblems();
+            }
+        });
     }
 
     private void setupTabPanes() {
@@ -105,8 +119,12 @@ public class FxEditorController {
             }
         });
         sidebarExplorer.setOnNewFileRequested(() -> createNewTab("untitled.txt"));
+        sidebarExplorer.setOnOpenFolderRequested(this::handleOpenFolder);
         sidebarExplorer.setOnWorkspaceChanged(path -> {
             statusBar.updateGitBranch(path);
+            if (terminalPane != null) {
+                terminalPane.scanWorkspaceForProblems();
+            }
             updateActiveTabMetrics();
         });
         if (sidebarExplorer.getRootPath() != null) {
@@ -122,11 +140,12 @@ public class FxEditorController {
             } else if (panel == ActivityBar.Panel.SEARCH) {
                 handleFind(true);
             } else if (panel == ActivityBar.Panel.AI_COPILOT) {
-                toggleAiPanel();
+                showAiPanel(true);
             } else if (panel == ActivityBar.Panel.TERMINAL) {
                 toggleTerminal();
             } else if (panel == null) {
                 ensureSidebarVisible(false);
+                showAiPanel(false);
             }
         });
         activityBar.setOnThemeAction(this::showThemePicker);
@@ -186,6 +205,14 @@ public class FxEditorController {
         });
 
         aiAssistantPane.setOnCloseRequested(this::toggleAiPanel);
+
+        aiAssistantPane.setOnConfigureApiKeysRequested(() -> {
+            if (modalOverlayPane != null) {
+                modalOverlayPane.showApiKeyDialog(aiAssistantPane.getAiService(), () -> {
+                    modalOverlayPane.showInformation("AI Copilot", "API Keys saved successfully! You can now query your configured models.");
+                });
+            }
+        });
     }
 
     private void setupTerminal() {
@@ -202,30 +229,63 @@ public class FxEditorController {
         });
         terminalPane.setWorkspaceSupplier(() -> sidebarExplorer.getRootPath());
         terminalPane.setOnCloseRequested(this::toggleTerminal);
-        terminalPane.setOnProblemNavigated((fileName, line) -> {
-            if (fileName == null || fileName.isEmpty()) return;
+        terminalPane.setOnProblemNavigated((filePathOrName, line) -> {
+            if (filePathOrName == null || filePathOrName.isBlank()) return;
             Path targetPath = null;
-            Path root = sidebarExplorer.getRootPath();
-            if (root != null) {
-                Path candidate = root.resolve(fileName);
-                if (Files.exists(candidate)) targetPath = candidate;
-            }
-            if (targetPath == null && Files.exists(Paths.get(fileName))) {
-                targetPath = Paths.get(fileName);
-            }
-            if (targetPath != null) {
-                openFile(targetPath);
-                if (line > 0) {
-                    EditorTabController active = getActiveTabController();
-                    if (active != null) {
-                        Platform.runLater(() -> {
-                            try {
-                                active.getEditorPane().getCodeArea().moveTo(Math.max(0, line - 1), 0);
-                                active.getEditorPane().getCodeArea().requestFocus();
-                            } catch (Exception ignored) {}
-                        });
-                    }
+            try {
+                Path direct = Paths.get(filePathOrName);
+                if (Files.exists(direct)) {
+                    targetPath = direct.toAbsolutePath().normalize();
                 }
+            } catch (Exception ignored) {}
+
+            if (targetPath == null) {
+                Path root = sidebarExplorer.getRootPath();
+                if (root == null || !Files.exists(root)) {
+                    root = Paths.get(".").toAbsolutePath().normalize();
+                }
+                try {
+                    Path candidate = root.resolve(filePathOrName);
+                    if (Files.exists(candidate)) {
+                        targetPath = candidate.toAbsolutePath().normalize();
+                    }
+                } catch (Exception ignored) {}
+
+                if (targetPath == null) {
+                    try {
+                        String nameOnly = Paths.get(filePathOrName).getFileName().toString();
+                        try (var stream = Files.walk(root, 10)) {
+                            targetPath = stream.filter(Files::isRegularFile)
+                                    .filter(p -> p.getFileName().toString().equalsIgnoreCase(nameOnly))
+                                    .findFirst()
+                                    .map(p -> p.toAbsolutePath().normalize())
+                                    .orElse(null);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            if (targetPath != null && Files.exists(targetPath)) {
+                openFile(targetPath);
+                final Path finalTarget = targetPath;
+                final int targetLine = line;
+                Platform.runLater(() -> {
+                    EditorTabController targetCtrl = null;
+                    for (EditorTabController tc : tabControllers) {
+                        if (tc.getDocument().getFilePath() != null && tc.getDocument().getFilePath().equals(finalTarget)) {
+                            targetCtrl = tc;
+                            break;
+                        }
+                    }
+                    if (targetCtrl == null) {
+                        targetCtrl = getActiveTabController();
+                    }
+                    if (targetCtrl != null) {
+                        final EditorTabController ctrl = targetCtrl;
+                        ctrl.navigateToLineAndHighlight(targetLine);
+                        Platform.runLater(() -> ctrl.navigateToLineAndHighlight(targetLine));
+                    }
+                });
             }
         });
 
@@ -277,19 +337,35 @@ public class FxEditorController {
         }
     }
 
-    public void toggleAiPanel() {
-        if (masterSplitPane.getItems().contains(aiAssistantPane)) {
-            masterSplitPane.getItems().remove(aiAssistantPane);
-            aiAssistantPane.setVisible(false);
-            aiAssistantPane.setManaged(false);
-            activityBar.setActivePanel(ActivityBar.Panel.EXPLORER);
-        } else {
-            masterSplitPane.getItems().add(aiAssistantPane);
+    public void showAiPanel(boolean show) {
+        if (show) {
             aiAssistantPane.setVisible(true);
             aiAssistantPane.setManaged(true);
-            masterSplitPane.setDividerPosition(masterSplitPane.getItems().size() - 1, 0.75);
-            activityBar.setActivePanel(ActivityBar.Panel.AI_COPILOT);
+            if (!masterSplitPane.getItems().contains(aiAssistantPane)) {
+                masterSplitPane.getItems().add(aiAssistantPane);
+            }
+            Platform.runLater(() -> {
+                int divIdx = masterSplitPane.getItems().size() - 2;
+                if (divIdx >= 0) {
+                    masterSplitPane.setDividerPosition(divIdx, 0.72);
+                }
+            });
+            activityBar.setActivePanel(ActivityBar.Panel.AI_COPILOT, false);
+        } else {
+            if (masterSplitPane.getItems().contains(aiAssistantPane)) {
+                masterSplitPane.getItems().remove(aiAssistantPane);
+            }
+            aiAssistantPane.setVisible(false);
+            aiAssistantPane.setManaged(false);
+            if (activityBar.getActivePanel() == ActivityBar.Panel.AI_COPILOT) {
+                activityBar.setActivePanel(ActivityBar.Panel.EXPLORER, false);
+            }
         }
+    }
+
+    public void toggleAiPanel() {
+        boolean isCurrentlyOpen = masterSplitPane.getItems().contains(aiAssistantPane) && aiAssistantPane.isVisible();
+        showAiPanel(!isCurrentlyOpen);
     }
 
     public void toggleSplitEditor() {
@@ -368,13 +444,23 @@ public class FxEditorController {
         commandPalette.registerCommand("File: Save As...", "Cmd+Shift+S", () -> handleSave(true));
         commandPalette.registerCommand("File: Close Active Tab", "Cmd+W", this::closeActiveTab);
         commandPalette.registerCommand("File: Close All Tabs", "", this::closeAllTabs);
+        commandPalette.registerCommand("Workspaces: Close Workspace Folder", "", this::closeWorkspaceFolder);
+        commandPalette.registerCommand("Edit: Format Document", "Shift+Alt+F", this::formatActiveDocument);
         commandPalette.registerCommand("Edit: Find & Replace", "Cmd+F", () -> handleFind(true));
         commandPalette.registerCommand("View: Toggle Side-by-Side Split Editor", "Cmd+\\", this::toggleSplitEditor);
         commandPalette.registerCommand("View: Toggle AI IDE Copilot", "Cmd+Shift+A", this::toggleAiPanel);
+        commandPalette.registerCommand("AI Copilot: Configure API Keys (GPT, Gemini, Grok)", "", () -> {
+            if (modalOverlayPane != null && aiAssistantPane != null) {
+                modalOverlayPane.showApiKeyDialog(aiAssistantPane.getAiService(), () -> {
+                    modalOverlayPane.showInformation("AI Copilot", "API Keys saved successfully! You can now query your configured models.");
+                });
+            }
+        });
         commandPalette.registerCommand("View: Toggle Explorer", "Cmd+Shift+E", () -> activityBar.setActivePanel(ActivityBar.Panel.EXPLORER));
         commandPalette.registerCommand("View: Toggle Templates", "", () -> activityBar.setActivePanel(ActivityBar.Panel.TEMPLATES));
         commandPalette.registerCommand("View: Toggle Integrated Terminal", "Ctrl+`", this::toggleTerminal);
         commandPalette.registerCommand("Terminal: Create New Terminal", "Ctrl+Shift+`", this::createNewTerminalTab);
+        commandPalette.registerCommand("Help: About AuraOrbit", "", this::showAboutDialog);
 
         for (ThemeService.Theme theme : ThemeService.Theme.values()) {
             commandPalette.registerCommand("Preferences: Color Theme - " + theme.getDisplayName(), "", () -> {
@@ -441,8 +527,12 @@ public class FxEditorController {
             targetPane.getSelectionModel().select(tabCtrl.getTab());
             updateActiveTabMetrics();
         } catch (Exception e) {
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Failed to open file:\n" + e.getMessage(), ButtonType.OK);
-            alert.showAndWait();
+            if (modalOverlayPane != null) {
+                modalOverlayPane.showError("Failed to Open File", e.getMessage());
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR, "Failed to open file:\n" + e.getMessage(), ButtonType.OK);
+                alert.showAndWait();
+            }
         }
     }
 
@@ -469,7 +559,23 @@ public class FxEditorController {
         tabCtrl.setOnCloseRequested(this::closeTab);
         tabCtrl.setOnCloseOthersRequested(this::closeOtherTabs);
         tabCtrl.setOnCloseAllRequested(this::closeAllTabs);
-        tabCtrl.setOnStateChanged(this::updateActiveTabMetrics);
+        tabCtrl.setOnStateChanged(() -> {
+            updateActiveTabMetrics();
+            triggerLiveDiagnostics(tabCtrl);
+        });
+    }
+
+    private void triggerLiveDiagnostics(EditorTabController tc) {
+        if (tc == null || tc.getDocument() == null || tc.getDocument().getFilePath() == null) return;
+        Path file = tc.getDocument().getFilePath();
+        if (pendingDiagnosticFuture != null && !pendingDiagnosticFuture.isDone()) {
+            pendingDiagnosticFuture.cancel(false);
+        }
+        pendingDiagnosticFuture = diagnosticDebounceExecutor.schedule(() -> {
+            if (terminalPane != null) {
+                terminalPane.updateFileProblems(file);
+            }
+        }, 500, TimeUnit.MILLISECONDS);
     }
 
     public void closeActiveTab() {
@@ -510,19 +616,41 @@ public class FxEditorController {
         }
     }
 
+    public void forceCloseTab(EditorTabController tc) {
+        if (tc == null) return;
+        tabPaneLeft.getTabs().remove(tc.getTab());
+        tabPaneRight.getTabs().remove(tc.getTab());
+        tabControllers.remove(tc);
+        tc.dispose();
+        updateActiveTabMetrics();
+    }
+
     private boolean confirmAndSaveIfModified(EditorTabController tabCtrl) {
         if (tabCtrl.isModified()) {
-            Alert alert = new Alert(
-                    Alert.AlertType.CONFIRMATION,
-                    "Save changes to " + tabCtrl.getDocument().getFileName() + " before closing?",
-                    ButtonType.YES, ButtonType.NO, ButtonType.CANCEL
-            );
-            var res = alert.showAndWait();
-            if (res.isPresent()) {
-                if (res.get() == ButtonType.YES) {
-                    return handleSaveTab(tabCtrl, false);
-                } else if (res.get() == ButtonType.CANCEL) {
-                    return false;
+            if (modalOverlayPane != null) {
+                modalOverlayPane.showConfirmation(
+                        "Unsaved Changes",
+                        "Save changes to " + tabCtrl.getDocument().getFileName() + " before closing?",
+                        "Save & Close",
+                        () -> {
+                            handleSaveTab(tabCtrl, false);
+                            forceCloseTab(tabCtrl);
+                        }
+                );
+                return false;
+            } else {
+                Alert alert = new Alert(
+                        Alert.AlertType.CONFIRMATION,
+                        "Save changes to " + tabCtrl.getDocument().getFileName() + " before closing?",
+                        ButtonType.YES, ButtonType.NO, ButtonType.CANCEL
+                );
+                var res = alert.showAndWait();
+                if (res.isPresent()) {
+                    if (res.get() == ButtonType.YES) {
+                        return handleSaveTab(tabCtrl, false);
+                    } else if (res.get() == ButtonType.CANCEL) {
+                        return false;
+                    }
                 }
             }
         }
@@ -615,6 +743,19 @@ public class FxEditorController {
         }
     }
 
+    public void closeWorkspaceFolder() {
+        if (sidebarExplorer != null) {
+            sidebarExplorer.closeWorkspaceFolder();
+        }
+    }
+
+    public void formatActiveDocument() {
+        EditorTabController current = getActiveTabController();
+        if (current != null && current.getEditorPane() != null) {
+            current.getEditorPane().formatCode();
+        }
+    }
+
     public boolean handleSave(boolean forceSaveAs) {
         EditorTabController current = getActiveTabController();
         if (current == null) return false;
@@ -632,7 +773,9 @@ public class FxEditorController {
         }
         boolean saved = tc.save(forceSaveAs, targetFile);
         if (saved) {
-            terminalPane.scanWorkspaceForProblems();
+            if (terminalPane != null) {
+                terminalPane.updateFileProblems(tc.getDocument().getFilePath());
+            }
         }
         return saved;
     }
@@ -649,51 +792,28 @@ public class FxEditorController {
     }
 
     public void showThemePicker() {
-        ChoiceDialog<String> dialog = new ChoiceDialog<>(
-                themeService.getCurrentTheme().getDisplayName(),
-                themeService.getAllThemes().keySet()
-        );
-        dialog.setTitle("Color Themes & Shades");
-        dialog.setHeaderText("Choose your preferred aesthetic:");
-        dialog.setContentText("Theme:");
-
-        dialog.showAndWait().ifPresent(chosen -> {
-            ThemeService.Theme theme = themeService.getAllThemes().get(chosen);
-            if (theme != null) {
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showThemeSelectionDialog(themeService, theme -> {
                 themeService.applyTheme(stage.getScene(), theme);
-            }
-        });
+                statusBar.updateThemeDisplay(theme.getDisplayName());
+            });
+        }
     }
 
     public void showAboutDialog() {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("About AuraOrbit");
-        alert.setHeaderText("AuraOrbit 2.0.0 — Modern Desktop AI Code Studio");
-        alert.setContentText(
-                "AuraOrbit is a lightweight, high-performance, VS Code-inspired desktop code editor & AI IDE.\n\n" +
-                "Key Features:\n" +
-                "• Instant File Explorer & Scaffolding\n" +
-                "• Side-by-Side Split Editor (Cmd+\\)\n" +
-                "• Integrated AI Copilot (Cmd+Shift+A)\n" +
-                "• Integrated Terminal (Ctrl+`)\n" +
-                "• File Close (Cmd+W) & Tab Context Menu\n" +
-                "• Official VS Code Codicons Vector Icons\n" +
-                "• Multi-Theme Styling ('Various Shades')\n" +
-                "• Atomic NIO.2 IO & RichTextFX Syntax Highlighting\n\n" +
-                "Shortcuts:\n" +
-                "• Cmd/Ctrl+W : Close Active Tab\n" +
-                "• Cmd/Ctrl+P : Command Palette\n" +
-                "• Cmd/Ctrl+\\ : Toggle Split Editor\n" +
-                "• Cmd/Ctrl+Shift+A : Toggle AI Copilot\n" +
-                "• Ctrl+` : Toggle Terminal\n" +
-                "• Ctrl+Shift+` : New Terminal\n" +
-                "• Cmd/Ctrl+F : Find & Replace\n" +
-                "• Cmd/Ctrl+S : Save File"
-        );
-        alert.showAndWait();
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showAbout();
+        } else {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("About AuraOrbit");
+            alert.setHeaderText("AuraOrbit 2.0.0 — Modern Desktop AI Code Studio");
+            alert.setContentText("AuraOrbit is a modern desktop AI code studio.");
+            alert.showAndWait();
+        }
     }
 
     public void shutdown() {
+        diagnosticDebounceExecutor.shutdown();
         if (terminalPane != null) {
             terminalPane.dispose();
         }

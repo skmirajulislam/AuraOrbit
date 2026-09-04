@@ -1,7 +1,6 @@
 package test;
 
 import command.*;
-import model.Document;
 import model.TextBuffer;
 import service.FileSecurityValidator;
 import service.FileService;
@@ -10,6 +9,7 @@ import template.JsonTemplate;
 import template.MarkdownTemplate;
 import template.TemplateFactory;
 import view.fx.TerminalPane;
+import service.CodeDiagnosticsService;
 import org.kordamp.ikonli.codicons.Codicons;
 import javafx.application.Platform;
 
@@ -45,6 +45,9 @@ public class EditorTestSuite {
         testStringAtomicSaveAndLoad();
         testLineEndingsAndIndentationLogic();
         testTerminalAndDockFeatures();
+        testCodeDiagnosticsEngine();
+        testCodeFormatterService();
+        testAiServiceConfig();
 
         System.out.println("\n-------------------------------------------------");
         System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -431,6 +434,141 @@ public class EditorTestSuite {
         } catch (Exception e) {
             System.err.println("  ✖ FAIL: testTerminalAndDockFeatures threw exception: " + e.getMessage());
             testsFailed++;
+        }
+    }
+
+    private static void testCodeDiagnosticsEngine() {
+        System.out.println("\n[11] Testing Multi-Language Code Diagnostics Engine (Java, Python, JS, JSON, CSS)...");
+        try {
+            // 1. Test Java Unused Import Detection
+            Path tempJava = Files.createTempFile("TestDiag", ".java");
+            tempJava.toFile().deleteOnExit();
+            String javaContent = """
+                    package test;
+                    import java.util.List;
+                    import java.util.ArrayList;
+                    import java.io.IOException;
+                    public class TestDiag {
+                        private int unusedField = 42;
+                        public void doWork() {
+                            List<String> list = new ArrayList<>();
+                        }
+                    }
+                    """;
+            Files.writeString(tempJava, javaContent);
+            List<TerminalPane.ProblemItem> javaProblems = CodeDiagnosticsService.analyzeFile(tempJava);
+
+            boolean hasUnusedImport = javaProblems.stream().anyMatch(p -> p.message().contains("The import java.io.IOException is never used"));
+            assertTrue(hasUnusedImport, "Java: Detected unused import java.io.IOException");
+
+            boolean hasUnusedField = javaProblems.stream().anyMatch(p -> p.message().contains("The value of the field TestDiag.unusedField is not used"));
+            assertTrue(hasUnusedField, "Java: Detected unused private field TestDiag.unusedField");
+
+            // 2. Test Python Unused Import & Bare Except
+            Path tempPy = Files.createTempFile("test_script", ".py");
+            tempPy.toFile().deleteOnExit();
+            String pyContent = """
+                    import os
+                    import sys
+                    from math import sqrt, pi
+                    print(pi)
+                    try:
+                        pass
+                    except:
+                        pass
+                    """;
+            Files.writeString(tempPy, pyContent);
+            List<TerminalPane.ProblemItem> pyProblems = CodeDiagnosticsService.analyzeFile(tempPy);
+
+            boolean pyUnusedOs = pyProblems.stream().anyMatch(p -> p.message().contains("The import 'os' is not used"));
+            assertTrue(pyUnusedOs, "Python: Detected unused import 'os'");
+
+            boolean pyBareExcept = pyProblems.stream().anyMatch(p -> p.message().contains("Do not use bare 'except:' without exception type"));
+            assertTrue(pyBareExcept, "Python: Detected bare except clause");
+
+            // 3. Test JavaScript Unused Import & Debugger Statement
+            Path tempJs = Files.createTempFile("test_app", ".js");
+            tempJs.toFile().deleteOnExit();
+            String jsContent = """
+                    import { fetchUser, deleteUser } from './api';
+                    debugger;
+                    console.log(fetchUser());
+                    """;
+            Files.writeString(tempJs, jsContent);
+            List<TerminalPane.ProblemItem> jsProblems = CodeDiagnosticsService.analyzeFile(tempJs);
+
+            boolean jsUnusedImport = jsProblems.stream().anyMatch(p -> p.message().contains("The import 'deleteUser' is never used"));
+            assertTrue(jsUnusedImport, "JavaScript: Detected unused import 'deleteUser'");
+
+            boolean jsDebugger = jsProblems.stream().anyMatch(p -> p.message().contains("Unexpected 'debugger' statement"));
+            assertTrue(jsDebugger, "JavaScript: Detected debugger statement");
+
+            // 4. Test JSON Trailing Comma Error
+            Path tempJson = Files.createTempFile("data", ".json");
+            tempJson.toFile().deleteOnExit();
+            String jsonContent = "{\n  \"name\": 'AuraOrbit',\n  \"version\": \"2.0.0\",\n}";
+            Files.writeString(tempJson, jsonContent);
+            List<TerminalPane.ProblemItem> jsonProblems = CodeDiagnosticsService.analyzeFile(tempJson);
+
+            boolean jsonComma = jsonProblems.stream().anyMatch(p -> p.message().contains("Trailing comma in JSON is not allowed"));
+            assertTrue(jsonComma, "JSON: Detected trailing comma error");
+
+            boolean jsonQuotes = jsonProblems.stream().anyMatch(p -> p.message().contains("JSON strings must use double quotes"));
+            assertTrue(jsonQuotes, "JSON: Detected single quote error");
+
+        } catch (Exception e) {
+            System.err.println("  ✖ FAIL: testCodeDiagnosticsEngine threw exception: " + e.getMessage());
+            testsFailed++;
+        }
+    }
+
+    private static void testCodeFormatterService() {
+        System.out.println("\n[12] Testing Code Formatter Engine (Java, JSON, XML, Python)...");
+
+        // 1. Java Formatter Test
+        String unformattedJava = "public class Hello{\npublic static void main(String[] args){\nint x=10;\nSystem.out.println(x);\n}\n}";
+        String formattedJava = service.CodeFormatterService.formatCode(unformattedJava, "java");
+        assertTrue(formattedJava.contains("    public static void main"), "Java: indented method block by 4 spaces");
+        assertTrue(formattedJava.contains("        int x=10;"), "Java: indented inner statement by 8 spaces");
+
+        // 2. JSON Formatter Test
+        String unformattedJson = "{\"name\":\"AuraOrbit\",\"version\":\"2.0.0\",\"items\":[1,2,3]}";
+        String formattedJson = service.CodeFormatterService.formatCode(unformattedJson, "json");
+        assertTrue(formattedJson.contains("    \"name\": \"AuraOrbit\""), "JSON: formatted key-values with indent and colon spacing");
+        assertTrue(formattedJson.contains("[\n"), "JSON: formatted array with newline");
+
+        // 3. XML Formatter Test
+        String unformattedXml = "<project><modelVersion>4.0.0</modelVersion><groupId>com.test</groupId></project>";
+        String formattedXml = service.CodeFormatterService.formatCode(unformattedXml, "xml");
+        assertTrue(formattedXml.contains("    <modelVersion>"), "XML: indented child tag");
+    }
+
+    private static void testAiServiceConfig() {
+        System.out.println("\n[13] Testing Multi-LLM AI Service & Persistent Configuration...");
+
+        service.AiService aiService = new service.AiService();
+        String origOpenAi = aiService.getOpenAiKey();
+        String origGemini = aiService.getGeminiKey();
+        String origGrok = aiService.getGrokKey();
+
+        try {
+            aiService.setOpenAiKey("test-openai-key-12345");
+            aiService.setGeminiKey("test-gemini-key-67890");
+            aiService.setGrokKey("test-grok-key-abcde");
+
+            assertEquals("test-openai-key-12345", aiService.getOpenAiKey(), "AiService: Persisted and retrieved OpenAI key");
+            assertEquals("test-gemini-key-67890", aiService.getGeminiKey(), "AiService: Persisted and retrieved Gemini key");
+            assertEquals("test-grok-key-abcde", aiService.getGrokKey(), "AiService: Persisted and retrieved Grok key");
+
+            assertTrue(aiService.hasKeyForModel("GPT-4o"), "AiService: Recognizes OpenAI model key");
+            assertTrue(aiService.hasKeyForModel("Gemini 2.0 Flash"), "AiService: Recognizes Gemini model key");
+            assertTrue(aiService.hasKeyForModel("Grok-2"), "AiService: Recognizes Grok model key");
+            assertTrue(aiService.hasKeyForModel("DeepSeek-R1 (Local)"), "AiService: Local model requires no API key");
+        } finally {
+            // Restore original preference state
+            aiService.setOpenAiKey(origOpenAi);
+            aiService.setGeminiKey(origGemini);
+            aiService.setGrokKey(origGrok);
         }
     }
 }

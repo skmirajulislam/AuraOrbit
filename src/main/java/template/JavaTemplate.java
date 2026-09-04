@@ -9,7 +9,6 @@ public class JavaTemplate extends Template {
 
     @Override
     protected List<String> generateHeader(String fileName) {
-        String className = extractClassName(fileName);
         return List.of(
                 "/**",
                 " * Auto-generated file: " + fileName,

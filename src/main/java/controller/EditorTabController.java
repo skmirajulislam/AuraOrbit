@@ -6,7 +6,6 @@ import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.HBox;
 import model.Document;
-import model.TextBuffer;
 import org.fxmisc.richtext.CodeArea;
 import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -18,7 +17,6 @@ import view.fx.IconFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -281,6 +279,10 @@ public class EditorTabController {
 
     public String getEncoding() {
         return "UTF-8";
+    }
+
+    public void navigateToLineAndHighlight(int line1Indexed) {
+        editorPane.navigateToLineAndHighlight(line1Indexed);
     }
 
     public void dispose() {

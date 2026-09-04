@@ -6,6 +6,7 @@ import model.TextBuffer;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -20,7 +21,7 @@ import java.util.UUID;
  */
 public class FileService {
 
-    private static final int BUFFER_SIZE = 8192; // 8KB buffer for optimal I/O throughput
+    public static final int BUFFER_SIZE = 8192; // 8KB buffer for optimal I/O throughput
     private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
 
     public static final long MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB safety ceiling for in-memory line buffer
@@ -44,7 +45,7 @@ public class FileService {
         int estimatedLines = (int) Math.min(100_000, Math.max(32, fileSize / 50));
         List<String> lines = new ArrayList<>(estimatedLines);
 
-        try (BufferedReader reader = Files.newBufferedReader(path, DEFAULT_CHARSET)) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(Files.newInputStream(path), DEFAULT_CHARSET), BUFFER_SIZE)) {
             String line;
             while ((line = reader.readLine()) != null) {
                 lines.add(line);

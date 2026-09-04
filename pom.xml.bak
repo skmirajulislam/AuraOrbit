@@ -1,20 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
     <groupId>com.auraorbit</groupId>
     <artifactId>aura-orbit</artifactId>
     <version>2.0.0</version>
     <packaging>jar</packaging>
+
     <name>AuraOrbit</name>
     <description>AuraOrbit - Next-Gen Modern Desktop AI Code Studio &amp; IDE</description>
+
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <javafx.version>21.0.4</javafx.version>
     </properties>
+
     <dependencies>
         <!-- JavaFX Core Controls (transitively includes javafx-graphics & javafx-base) -->
         <dependency>
@@ -22,12 +26,14 @@
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
         </dependency>
+
         <!-- RichTextFX for virtualized code editing, line gutters, and syntax highlighting -->
         <dependency>
             <groupId>org.fxmisc.richtext</groupId>
             <artifactId>richtextfx</artifactId>
             <version>0.11.4</version>
         </dependency>
+
         <!-- Ikonli JavaFX & Official VS Code Codicons Pack -->
         <dependency>
             <groupId>org.kordamp.ikonli</groupId>
@@ -40,6 +46,7 @@
             <version>12.3.1</version>
         </dependency>
     </dependencies>
+
     <build>
         <plugins>
             <!-- Compiler plugin -->
@@ -51,6 +58,7 @@
                     <release>21</release>
                 </configuration>
             </plugin>
+
             <!-- JavaFX Maven Plugin for running and packaging -->
             <plugin>
                 <groupId>org.openjfx</groupId>
@@ -66,6 +74,7 @@
                     </options>
                 </configuration>
             </plugin>
+
             <!-- Executable Fat JAR Builder -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
