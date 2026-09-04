@@ -89,6 +89,16 @@ public class CollaborationSession {
         )));
     }
 
+    public void revokePermission(String targetUserId) throws Exception {
+        if (!isHostOrHasPermission(getLastActiveUser(), PermissionLevel.ADMIN)) {
+            throw new SecurityException("Only host can revoke permissions");
+        }
+        permissionManager.revokePermission(targetUserId);
+        broadcastEvent(new SyncEvent("permission_revoked", Map.of(
+                "user_id", targetUserId
+        )));
+    }
+
     public boolean canWrite(String userId) {
         PermissionLevel level = permissionManager.getPermissionLevel(userId);
         return level == PermissionLevel.WRITE || level == PermissionLevel.ADMIN;
