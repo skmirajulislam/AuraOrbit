@@ -50,10 +50,22 @@ public class JavaFxEditorApp extends Application {
         SplitPane editorSplitPane = new SplitPane(tabPaneLeft);
         editorSplitPane.getStyleClass().add("editor-split-pane");
 
+        // Welcome Watermark Pane (Displayed when no editor tabs are open)
+        WelcomeWatermarkPane welcomeWatermarkPane = new WelcomeWatermarkPane(
+                () -> controller.createNewTab("untitled.txt"),
+                controller::handleOpenFile,
+                controller::showCommandPalette,
+                controller::toggleTerminal,
+                controller::toggleAiPanel
+        );
+        welcomeWatermarkPane.setVisible(false);
+        welcomeWatermarkPane.setManaged(false);
+
         // Command Palette Floating Overlay
         CommandPalette commandPalette = new CommandPalette();
-        StackPane editorCenterStack = new StackPane(editorSplitPane, commandPalette);
+        StackPane editorCenterStack = new StackPane(welcomeWatermarkPane, editorSplitPane, commandPalette);
         StackPane.setAlignment(commandPalette, Pos.TOP_CENTER);
+        StackPane.setAlignment(welcomeWatermarkPane, Pos.CENTER);
 
         // Sidebars & Studio Panes
         ActivityBar activityBar = new ActivityBar();
@@ -86,6 +98,7 @@ public class JavaFxEditorApp extends Application {
                 tabPaneLeft,
                 tabPaneRight,
                 editorSplitPane,
+                welcomeWatermarkPane,
                 masterSplitPane,
                 activityBar,
                 sidebarExplorer,
@@ -110,7 +123,7 @@ public class JavaFxEditorApp extends Application {
             System.exit(0);
         });
 
-        primaryStage.setTitle("Minimal Code Studio & AI IDE (JavaFX 21+)");
+        primaryStage.setTitle("AuraOrbit");
         primaryStage.setScene(scene);
         primaryStage.show();
 

@@ -4,13 +4,13 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.codeeditor</groupId>
-    <artifactId>file-editor</artifactId>
+    <groupId>com.auraorbit</groupId>
+    <artifactId>aura-orbit</artifactId>
     <version>2.0.0</version>
     <packaging>jar</packaging>
 
-    <name>Modern Desktop File Editor</name>
-    <description>Lightweight, scalable, VS Code-inspired desktop code editor in OpenJFX</description>
+    <name>AuraOrbit</name>
+    <description>AuraOrbit - Next-Gen Modern Desktop AI Code Studio &amp; IDE</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

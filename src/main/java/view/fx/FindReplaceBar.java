@@ -6,11 +6,18 @@ import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.kordamp.ikonli.codicons.Codicons;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.function.Consumer;
 
 /**
  * Modern floating Find and Replace bar (VS Code style).
+ * Features:
+ * - Genuine VS Code Codicons for navigation, toggle, and close
+ * - Match Case toggle chip
+ * - Result count chip
+ * - In-place replace and replace-all
  */
 public class FindReplaceBar extends VBox {
 
@@ -19,6 +26,8 @@ public class FindReplaceBar extends VBox {
     private final CheckBox matchCaseCheck;
     private final Label resultLabel;
     private final HBox replaceRow;
+    private final Button toggleReplaceBtn;
+    private final FontIcon toggleChevronIcon;
 
     private Consumer<FindRequest> onFindNext;
     private Consumer<FindRequest> onFindPrev;
@@ -48,54 +57,76 @@ public class FindReplaceBar extends VBox {
     public FindReplaceBar() {
         getStyleClass().add("search-bar");
         setSpacing(6);
-        setPadding(new Insets(8, 12, 8, 12));
-        setMaxWidth(420);
+        setPadding(new Insets(6, 10, 6, 10));
+        setMaxWidth(460);
         setVisible(false);
         setManaged(false);
 
         // Find Row
-        HBox findRow = new HBox(8);
+        HBox findRow = new HBox(6);
         findRow.setAlignment(Pos.CENTER_LEFT);
+
+        toggleChevronIcon = IconFactory.getIcon(Codicons.CHEVRON_RIGHT, 12);
+        toggleReplaceBtn = new Button();
+        toggleReplaceBtn.setGraphic(toggleChevronIcon);
+        toggleReplaceBtn.getStyleClass().add("find-icon-btn");
+        toggleReplaceBtn.setTooltip(new Tooltip("Toggle Replace Mode"));
 
         findField = new TextField();
         findField.setPromptText("Find");
         findField.setPrefWidth(160);
+        findField.getStyleClass().add("find-text-input");
 
-        Button prevBtn = new Button("▲");
+        Button prevBtn = new Button();
+        prevBtn.setGraphic(IconFactory.getIcon(Codicons.ARROW_UP, 12));
+        prevBtn.getStyleClass().add("find-icon-btn");
         prevBtn.setTooltip(new Tooltip("Previous Match (Shift+Enter)"));
-        Button nextBtn = new Button("▼");
+
+        Button nextBtn = new Button();
+        nextBtn.setGraphic(IconFactory.getIcon(Codicons.ARROW_DOWN, 12));
+        nextBtn.getStyleClass().add("find-icon-btn");
         nextBtn.setTooltip(new Tooltip("Next Match (Enter)"));
 
         matchCaseCheck = new CheckBox("Aa");
-        matchCaseCheck.setTooltip(new Tooltip("Match Case"));
+        matchCaseCheck.getStyleClass().add("find-case-toggle");
+        matchCaseCheck.setTooltip(new Tooltip("Match Case (Alt+C)"));
 
         resultLabel = new Label("No results");
         resultLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary;");
 
-        Button toggleReplaceBtn = new Button("▾");
-        toggleReplaceBtn.setTooltip(new Tooltip("Toggle Replace Mode"));
-
-        Button closeBtn = new Button("✕");
+        Button closeBtn = new Button();
+        closeBtn.setGraphic(IconFactory.getIcon(Codicons.CLOSE, 11));
+        closeBtn.getStyleClass().add("find-icon-btn");
         closeBtn.setTooltip(new Tooltip("Close (Escape)"));
-        closeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: -text-secondary; -fx-cursor: hand;");
         closeBtn.setOnAction(e -> hideBar());
 
         findRow.getChildren().addAll(toggleReplaceBtn, findField, prevBtn, nextBtn, matchCaseCheck, resultLabel, closeBtn);
 
         // Replace Row
-        replaceRow = new HBox(8);
+        replaceRow = new HBox(6);
         replaceRow.setAlignment(Pos.CENTER_LEFT);
         replaceRow.setVisible(false);
         replaceRow.setManaged(false);
 
+        Label indentSpacer = new Label("    ");
+        indentSpacer.setPrefWidth(22);
+
         replaceField = new TextField();
         replaceField.setPromptText("Replace");
         replaceField.setPrefWidth(160);
+        replaceField.getStyleClass().add("find-text-input");
 
-        Button replaceBtn = new Button("Replace");
-        Button replaceAllBtn = new Button("Replace All");
+        Button replaceBtn = new Button();
+        replaceBtn.setGraphic(IconFactory.getIcon(Codicons.REPLACE, 12));
+        replaceBtn.setText(" Replace");
+        replaceBtn.getStyleClass().add("find-action-btn");
 
-        replaceRow.getChildren().addAll(new Label("   "), replaceField, replaceBtn, replaceAllBtn);
+        Button replaceAllBtn = new Button();
+        replaceAllBtn.setGraphic(IconFactory.getIcon(Codicons.REPLACE_ALL, 12));
+        replaceAllBtn.setText(" All");
+        replaceAllBtn.getStyleClass().add("find-action-btn");
+
+        replaceRow.getChildren().addAll(indentSpacer, replaceField, replaceBtn, replaceAllBtn);
 
         getChildren().addAll(findRow, replaceRow);
 
@@ -104,7 +135,7 @@ public class FindReplaceBar extends VBox {
             boolean show = !replaceRow.isVisible();
             replaceRow.setVisible(show);
             replaceRow.setManaged(show);
-            toggleReplaceBtn.setText(show ? "▴" : "▾");
+            toggleChevronIcon.setIconCode(show ? Codicons.CHEVRON_DOWN : Codicons.CHEVRON_RIGHT);
         });
 
         findField.setOnKeyPressed(e -> {
@@ -138,6 +169,7 @@ public class FindReplaceBar extends VBox {
         }
         replaceRow.setVisible(withReplace);
         replaceRow.setManaged(withReplace);
+        toggleChevronIcon.setIconCode(withReplace ? Codicons.CHEVRON_DOWN : Codicons.CHEVRON_RIGHT);
         findField.requestFocus();
         findField.selectAll();
     }

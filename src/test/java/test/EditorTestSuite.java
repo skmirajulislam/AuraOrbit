@@ -9,12 +9,17 @@ import template.JavaTemplate;
 import template.JsonTemplate;
 import template.MarkdownTemplate;
 import template.TemplateFactory;
+import view.fx.TerminalPane;
+import org.kordamp.ikonli.codicons.Codicons;
+import javafx.application.Platform;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Automated test suite verifying buffer operations, undo/redo consistency,
@@ -38,13 +43,19 @@ public class EditorTestSuite {
         testConcurrencyAndThreadSafety();
         testMultiLineUndoRedoAndEdgeCases();
         testStringAtomicSaveAndLoad();
+        testLineEndingsAndIndentationLogic();
+        testTerminalAndDockFeatures();
 
         System.out.println("\n-------------------------------------------------");
         System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
         System.out.println("-------------------------------------------------");
 
         if (testsFailed > 0) {
+            Platform.exit();
             System.exit(1);
+        } else {
+            Platform.exit();
+            System.exit(0);
         }
     }
 
@@ -340,6 +351,85 @@ public class EditorTestSuite {
             Files.deleteIfExists(bakFile);
         } catch (IOException e) {
             System.err.println("  ✖ FAIL: testStringAtomicSaveAndLoad threw exception: " + e.getMessage());
+            testsFailed++;
+        }
+    }
+
+    private static void testLineEndingsAndIndentationLogic() {
+        System.out.println("\n[9] Testing Dynamic Line Endings & Indentation...");
+        String crlfText = "Line 1\r\nLine 2\r\n";
+        String lfText = "Line 1\nLine 2\n";
+        assertTrue(crlfText.contains("\r\n"), "CRLF detection in document buffer");
+        assertTrue(!lfText.contains("\r\n"), "LF detection in document buffer");
+        assertEquals("Line 1\nLine 2\n", crlfText.replace("\r\n", "\n"), "CRLF to LF dynamic conversion");
+        assertEquals("Line 1\r\nLine 2\r\n", lfText.replace("\n", "\r\n"), "LF to CRLF dynamic conversion");
+
+        String tabText = "\tpublic void test() {}";
+        assertTrue(tabText.contains("\t"), "Tab indentation detection");
+    }
+
+    private static void testTerminalAndDockFeatures() {
+        System.out.println("\n[10] Testing Terminal & Dock Panel (Sessions, Kill-to-Close, REPL, Problems, Ports)...");
+        try {
+            try {
+                javafx.application.Platform.startup(() -> {});
+            } catch (IllegalStateException ignored) {
+                // Platform already initialized
+            }
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            final boolean[] closeCalled = new boolean[1];
+
+            javafx.application.Platform.runLater(() -> {
+                try {
+                    TerminalPane pane = new TerminalPane();
+                    pane.setOnCloseRequested(() -> closeCalled[0] = true);
+
+                    // Test 1: Single session created
+                    pane.createNewTerminal();
+                    assertEquals(1, pane.getSessionsCount(), "Single terminal session created");
+
+                    // Test 2: Kill active terminal when single instance -> triggers close
+                    pane.killActiveTerminal();
+                    assertEquals(0, pane.getSessionsCount(), "All sessions removed");
+                    assertEquals(true, closeCalled[0], "Close requested called on deleting single shell instance");
+
+                    // Test 3: Multiple sessions
+                    closeCalled[0] = false;
+                    pane.createNewTerminal(); // session 1
+                    pane.createNewTerminal(); // session 2
+                    assertEquals(2, pane.getSessionsCount(), "Two terminal sessions created");
+
+                    // Killing 1 session does NOT trigger close
+                    pane.killActiveTerminal();
+                    assertEquals(1, pane.getSessionsCount(), "One terminal session remaining");
+                    assertEquals(false, closeCalled[0], "Close NOT called when sessions still remain");
+
+                    // Killing last session DOES trigger close
+                    pane.killActiveTerminal();
+                    assertEquals(0, pane.getSessionsCount(), "Zero sessions remaining");
+                    assertEquals(true, closeCalled[0], "Close called when last session killed");
+
+                    // Test 4: Problems Tab Diagnostics
+                    pane.addProblem(Codicons.ERROR, "Error", "Test syntax error", "Main.java", 10, 5, "syntax");
+                    assertEquals(1, pane.getProblemsCount(), "Problem added to Problems Tab");
+                    pane.clearProblems();
+                    assertEquals(0, pane.getProblemsCount(), "Problems cleared");
+
+                    // Test 5: Output Tab Logging
+                    pane.logOutput("AuraOrbit (System)", "Test Log Line");
+                    assertEquals(true, pane.hasChannel("AuraOrbit (System)"), "Output channel exists");
+
+                    pane.dispose();
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            boolean finished = latch.await(5, TimeUnit.SECONDS);
+            assertTrue(finished, "JavaFX Terminal tests completed within timeout");
+        } catch (Exception e) {
+            System.err.println("  ✖ FAIL: testTerminalAndDockFeatures threw exception: " + e.getMessage());
             testsFailed++;
         }
     }

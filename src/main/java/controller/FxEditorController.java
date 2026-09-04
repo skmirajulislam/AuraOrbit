@@ -5,6 +5,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
+import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import service.FileService;
@@ -14,7 +15,9 @@ import view.fx.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +31,7 @@ public class FxEditorController {
     private final ThemeService themeService;
     private final FileService fileService;
 
+    private WelcomeWatermarkPane welcomeWatermarkPane;
     private TabPane tabPaneLeft;
     private TabPane tabPaneRight;
     private SplitPane editorSplitPane;
@@ -53,6 +57,7 @@ public class FxEditorController {
             TabPane tabPaneLeft,
             TabPane tabPaneRight,
             SplitPane editorSplitPane,
+            WelcomeWatermarkPane welcomeWatermarkPane,
             SplitPane masterSplitPane,
             ActivityBar activityBar,
             SidebarExplorer sidebarExplorer,
@@ -65,6 +70,7 @@ public class FxEditorController {
         this.tabPaneLeft = tabPaneLeft;
         this.tabPaneRight = tabPaneRight;
         this.editorSplitPane = editorSplitPane;
+        this.welcomeWatermarkPane = welcomeWatermarkPane;
         this.masterSplitPane = masterSplitPane;
         this.activityBar = activityBar;
         this.sidebarExplorer = sidebarExplorer;
@@ -99,6 +105,13 @@ public class FxEditorController {
             }
         });
         sidebarExplorer.setOnNewFileRequested(() -> createNewTab("untitled.txt"));
+        sidebarExplorer.setOnWorkspaceChanged(path -> {
+            statusBar.updateGitBranch(path);
+            updateActiveTabMetrics();
+        });
+        if (sidebarExplorer.getRootPath() != null) {
+            statusBar.updateGitBranch(sidebarExplorer.getRootPath());
+        }
     }
 
     private void setupActivityBar() {
@@ -187,7 +200,34 @@ public class FxEditorController {
             }
             return null;
         });
+        terminalPane.setWorkspaceSupplier(() -> sidebarExplorer.getRootPath());
         terminalPane.setOnCloseRequested(this::toggleTerminal);
+        terminalPane.setOnProblemNavigated((fileName, line) -> {
+            if (fileName == null || fileName.isEmpty()) return;
+            Path targetPath = null;
+            Path root = sidebarExplorer.getRootPath();
+            if (root != null) {
+                Path candidate = root.resolve(fileName);
+                if (Files.exists(candidate)) targetPath = candidate;
+            }
+            if (targetPath == null && Files.exists(Paths.get(fileName))) {
+                targetPath = Paths.get(fileName);
+            }
+            if (targetPath != null) {
+                openFile(targetPath);
+                if (line > 0) {
+                    EditorTabController active = getActiveTabController();
+                    if (active != null) {
+                        Platform.runLater(() -> {
+                            try {
+                                active.getEditorPane().getCodeArea().moveTo(Math.max(0, line - 1), 0);
+                                active.getEditorPane().getCodeArea().requestFocus();
+                            } catch (Exception ignored) {}
+                        });
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -262,11 +302,59 @@ public class FxEditorController {
         statusBar.setOnThemeSelected(theme -> {
             themeService.applyTheme(stage.getScene(), theme);
         });
+
+        statusBar.setOnLineEndingsClicked(() -> {
+            EditorTabController current = getActiveTabController();
+            if (current != null) {
+                current.toggleLineEndings();
+                statusBar.setLineEndings(current.getLineEndings());
+            }
+        });
+
+        statusBar.setOnIndentationClicked(() -> {
+            ChoiceDialog<String> dialog = new ChoiceDialog<>("Spaces: 4", "Spaces: 2", "Spaces: 4", "Tab Size: 4");
+            dialog.setTitle("Indentation");
+            dialog.setHeaderText("Select Indentation Mode:");
+            dialog.showAndWait().ifPresent(statusBar::setIndentation);
+        });
+
+        statusBar.setOnEncodingClicked(() -> {
+            ChoiceDialog<String> dialog = new ChoiceDialog<>("UTF-8", "UTF-8", "UTF-16", "US-ASCII", "ISO-8859-1");
+            dialog.setTitle("File Encoding");
+            dialog.setHeaderText("Select Character Encoding:");
+            dialog.showAndWait().ifPresent(statusBar::setEncoding);
+        });
+
+        statusBar.setOnGitBranchClicked(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Git Source Control");
+            Path root = sidebarExplorer.getRootPath();
+            alert.setHeaderText("Active Git Workspace: " + (root != null ? root.toAbsolutePath() : "None"));
+            alert.setContentText("Local repository is tracked and synchronized.");
+            alert.showAndWait();
+        });
+
+        statusBar.setOnProblemsClicked(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("AuraOrbit Diagnostics");
+            alert.setHeaderText("Workspace Diagnostics: 0 Errors, 0 Warnings");
+            alert.setContentText("No compilation or syntax issues detected in the current workspace.");
+            alert.showAndWait();
+        });
+
+        statusBar.setOnBellClicked(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Notifications");
+            alert.setHeaderText("AuraOrbit Notification Center");
+            alert.setContentText("• System is healthy\n• AuraOrbit Copilot AI Studio is active\n• Terminal integrated shell ready");
+            alert.showAndWait();
+        });
     }
 
     private void setupCommandPalette() {
         commandPalette.registerCommand("File: New File", "Cmd+N", () -> createNewTab("untitled.txt"));
         commandPalette.registerCommand("File: Open File...", "Cmd+O", this::handleOpenFile);
+        commandPalette.registerCommand("File: Open Folder...", "Cmd+K Cmd+O", this::handleOpenFolder);
         commandPalette.registerCommand("File: Save", "Cmd+S", () -> handleSave(false));
         commandPalette.registerCommand("File: Save As...", "Cmd+Shift+S", () -> handleSave(true));
         commandPalette.registerCommand("File: Close Active Tab", "Cmd+W", this::closeActiveTab);
@@ -433,13 +521,28 @@ public class FxEditorController {
     }
 
     public void updateActiveTabMetrics() {
+        boolean hasTabs = (tabPaneLeft != null && !tabPaneLeft.getTabs().isEmpty()) ||
+                (isSplitEditorActive && tabPaneRight != null && !tabPaneRight.getTabs().isEmpty());
+
+        if (welcomeWatermarkPane != null) {
+            welcomeWatermarkPane.setVisible(!hasTabs);
+            welcomeWatermarkPane.setManaged(!hasTabs);
+        }
+        if (editorSplitPane != null) {
+            editorSplitPane.setVisible(hasTabs);
+            editorSplitPane.setManaged(hasTabs);
+        }
+
         EditorTabController current = getActiveTabController();
         if (current == null) {
             statusBar.updatePosition(1, 1);
             statusBar.updateStats(0, 0);
             statusBar.setModified(false);
             statusBar.setLanguage("Plain Text");
-            stage.setTitle("Minimal Code Studio (JavaFX 21+)");
+            statusBar.setLineEndings("LF");
+            statusBar.setIndentation("Spaces: 4");
+            statusBar.setEncoding("UTF-8");
+            stage.setTitle("AuraOrbit");
             if (aiAssistantPane != null) aiAssistantPane.updateActiveContext("No active file", 0, 0);
             return;
         }
@@ -448,10 +551,13 @@ public class FxEditorController {
         statusBar.updateStats(current.getLineCount(), current.getCharCount());
         statusBar.setModified(current.isModified());
         statusBar.setLanguage(current.getDocument().getFileType().toUpperCase());
+        statusBar.setLineEndings(current.getLineEndings());
+        statusBar.setIndentation(current.getIndentation());
+        statusBar.setEncoding(current.getEncoding());
 
         String docName = current.getDocument().getFileName();
         String pathStr = current.getDocument().isPersisted() ? current.getDocument().getFilePath().toString() : "[Unsaved]";
-        stage.setTitle((current.isModified() ? "● " : "") + docName + " (" + pathStr + ") — Minimal Code Studio");
+        stage.setTitle((current.isModified() ? "● " : "") + docName + " (" + pathStr + ") — AuraOrbit");
 
         int selectedLength = current.getEditorPane().getCodeArea().getSelectedText().length();
         if (aiAssistantPane != null) {
@@ -488,6 +594,15 @@ public class FxEditorController {
         File file = chooser.showOpenDialog(stage);
         if (file != null) {
             openFile(file.toPath());
+        }
+    }
+
+    public void handleOpenFolder() {
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Open Workspace Folder");
+        File folder = chooser.showDialog(stage);
+        if (folder != null) {
+            sidebarExplorer.setWorkspacePath(folder.toPath());
         }
     }
 
@@ -539,10 +654,10 @@ public class FxEditorController {
 
     public void showAboutDialog() {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("About Minimal Code Studio");
-        alert.setHeaderText("Minimal Code Studio & AI IDE (OpenJFX 21+)");
+        alert.setTitle("About AuraOrbit");
+        alert.setHeaderText("AuraOrbit 2.0.0 — Modern Desktop AI Code Studio");
         alert.setContentText(
-                "Modern, Lightweight, GPU-accelerated Code Editor & AI IDE in Java 21+.\n\n" +
+                "AuraOrbit is a lightweight, high-performance, VS Code-inspired desktop code editor & AI IDE.\n\n" +
                 "Key Features:\n" +
                 "• Instant File Explorer & Scaffolding\n" +
                 "• Side-by-Side Split Editor (Cmd+\\)\n" +

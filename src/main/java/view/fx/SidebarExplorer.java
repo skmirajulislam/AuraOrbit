@@ -1,55 +1,86 @@
 package view.fx;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 import template.Template;
 import template.TemplateFactory;
 
+import java.awt.Desktop;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * Collapsible, responsive Sidebar showing Project Explorer and 1-click Template Scaffolds
- * powered by official VS Code Codicons.
- * Features lazy on-demand directory expansion for high performance and low memory footprint.
+ * AuraOrbit VS Code-Identical Explorer Sidebar.
+ * Features:
+ * - Dual-header layout (Top "EXPLORER" + "..." action; Workspace row "⌄ Coding" + Action buttons)
+ * - 4 Action toolbar buttons: New File, New Folder, Refresh, Collapse All
+ * - In-place inline file and folder creation with blue active border and auto-focus
+ * - Full right-click context menu (New File, New Folder, Reveal, Copy Path, Delete)
+ * - High-performance lazy file tree loading
  */
 public class SidebarExplorer extends VBox {
 
-    private final Label titleLabel;
+    private final Label topTitleLabel;
     private final StackPane contentStack;
     private final VBox explorerPane;
     private final VBox templatesPane;
 
+    private Label workspaceTitleLabel;
+    private FontIcon workspaceChevron;
     private TreeView<FileItem> fileTreeView;
     private Path currentWorkspacePath;
 
     private Consumer<Path> onFileSelected;
     private Consumer<TemplateChoice> onTemplateSelected;
     private Runnable onNewFileRequested;
+    private Consumer<Path> onWorkspaceChanged;
 
+    /**
+     * Tree item data model representing files, folders, or in-progress inline creation.
+     */
     public static class FileItem {
         public final File file;
+        public final boolean isCreationItem;
+        public final boolean isFolderCreation;
+        public final File targetParentDir;
         private FontIcon cachedIcon;
 
+        // Normal file or directory item
         public FileItem(File file) {
+            this(file, false, false, null);
+        }
+
+        // Inline creation placeholder item
+        public FileItem(File file, boolean isCreationItem, boolean isFolderCreation, File targetParentDir) {
             this.file = file;
+            this.isCreationItem = isCreationItem;
+            this.isFolderCreation = isFolderCreation;
+            this.targetParentDir = targetParentDir;
         }
 
         public FontIcon getIcon(boolean isExpanded) {
-            if (file.isDirectory()) {
+            if (isCreationItem) {
+                return isFolderCreation ? IconFactory.getFolderIcon(false, 14) : IconFactory.getFileIcon("", 14);
+            }
+            if (file != null && file.isDirectory()) {
                 return IconFactory.getFolderIcon(isExpanded, 14);
             }
-            if (cachedIcon == null) {
+            if (cachedIcon == null && file != null) {
                 cachedIcon = IconFactory.getFileIcon(file.getName(), 14);
             }
             return cachedIcon;
@@ -57,6 +88,8 @@ public class SidebarExplorer extends VBox {
 
         @Override
         public String toString() {
+            if (isCreationItem) return "";
+            if (file == null) return "";
             return file.getName().isEmpty() ? file.getAbsolutePath() : file.getName();
         }
     }
@@ -72,44 +105,31 @@ public class SidebarExplorer extends VBox {
 
     public SidebarExplorer() {
         getStyleClass().add("sidebar");
-        setMinWidth(160);
-        setPrefWidth(240);
+        setMinWidth(180);
+        setPrefWidth(260);
         setMaxWidth(500);
 
-        // Header
-        HBox header = new HBox(8);
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(10, 14, 8, 14));
-        header.getStyleClass().add("sidebar-header");
+        // 1. Top Primary Explorer Header: [EXPLORER          ...]
+        HBox topHeader = new HBox(8);
+        topHeader.setAlignment(Pos.CENTER_LEFT);
+        topHeader.setPadding(new Insets(10, 14, 8, 14));
+        topHeader.getStyleClass().add("sidebar-header");
 
-        titleLabel = new Label("EXPLORER");
-        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: -text-secondary;");
+        topTitleLabel = new Label("EXPLORER");
+        topTitleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-text-fill: -text-secondary;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button newFileBtn = new Button();
-        newFileBtn.setGraphic(IconFactory.getIcon(Codicons.NEW_FILE, 14));
-        newFileBtn.setTooltip(new Tooltip("New File (Cmd/Ctrl+N)"));
-        newFileBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 0 4 0 4;");
-        newFileBtn.setOnAction(e -> {
-            if (onNewFileRequested != null) onNewFileRequested.run();
-        });
+        Button moreBtn = createActionButton(Codicons.ELLIPSIS, "More Actions...");
+        moreBtn.setOnAction(e -> showMoreMenu(moreBtn));
 
-        Button refreshBtn = new Button();
-        refreshBtn.setGraphic(IconFactory.getIcon(Codicons.REFRESH, 14));
-        refreshBtn.setTooltip(new Tooltip("Refresh Workspace"));
-        refreshBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 0 4 0 4;");
-        refreshBtn.setOnAction(e -> {
-            if (currentWorkspacePath != null) setWorkspacePath(currentWorkspacePath);
-        });
+        topHeader.getChildren().addAll(topTitleLabel, spacer, moreBtn);
 
-        header.getChildren().addAll(titleLabel, spacer, newFileBtn, refreshBtn);
-
-        // Explorer Pane
+        // 2. Explorer Pane (contains Workspace Section Header + TreeView)
         explorerPane = createExplorerPane();
 
-        // Templates Pane
+        // 3. Templates Pane (for scaffolding)
         templatesPane = createTemplatesPane();
         templatesPane.setVisible(false);
         templatesPane.setManaged(false);
@@ -117,9 +137,9 @@ public class SidebarExplorer extends VBox {
         contentStack = new StackPane(explorerPane, templatesPane);
         VBox.setVgrow(contentStack, Priority.ALWAYS);
 
-        getChildren().addAll(header, contentStack);
+        getChildren().addAll(topHeader, contentStack);
 
-        // Default workspace is current directory
+        // Default workspace is current working directory
         setWorkspacePath(Paths.get("."));
     }
 
@@ -127,49 +147,160 @@ public class SidebarExplorer extends VBox {
         VBox pane = new VBox();
         VBox.setVgrow(pane, Priority.ALWAYS);
 
+        // Workspace Section Header: [⌄ WorkspaceName       [📄+] [📁+] [🔄] [🗂️]]
+        HBox workspaceHeader = new HBox(6);
+        workspaceHeader.setAlignment(Pos.CENTER_LEFT);
+        workspaceHeader.getStyleClass().add("explorer-workspace-header");
+
+        workspaceChevron = IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12);
+        workspaceTitleLabel = new Label("CODING");
+        workspaceTitleLabel.getStyleClass().add("explorer-workspace-title");
+
+        HBox titleBox = new HBox(4, workspaceChevron, workspaceTitleLabel);
+        titleBox.setAlignment(Pos.CENTER_LEFT);
+        titleBox.setStyle("-fx-cursor: hand;");
+        titleBox.setOnMouseClicked(e -> toggleTreeVisibility());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button newFileBtn = createActionButton(Codicons.NEW_FILE, "New File...");
+        newFileBtn.setOnAction(e -> startInlineCreation(false));
+
+        Button newFolderBtn = createActionButton(Codicons.NEW_FOLDER, "New Folder...");
+        newFolderBtn.setOnAction(e -> startInlineCreation(true));
+
+        Button refreshBtn = createActionButton(Codicons.REFRESH, "Refresh Explorer");
+        refreshBtn.setOnAction(e -> {
+            if (currentWorkspacePath != null) setWorkspacePath(currentWorkspacePath);
+        });
+
+        Button collapseAllBtn = createActionButton(Codicons.COLLAPSE_ALL, "Collapse Folders in Explorer");
+        collapseAllBtn.setOnAction(e -> collapseAll());
+
+        HBox actionToolbar = new HBox(2, newFileBtn, newFolderBtn, refreshBtn, collapseAllBtn);
+        actionToolbar.setAlignment(Pos.CENTER_RIGHT);
+
+        workspaceHeader.getChildren().addAll(titleBox, spacer, actionToolbar);
+
+        // TreeView
         fileTreeView = new TreeView<>();
         fileTreeView.getStyleClass().add("tree-view");
+        fileTreeView.setShowRoot(false); // Contents of workspace folder render directly below header
         VBox.setVgrow(fileTreeView, Priority.ALWAYS);
 
+        setupTreeCellFactory();
+        setupTreeInteractions();
+
+        pane.getChildren().addAll(workspaceHeader, fileTreeView);
+        return pane;
+    }
+
+    private Button createActionButton(Codicons codicon, String tooltipText) {
+        Button btn = new Button();
+        btn.setGraphic(IconFactory.getIcon(codicon, 13));
+        btn.getStyleClass().add("explorer-action-btn");
+        if (tooltipText != null) {
+            btn.setTooltip(new Tooltip(tooltipText));
+        }
+        return btn;
+    }
+
+    private void toggleTreeVisibility() {
+        boolean visible = !fileTreeView.isVisible();
+        fileTreeView.setVisible(visible);
+        fileTreeView.setManaged(visible);
+        workspaceChevron.setIconCode(visible ? Codicons.CHEVRON_DOWN : Codicons.CHEVRON_RIGHT);
+    }
+
+    private void setupTreeCellFactory() {
         fileTreeView.setCellFactory(tv -> new TreeCell<>() {
+            private TextField inlineInput = null;
+            private HBox editorBox = null;
+            private boolean isCommitted = false;
+
             @Override
             protected void updateItem(FileItem item, boolean empty) {
                 super.updateItem(item, empty);
+
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
+                    setContextMenu(null);
+                    return;
+                }
+
+                if (item.isCreationItem) {
+                    setText(null);
+                    setContextMenu(null);
+                    isCommitted = false;
+
+                    if (editorBox == null) {
+                        editorBox = new HBox(6);
+                        editorBox.setAlignment(Pos.CENTER_LEFT);
+
+                        inlineInput = new TextField();
+                        inlineInput.getStyleClass().add("inline-tree-input");
+                        HBox.setHgrow(inlineInput, Priority.ALWAYS);
+                        inlineInput.setMaxWidth(Double.MAX_VALUE);
+                    }
+
+                    FontIcon icon = item.getIcon(false);
+                    editorBox.getChildren().setAll(icon, inlineInput);
+                    setGraphic(editorBox);
+
+                    final TreeItem<FileItem> creationTreeItem = getTreeItem();
+                    final File targetDir = item.targetParentDir;
+                    final boolean isFolder = item.isFolderCreation;
+
+                    inlineInput.setText("");
+
+                    inlineInput.setOnKeyPressed(ke -> {
+                        if (ke.getCode() == KeyCode.ENTER) {
+                            String name = inlineInput.getText().trim();
+                            isCommitted = true;
+                            commitCreation(creationTreeItem, targetDir, name, isFolder);
+                            ke.consume();
+                        } else if (ke.getCode() == KeyCode.ESCAPE) {
+                            isCommitted = true;
+                            cancelCreation(creationTreeItem);
+                            ke.consume();
+                        }
+                    });
+
+                    inlineInput.focusedProperty().addListener((obs, oldF, newF) -> {
+                        if (!newF && !isCommitted) {
+                            Platform.runLater(() -> cancelCreation(creationTreeItem));
+                        }
+                    });
+
+                    Platform.runLater(inlineInput::requestFocus);
+
                 } else {
                     setText(item.file.getName().isEmpty() ? item.file.getAbsolutePath() : item.file.getName());
                     boolean expanded = getTreeItem() != null && getTreeItem().isExpanded();
                     setGraphic(item.getIcon(expanded));
+                    setContextMenu(createTreeContextMenu(getTreeItem()));
                 }
             }
         });
+    }
 
-        // Trigger on selection change
+    private void setupTreeInteractions() {
+        // Selection change
         fileTreeView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && newVal.getValue() != null && newVal.getValue().file.isFile()) {
+            if (newVal != null && newVal.getValue() != null && !newVal.getValue().isCreationItem && newVal.getValue().file != null && newVal.getValue().file.isFile()) {
                 if (onFileSelected != null) {
                     onFileSelected.accept(newVal.getValue().file.toPath());
                 }
             }
         });
 
-        // Trigger on single/double click
+        // Click handler
         fileTreeView.setOnMouseClicked(e -> {
-            TreeItem<FileItem> selected = fileTreeView.getSelectionModel().getSelectedItem();
-            if (selected != null && selected.getValue() != null && selected.getValue().file.isFile()) {
-                if (onFileSelected != null) {
-                    onFileSelected.accept(selected.getValue().file.toPath());
-                }
-            }
-        });
-
-        // Trigger on Enter key
-        fileTreeView.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.ENTER) {
+            if (e.getButton() == MouseButton.PRIMARY) {
                 TreeItem<FileItem> selected = fileTreeView.getSelectionModel().getSelectedItem();
-                if (selected != null && selected.getValue() != null && selected.getValue().file.isFile()) {
+                if (selected != null && selected.getValue() != null && !selected.getValue().isCreationItem && selected.getValue().file != null && selected.getValue().file.isFile()) {
                     if (onFileSelected != null) {
                         onFileSelected.accept(selected.getValue().file.toPath());
                     }
@@ -177,8 +308,297 @@ public class SidebarExplorer extends VBox {
             }
         });
 
-        pane.getChildren().add(fileTreeView);
-        return pane;
+        // Enter key
+        fileTreeView.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER) {
+                TreeItem<FileItem> selected = fileTreeView.getSelectionModel().getSelectedItem();
+                if (selected != null && selected.getValue() != null && !selected.getValue().isCreationItem && selected.getValue().file != null && selected.getValue().file.isFile()) {
+                    if (onFileSelected != null) {
+                        onFileSelected.accept(selected.getValue().file.toPath());
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Starts VS Code-identical inline creation of a file or folder inside the active folder.
+     */
+    public void startInlineCreation(boolean isFolder) {
+        if (currentWorkspacePath == null || fileTreeView == null) return;
+
+        TreeItem<FileItem> targetParentItem = null;
+        TreeItem<FileItem> selected = fileTreeView.getSelectionModel().getSelectedItem();
+
+        if (selected != null && selected.getValue() != null && !selected.getValue().isCreationItem) {
+            FileItem selectedItem = selected.getValue();
+            if (selectedItem.file != null && selectedItem.file.isDirectory()) {
+                targetParentItem = selected;
+            } else if (selected.getParent() != null) {
+                targetParentItem = selected.getParent();
+            }
+        }
+
+        if (targetParentItem == null) {
+            targetParentItem = fileTreeView.getRoot();
+        }
+
+        if (targetParentItem == null) return;
+
+        // Ensure target folder is expanded
+        targetParentItem.setExpanded(true);
+
+        File parentDir = (targetParentItem.getValue() != null && targetParentItem.getValue().file != null)
+                ? targetParentItem.getValue().file
+                : currentWorkspacePath.toFile();
+
+        // Clean up any existing creation items
+        removeCreationItems(targetParentItem);
+
+        FileItem creationItem = new FileItem(null, true, isFolder, parentDir);
+        TreeItem<FileItem> creationTreeItem = new TreeItem<>(creationItem);
+
+        // Add at top of directory
+        targetParentItem.getChildren().add(0, creationTreeItem);
+
+        // Select and scroll to it
+        fileTreeView.getSelectionModel().select(creationTreeItem);
+        fileTreeView.scrollTo(fileTreeView.getRow(creationTreeItem));
+    }
+
+    private void removeCreationItems(TreeItem<FileItem> parent) {
+        if (parent == null) return;
+        parent.getChildren().removeIf(item -> item.getValue() != null && item.getValue().isCreationItem);
+    }
+
+    private void commitCreation(TreeItem<FileItem> creationTreeItem, File targetDir, String name, boolean isFolder) {
+        if (creationTreeItem == null || targetDir == null) return;
+        TreeItem<FileItem> parent = creationTreeItem.getParent();
+        if (parent == null) return;
+
+        if (name.isEmpty() || name.contains("/") || name.contains("\\") || name.contains(":") ||
+                name.contains("*") || name.contains("?") || name.contains("\"") || name.contains("<") ||
+                name.contains(">") || name.contains("|")) {
+            parent.getChildren().remove(creationTreeItem);
+            return;
+        }
+
+        File newFile = new File(targetDir, name);
+        if (newFile.exists()) {
+            parent.getChildren().remove(creationTreeItem);
+            return;
+        }
+
+        try {
+            if (isFolder) {
+                Files.createDirectories(newFile.toPath());
+            } else {
+                Files.createFile(newFile.toPath());
+            }
+
+            parent.getChildren().remove(creationTreeItem);
+
+            LazyTreeItem newTreeItem = new LazyTreeItem(new FileItem(newFile));
+
+            // Sorted insertion: folders first, then files alphabetically
+            int insertIndex = 0;
+            for (int i = 0; i < parent.getChildren().size(); i++) {
+                FileItem existing = parent.getChildren().get(i).getValue();
+                if (existing == null || existing.file == null || existing.isCreationItem) continue;
+                if (isFolder) {
+                    if (!existing.file.isDirectory() || newFile.getName().compareToIgnoreCase(existing.file.getName()) < 0) {
+                        insertIndex = i;
+                        break;
+                    }
+                } else {
+                    if (!existing.file.isDirectory() && newFile.getName().compareToIgnoreCase(existing.file.getName()) < 0) {
+                        insertIndex = i;
+                        break;
+                    }
+                }
+                insertIndex = i + 1;
+            }
+            if (insertIndex > parent.getChildren().size()) insertIndex = parent.getChildren().size();
+            parent.getChildren().add(insertIndex, newTreeItem);
+
+            fileTreeView.getSelectionModel().select(newTreeItem);
+
+            // Automatically open newly created file in editor tab!
+            if (!isFolder && onFileSelected != null) {
+                onFileSelected.accept(newFile.toPath());
+            }
+
+        } catch (IOException e) {
+            System.err.println("Creation failed: " + e.getMessage());
+            parent.getChildren().remove(creationTreeItem);
+        }
+    }
+
+    private void cancelCreation(TreeItem<FileItem> creationTreeItem) {
+        if (creationTreeItem != null && creationTreeItem.getParent() != null) {
+            creationTreeItem.getParent().getChildren().remove(creationTreeItem);
+        }
+    }
+
+    /**
+     * Collapses all expanded folders back to the root level.
+     */
+    public void collapseAll() {
+        TreeItem<FileItem> root = fileTreeView.getRoot();
+        if (root != null) {
+            for (TreeItem<FileItem> child : root.getChildren()) {
+                collapseRecursively(child);
+            }
+        }
+    }
+
+    private void collapseRecursively(TreeItem<FileItem> item) {
+        if (item == null) return;
+        if (!item.isLeaf()) {
+            item.setExpanded(false);
+            for (TreeItem<FileItem> child : item.getChildren()) {
+                collapseRecursively(child);
+            }
+        }
+    }
+
+    private ContextMenu createTreeContextMenu(TreeItem<FileItem> treeItem) {
+        if (treeItem == null || treeItem.getValue() == null || treeItem.getValue().file == null) {
+            return null;
+        }
+        File file = treeItem.getValue().file;
+        ContextMenu menu = new ContextMenu();
+
+        MenuItem newFile = new MenuItem("New File...");
+        newFile.setGraphic(IconFactory.getIcon(Codicons.NEW_FILE, 13));
+        newFile.setOnAction(e -> startInlineCreation(false));
+
+        MenuItem newFolder = new MenuItem("New Folder...");
+        newFolder.setGraphic(IconFactory.getIcon(Codicons.NEW_FOLDER, 13));
+        newFolder.setOnAction(e -> startInlineCreation(true));
+
+        String os = System.getProperty("os.name", "").toLowerCase();
+        MenuItem reveal = new MenuItem(os.contains("mac") ? "Reveal in Finder" : "Show in File Explorer");
+        reveal.setGraphic(IconFactory.getIcon(Codicons.FOLDER_OPENED, 13));
+        reveal.setOnAction(e -> revealInFileManager(file));
+
+        MenuItem copyPath = new MenuItem("Copy Path");
+        copyPath.setGraphic(IconFactory.getIcon(Codicons.FILES, 13));
+        copyPath.setOnAction(e -> copyToClipboard(file.getAbsolutePath()));
+
+        MenuItem copyRelPath = new MenuItem("Copy Relative Path");
+        copyRelPath.setOnAction(e -> {
+            if (currentWorkspacePath != null) {
+                try {
+                    copyToClipboard(currentWorkspacePath.relativize(file.toPath()).toString());
+                } catch (IllegalArgumentException ex) {
+                    copyToClipboard(file.getName());
+                }
+            } else {
+                copyToClipboard(file.getName());
+            }
+        });
+
+        MenuItem deleteItem = new MenuItem("Delete");
+        deleteItem.setGraphic(IconFactory.getIcon(Codicons.TRASH, 13, "#e76f51"));
+        deleteItem.setOnAction(e -> deleteFileItem(treeItem));
+
+        menu.getItems().addAll(
+                newFile, newFolder,
+                new SeparatorMenuItem(),
+                reveal, copyPath, copyRelPath,
+                new SeparatorMenuItem(),
+                deleteItem
+        );
+        return menu;
+    }
+
+    private void revealInFileManager(File file) {
+        try {
+            if (Desktop.isDesktopSupported()) {
+                Desktop desktop = Desktop.getDesktop();
+                if (file.isDirectory()) {
+                    desktop.open(file);
+                } else if (file.getParentFile() != null) {
+                    desktop.open(file.getParentFile());
+                }
+            }
+        } catch (Exception ex) {
+            System.err.println("Cannot reveal file: " + ex.getMessage());
+        }
+    }
+
+    private void copyToClipboard(String text) {
+        javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+        javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+        content.putString(text);
+        clipboard.setContent(content);
+    }
+
+    private void deleteFileItem(TreeItem<FileItem> treeItem) {
+        if (treeItem == null || treeItem.getValue() == null || treeItem.getValue().file == null) return;
+        File file = treeItem.getValue().file;
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Delete " + (file.isDirectory() ? "Folder" : "File"));
+        alert.setHeaderText("Are you sure you want to delete '" + file.getName() + "'?");
+        alert.setContentText("This action permanently deletes the item from disk.");
+
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            try {
+                if (file.isDirectory()) {
+                    deleteRecursively(file);
+                } else {
+                    Files.deleteIfExists(file.toPath());
+                }
+                if (treeItem.getParent() != null) {
+                    treeItem.getParent().getChildren().remove(treeItem);
+                }
+            } catch (IOException ex) {
+                Alert err = new Alert(Alert.AlertType.ERROR);
+                err.setTitle("Delete Failed");
+                err.setContentText("Could not delete " + file.getName() + ": " + ex.getMessage());
+                err.showAndWait();
+            }
+        }
+    }
+
+    private void deleteRecursively(File file) throws IOException {
+        File[] children = file.listFiles();
+        if (children != null) {
+            for (File c : children) {
+                deleteRecursively(c);
+            }
+        }
+        Files.deleteIfExists(file.toPath());
+    }
+
+    private void showMoreMenu(Button anchor) {
+        ContextMenu menu = new ContextMenu();
+        MenuItem openFolder = new MenuItem("Open Folder...");
+        openFolder.setGraphic(IconFactory.getIcon(Codicons.FOLDER_OPENED, 12));
+        openFolder.setOnAction(e -> {
+            javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+            chooser.setTitle("Open Workspace Folder");
+            File folder = chooser.showDialog(getScene().getWindow());
+            if (folder != null) {
+                setWorkspacePath(folder.toPath());
+            }
+        });
+
+        MenuItem refresh = new MenuItem("Refresh");
+        refresh.setGraphic(IconFactory.getIcon(Codicons.REFRESH, 12));
+        refresh.setOnAction(e -> {
+            if (currentWorkspacePath != null) setWorkspacePath(currentWorkspacePath);
+        });
+
+        MenuItem collapse = new MenuItem("Collapse All");
+        collapse.setGraphic(IconFactory.getIcon(Codicons.COLLAPSE_ALL, 12));
+        collapse.setOnAction(e -> collapseAll());
+
+        menu.getItems().addAll(openFolder, refresh, collapse);
+        menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 0);
     }
 
     private VBox createTemplatesPane() {
@@ -214,7 +634,7 @@ public class SidebarExplorer extends VBox {
 
     public void showView(ActivityBar.Panel panel) {
         if (panel == ActivityBar.Panel.EXPLORER) {
-            titleLabel.setText("EXPLORER");
+            topTitleLabel.setText("EXPLORER");
             explorerPane.setVisible(true);
             explorerPane.setManaged(true);
             templatesPane.setVisible(false);
@@ -222,7 +642,7 @@ public class SidebarExplorer extends VBox {
             setVisible(true);
             setManaged(true);
         } else if (panel == ActivityBar.Panel.TEMPLATES) {
-            titleLabel.setText("TEMPLATES & SCAFFOLDS");
+            topTitleLabel.setText("TEMPLATES & SCAFFOLDS");
             explorerPane.setVisible(false);
             explorerPane.setManaged(false);
             templatesPane.setVisible(true);
@@ -240,10 +660,20 @@ public class SidebarExplorer extends VBox {
     public void setWorkspacePath(Path path) {
         this.currentWorkspacePath = path.toAbsolutePath().normalize();
         File rootFile = this.currentWorkspacePath.toFile();
+
+        // Update workspace name in the section header (e.g. "Coding")
+        String folderName = rootFile.getName().isEmpty() ? rootFile.getAbsolutePath() : rootFile.getName();
+        if (workspaceTitleLabel != null) {
+            workspaceTitleLabel.setText(folderName);
+        }
+
         TreeItem<FileItem> rootItem = new LazyTreeItem(new FileItem(rootFile));
         rootItem.setExpanded(true);
         fileTreeView.setRoot(rootItem);
-        fileTreeView.setShowRoot(true);
+
+        if (onWorkspaceChanged != null) {
+            onWorkspaceChanged.accept(this.currentWorkspacePath);
+        }
     }
 
     /**
@@ -310,10 +740,8 @@ public class SidebarExplorer extends VBox {
     public void setOnFileSelected(Consumer<Path> onFileSelected) { this.onFileSelected = onFileSelected; }
     public void setOnTemplateSelected(Consumer<TemplateChoice> onTemplateSelected) { this.onTemplateSelected = onTemplateSelected; }
     public void setOnNewFileRequested(Runnable onNewFileRequested) { this.onNewFileRequested = onNewFileRequested; }
+    public void setOnWorkspaceChanged(Consumer<Path> onWorkspaceChanged) { this.onWorkspaceChanged = onWorkspaceChanged; }
 
-    /**
-     * Returns the current workspace root path, or null if not set.
-     */
     public Path getRootPath() {
         return currentWorkspacePath;
     }

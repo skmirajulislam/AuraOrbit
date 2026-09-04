@@ -97,7 +97,7 @@ public class AiAssistantPane extends VBox {
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
         // Initial welcome message
-        addAssistantMessage("Hello! I'm your **AI IDE Assistant**.\n\n"
+        addAssistantMessage("Hello! I'm **AuraOrbit Copilot**.\n\n"
                 + "I can help you write code, debug issues, generate tests, and refactor your project.\n\n"
                 + "Select code in the editor or click one of the quick actions above to start!");
 

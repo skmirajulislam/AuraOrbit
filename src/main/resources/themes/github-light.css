@@ -377,57 +377,311 @@
 .terminal-header-btn:hover {
     -fx-background-color: rgba(0, 0, 0, 0.08);
 }
+.terminal-pane {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: -border-color transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.terminal-header {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.dock-tab-btn {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 6 8 6 8;
+    -fx-border-color: transparent;
+    -fx-border-width: 0 0 2 0;
+}
+.dock-tab-btn:hover {
+    -fx-text-fill: -text-primary;
+}
+.dock-tab-btn.active {
+    -fx-text-fill: -text-primary;
+    -fx-border-color: transparent transparent -accent-color transparent;
+    -fx-border-width: 0 0 2 0;
+}
+.terminal-session-chip {
+    -fx-background-color: #ffffff;
+    -fx-text-fill: -text-primary;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
+    -fx-font-size: 11px;
+    -fx-padding: 3 8 3 8;
+    -fx-background-radius: 4px;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 4px;
+}
+.terminal-header-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 3 5 3 5;
+    -fx-background-radius: 3;
+}
 .terminal-header-btn .codicon {
     -fx-icon-color: -text-secondary;
 }
-.terminal-header-btn:hover .codicon {
-    -fx-icon-color: #24292f;
+.terminal-header-btn:hover {
+    -fx-background-color: -bg-hover;
 }
-.terminal-output {
-    -fx-background-color: #f6f8fa;
-    -fx-control-inner-background: #f6f8fa;
+.terminal-header-btn:hover .codicon {
+    -fx-icon-color: -text-primary;
+}
+.terminal-session-pane {
+    -fx-background-color: #ffffff;
+}
+.terminal-output-canvas {
+    -fx-background-color: #ffffff;
+    -fx-control-inner-background: #ffffff;
     -fx-text-fill: #24292f;
-    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13px;
-    -fx-border-color: transparent;
+    -fx-font-family: Menlo, Monaco, "JetBrains Mono", "Fira Code", Consolas, monospace;
+    -fx-font-size: 12.5px;
+    -fx-border-width: 0;
     -fx-focus-color: transparent;
     -fx-faint-focus-color: transparent;
 }
-.terminal-input {
+.terminal-output-canvas .scroll-pane {
+    -fx-background-color: #ffffff;
+}
+.terminal-output-canvas .scroll-pane .viewport {
+    -fx-background-color: #ffffff;
+}
+.terminal-output-canvas .scroll-pane .content {
+    -fx-background-color: #ffffff;
+}
+.terminal-prompt-row {
+    -fx-background-color: #ffffff;
+}
+.terminal-shell-prompt {
+    -fx-text-fill: #24292f;
+    -fx-font-family: Menlo, Monaco, "JetBrains Mono", "Fira Code", Consolas, monospace;
+    -fx-font-size: 12.5px;
+    -fx-font-weight: normal;
+}
+.terminal-direct-input {
+    -fx-background-color: transparent;
+    -fx-text-fill: #24292f;
+    -fx-font-family: Menlo, Monaco, "JetBrains Mono", "Fira Code", Consolas, monospace;
+    -fx-font-size: 12.5px;
+    -fx-padding: 0;
+    -fx-border-width: 0;
+    -fx-highlight-fill: #0969da;
+    -fx-highlight-text-fill: #ffffff;
+}
+.terminal-direct-input:focused {
+    -fx-border-width: 0;
+    -fx-background-color: transparent;
+}
+.terminal-scroll-pane {
+    -fx-background-color: #ffffff;
+    -fx-background: #ffffff;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+}
+.terminal-scroll-pane > .viewport {
+    -fx-background-color: #ffffff;
+}
+.terminal-content-box {
+    -fx-background-color: #ffffff;
+}
+.terminal-text-flow {
+    -fx-background-color: transparent;
+}
+.terminal-output-text {
+    -fx-fill: #24292f;
+    -fx-font-family: Menlo, Monaco, "JetBrains Mono", "Fira Code", Consolas, monospace;
+    -fx-font-size: 12.5px;
+}
+
+.explorer-workspace-header {
+    -fx-background-color: -bg-sidebar;
+    -fx-padding: 4 10 4 10;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.explorer-workspace-header:hover {
+    -fx-background-color: -bg-hover;
+}
+.explorer-workspace-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 11.5px;
+    -fx-text-fill: -text-primary;
+}
+.explorer-action-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 2 4 2 4;
+    -fx-background-radius: 3px;
+}
+.explorer-action-btn .codicon {
+    -fx-icon-color: -text-secondary;
+}
+.explorer-action-btn:hover {
+    -fx-background-color: -bg-hover;
+}
+.explorer-action-btn:hover .codicon {
+    -fx-icon-color: -text-primary;
+}
+
+.inline-tree-input {
     -fx-background-color: #ffffff;
     -fx-text-fill: #24292f;
+    -fx-highlight-fill: #0969da;
+    -fx-highlight-text-fill: #ffffff;
+    -fx-border-color: #0969da;
+    -fx-border-width: 1.5px;
+    -fx-border-radius: 2px;
+    -fx-background-radius: 2px;
+    -fx-padding: 1 6 1 6;
+    -fx-font-size: 12px;
     -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13px;
+}
+.inline-tree-input:focused {
+    -fx-border-color: #0969da;
+}
+
+/* Welcome Watermark (When no tabs are open) */
+.welcome-watermark-pane {
+    -fx-background-color: -bg-primary;
+}
+.welcome-watermark-icon {
+    -fx-icon-color: -accent-color;
+}
+.welcome-action-row {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4px;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+}
+.welcome-action-row:hover {
+    -fx-background-color: -bg-hover;
+    -fx-border-color: -border-color;
+}
+.welcome-action-row:hover .codicon {
+    -fx-icon-color: -text-primary;
+}
+
+/* Shortcut badge / pill */
+.shortcut-badge {
+    -fx-background-color: #eaeef2;
+    -fx-text-fill: -text-secondary;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 4px;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 4px;
+    -fx-border-width: 1px;
+}
+.welcome-action-row:hover .shortcut-badge {
+    -fx-text-fill: -text-primary;
+    -fx-border-color: -accent-color;
+}
+
+/* Command Palette Light Styling */
+.command-palette-box {
+    -fx-background-color: #ffffff;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 16, 0, 0, 6);
+}
+.command-palette-input {
+    -fx-background-color: -bg-primary;
+    -fx-text-fill: -text-primary;
+    -fx-font-size: 13.5px;
+    -fx-padding: 7 10 7 10;
+    -fx-border-color: -accent-color;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.command-palette-list {
+    -fx-background-color: transparent;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 4 0 0 0;
+}
+.command-palette-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 3 6 3 6;
+    -fx-cursor: hand;
+    -fx-background-radius: 4;
+}
+.command-palette-list .list-cell:filled:hover {
+    -fx-background-color: -bg-hover;
+}
+.command-palette-list .list-cell:filled:selected {
+    -fx-background-color: #e8f0fe;
+    -fx-text-fill: -text-primary;
+}
+.command-palette-title {
+    -fx-font-size: 12.5px;
+    -fx-text-fill: -text-primary;
+}
+.command-palette-list .list-cell:filled:selected .command-palette-title {
+    -fx-text-fill: #0969da;
+}
+.command-palette-list .list-cell:filled:selected .codicon {
+    -fx-icon-color: #0969da;
+}
+
+/* Find & Replace Bar Codicons & Buttons */
+.find-icon-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 3 5 3 5;
+    -fx-background-radius: 3px;
+}
+.find-icon-btn .codicon {
+    -fx-icon-color: -text-secondary;
+}
+.find-icon-btn:hover {
+    -fx-background-color: -bg-hover;
+}
+.find-icon-btn:hover .codicon {
+    -fx-icon-color: -text-primary;
+}
+.find-text-input {
+    -fx-background-color: -bg-primary;
+    -fx-text-fill: -text-primary;
     -fx-border-color: -border-color;
     -fx-border-radius: 3;
     -fx-background-radius: 3;
-    -fx-padding: 5 8 5 8;
-}
-.terminal-input:focused {
-    -fx-border-color: -accent-color;
-}
-.terminal-prompt {
-    -fx-text-fill: #116329;
-    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 14px;
-    -fx-font-weight: bold;
-}
-.terminal-tab-pane > .tab-header-area {
-    -fx-background-color: -bg-secondary;
-}
-.terminal-tab-pane > .tab-header-area > .headers-region > .tab {
-    -fx-background-color: -bg-tab-inactive;
-    -fx-padding: 4 10 4 10;
-}
-.terminal-tab-pane > .tab-header-area > .headers-region > .tab:selected {
-    -fx-background-color: -bg-tab-active;
-    -fx-border-color: -accent-color transparent transparent transparent;
-    -fx-border-width: 2 0 0 0;
-}
-.terminal-tab-label {
-    -fx-text-fill: -text-secondary;
+    -fx-padding: 3 6 3 6;
     -fx-font-size: 12px;
 }
-.terminal-tab-pane > .tab-header-area > .headers-region > .tab:selected .terminal-tab-label {
-    -fx-text-fill: -text-primary;
+.find-text-input:focused {
+    -fx-border-color: -accent-color;
 }
+.find-case-toggle {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+.find-case-toggle:selected {
+    -fx-text-fill: -accent-color;
+}
+.find-action-btn {
+    -fx-background-color: #f3f4f6;
+    -fx-text-fill: -text-primary;
+    -fx-cursor: hand;
+    -fx-padding: 3 8 3 8;
+    -fx-font-size: 11.5px;
+    -fx-background-radius: 3px;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 3px;
+    -fx-border-width: 1px;
+}
+.find-action-btn:hover {
+    -fx-background-color: -bg-hover;
+    -fx-border-color: -accent-color;
+}
+
+

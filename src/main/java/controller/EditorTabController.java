@@ -251,6 +251,38 @@ public class EditorTabController {
         return editorPane.getCodeArea().getCaretColumn() + 1;
     }
 
+    public String getLineEndings() {
+        String text = editorPane.getCodeArea().getText();
+        return text.contains("\r\n") ? "CRLF" : "LF";
+    }
+
+    public void toggleLineEndings() {
+        String text = editorPane.getCodeArea().getText();
+        if (text.contains("\r\n")) {
+            setContent(text.replace("\r\n", "\n"), true);
+        } else {
+            setContent(text.replace("\n", "\r\n"), true);
+        }
+    }
+
+    public String getIndentation() {
+        String text = editorPane.getCodeArea().getText();
+        if (text.contains("\t")) {
+            return "Tab Size: 4";
+        }
+        String name = document != null ? document.getFileName().toLowerCase() : "";
+        if (name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml") ||
+            name.endsWith(".js") || name.endsWith(".ts") || name.endsWith(".html") ||
+            name.endsWith(".css") || name.endsWith(".xml")) {
+            return "Spaces: 2";
+        }
+        return "Spaces: 4";
+    }
+
+    public String getEncoding() {
+        return "UTF-8";
+    }
+
     public void dispose() {
         editorPane.dispose();
     }
