@@ -14,8 +14,10 @@ import service.CodeExecutionService;
 import service.ThemeService;
 import template.Template;
 import view.fx.*;
+import org.kordamp.ikonli.codicons.Codicons;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -23,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
@@ -54,6 +57,7 @@ public class FxEditorController {
     private boolean applyingRemoteCollaborationChange;
     private Consumer<Boolean> onRunAvailabilityChanged;
     private long runAvailabilityRevision;
+    private Button runButton;
 
     private final List<EditorTabController> tabControllers = new ArrayList<>();
     private boolean isSplitEditorActive = false;
@@ -123,6 +127,14 @@ public class FxEditorController {
                 terminalPane.scanWorkspaceForProblems();
             }
         });
+
+        // Initial run button state
+        refreshRunAvailability();
+    }
+
+    public void setRunButton(Button button) {
+        this.runButton = button;
+        refreshRunAvailability();
     }
 
     private void setupTabPanes() {
@@ -821,6 +833,9 @@ public class FxEditorController {
             return;
         }
 
+        // Ensure terminal is visible and added to the UI before execution
+        showDockPanel(TerminalPane.DockTab.TERMINAL);
+
         Path source = current.getDocument().getFilePath();
         Thread detector = new Thread(() -> {
             CodeExecutionService.ExecutionPlan plan = codeExecutionService.createPlan(source);
@@ -829,7 +844,7 @@ public class FxEditorController {
                     showRunMessage(plan.message());
                     return;
                 }
-                terminalPane.executeInIntegratedTerminal(plan.command(), source.getParent());
+                terminalPane.executeProgram(plan.steps(), source.getParent(), plan.command());
             });
         }, "runtime-detector");
         detector.setDaemon(true);
@@ -841,6 +856,74 @@ public class FxEditorController {
             modalOverlayPane.showInformation("Run Active File", message);
         } else {
             System.err.println(message);
+        }
+    }
+
+    private void refreshRunAvailability() {
+        if (runButton == null) return;
+
+        EditorTabController current = getActiveTabController();
+        boolean canRun = false;
+        String missingTool = null;
+
+        if (current != null && current.getDocument().getFilePath() != null) {
+            Path source = current.getDocument().getFilePath();
+            canRun = codeExecutionService.isRunnable(source);
+
+            if (!canRun) {
+                // Check what tool is missing
+                String extension = extensionOf(source.getFileName().toString());
+                missingTool = switch (extension) {
+                    case "java" -> (!isAvailable("javac") ? "javac" : (!isAvailable("java") ? "java" : null));
+                    case "py" -> (!isAvailable("python3") && !isAvailable("python") ? "python3/python" : null);
+                    case "js", "mjs", "cjs" -> (!isAvailable("node") ? "node" : null);
+                    case "sh" -> (!isAvailable("bash") ? "bash" : null);
+                    case "rb" -> (!isAvailable("ruby") ? "ruby" : null);
+                    case "c" -> (!isAvailable("gcc") ? "gcc" : null);
+                    case "cpp", "cc", "cxx" -> (!isAvailable("g++") ? "g++" : null);
+                    default -> null;
+                };
+            }
+        }
+
+        final String finalMissingTool = missingTool;
+        final boolean finalCanRun = canRun;
+        Platform.runLater(() -> {
+            if (finalCanRun) {
+                runButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #89d185; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
+                runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#89d185"));
+                runButton.setTooltip(new Tooltip("Run Active File (F5)"));
+                runButton.setOnMouseClicked(e -> runActiveFile());
+            } else {
+                runButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #f14c4c; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
+                runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#f14c4c"));
+                String tooltipText = finalMissingTool != null 
+                    ? "Install " + finalMissingTool + " to run this file" 
+                    : "No runner configured for this file type";
+                runButton.setTooltip(new Tooltip(tooltipText));
+                runButton.setOnMouseClicked(e -> {
+                    if (finalMissingTool != null) {
+                        showRunMessage("Required tool not found: " + finalMissingTool + "\n\nPlease install " + finalMissingTool + " to run this file.");
+                    } else {
+                        showRunMessage("No runner is configured for this file type.\n\nSupported: Java, Python, JavaScript, Bash, Ruby, C, and C++.");
+                    }
+                });
+            }
+        });
+    }
+
+    private String extensionOf(String fileName) {
+        int lastDot = fileName.lastIndexOf('.');
+        return lastDot > 0 ? fileName.substring(lastDot + 1).toLowerCase(Locale.ROOT) : "";
+    }
+
+    private boolean isAvailable(String command) {
+        try {
+            Process process = new ProcessBuilder(command, "--version").redirectErrorStream(true).start();
+            return process.waitFor(3, TimeUnit.SECONDS) && process.exitValue() == 0;
+        } catch (IOException | InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 

@@ -526,6 +526,17 @@ public class TerminalPane extends BorderPane {
         activeSession.executeCommand(prefix);
     }
 
+    /**
+     * Compiles/runs a program as its own process so stdin is only user input,
+     * never the wrapper {@code cd ... && java ...} command line.
+     */
+    public void executeProgram(List<List<String>> steps, Path workingDirectory, String displayCommand) {
+        if (steps == null || steps.isEmpty()) return;
+        showTerminal();
+        if (activeSession == null) return;
+        activeSession.runForegroundProgram(steps, workingDirectory, displayCommand);
+    }
+
     private String translateForPowerShell(String command) {
         String[] stages = command.split("\\s+&&\\s+");
         if (stages.length == 1) return command;
@@ -1758,7 +1769,10 @@ public class TerminalPane extends BorderPane {
         private File currentDir;
         private Process process;
         private BufferedWriter processWriter;
+        private Process foregroundProcess;
+        private BufferedWriter programWriter;
         private volatile boolean alive = false;
+        private volatile boolean programRunning = false;
 
         TerminalSession(int id, File workingDir) {
             this.sessionId = id;
@@ -1843,6 +1857,103 @@ public class TerminalPane extends BorderPane {
                 String user = System.getProperty("user.name", "user");
                 String host = getCleanHostName();
                 return user + "@" + host + " " + dir + " $ ";
+            }
+        }
+
+        void setProgramRunning(boolean running) {
+            this.programRunning = running;
+            Platform.runLater(() -> {
+                if (running) {
+                    promptLabel.setText(">> ");
+                    promptLabel.setStyle("-fx-text-fill: -accent-color; -fx-font-style: italic;");
+                } else {
+                    promptLabel.setText(computePromptString());
+                    promptLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-style: normal;");
+                }
+            });
+        }
+
+        void runForegroundProgram(List<List<String>> steps, Path workingDirectory, String displayCommand) {
+            if (programRunning) {
+                appendOutputText("[A program is already running. Press Ctrl+C to stop it.]\n");
+                return;
+            }
+            File dir = workingDirectory != null ? workingDirectory.toFile() : currentDir;
+            String shown = displayCommand != null && !displayCommand.isBlank()
+                    ? displayCommand
+                    : String.join(" && ", steps.stream().map(step -> String.join(" ", step)).toList());
+            appendOutputText(promptLabel.getText() + shown + "\n");
+            setProgramRunning(true);
+            focusInput();
+
+            ioExecutor.submit(() -> {
+                int lastExit = 0;
+                try {
+                    for (int i = 0; i < steps.size(); i++) {
+                        List<String> step = steps.get(i);
+                        if (step == null || step.isEmpty()) continue;
+                        boolean interactive = i == steps.size() - 1;
+                        lastExit = runForegroundStep(step, dir, interactive);
+                        if (lastExit != 0) {
+                            break;
+                        }
+                    }
+                    final int exit = lastExit;
+                    Platform.runLater(() -> appendOutputText("[Process exited with code " + exit + "]\n"));
+                } catch (Exception e) {
+                    Platform.runLater(() -> appendOutputText("[Failed to run program: " + e.getMessage() + "]\n"));
+                } finally {
+                    closeProgramWriter();
+                    foregroundProcess = null;
+                    Platform.runLater(() -> {
+                        setProgramRunning(false);
+                        focusInput();
+                    });
+                }
+            });
+        }
+
+        private int runForegroundStep(List<String> argv, File dir, boolean interactive) throws IOException, InterruptedException {
+            ProcessBuilder pb = new ProcessBuilder(argv);
+            if (dir != null && dir.isDirectory()) {
+                pb.directory(dir);
+            }
+            pb.redirectErrorStream(true);
+            pb.environment().put("PYTHONUNBUFFERED", "1");
+            pb.environment().put("TERM", "dumb");
+
+            Process child = pb.start();
+            if (interactive) {
+                foregroundProcess = child;
+                programWriter = new BufferedWriter(new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8));
+            } else {
+                try {
+                    child.getOutputStream().close();
+                } catch (IOException ignored) {}
+            }
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8))) {
+                char[] buf = new char[2048];
+                int n;
+                while ((n = reader.read(buf)) != -1) {
+                    String cleaned = stripAnsi(new String(buf, 0, n));
+                    if (!cleaned.isEmpty()) {
+                        final String textChunk = cleaned;
+                        Platform.runLater(() -> appendOutputText(textChunk));
+                    }
+                }
+            }
+            return child.waitFor();
+        }
+
+        private void closeProgramWriter() {
+            BufferedWriter writer = programWriter;
+            programWriter = null;
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (IOException ignored) {}
             }
         }
 
@@ -1944,13 +2055,24 @@ public class TerminalPane extends BorderPane {
             if (event.getCode() == KeyCode.ENTER) {
                 String cmd = cmdInput.getText();
                 cmdInput.clear();
-                executeCommand(cmd);
+                
+                if (programRunning) {
+                    // When a program is running, send input directly to the program
+                    sendInputToProgram(cmd);
+                } else {
+                    // Normal shell command execution
+                    executeCommand(cmd);
+                }
                 event.consume();
             } else if (event.getCode() == KeyCode.UP) {
-                navigateHistory(-1);
+                if (!programRunning) {
+                    navigateHistory(-1);
+                }
                 event.consume();
             } else if (event.getCode() == KeyCode.DOWN) {
-                navigateHistory(1);
+                if (!programRunning) {
+                    navigateHistory(1);
+                }
                 event.consume();
             } else if (event.getCode() == KeyCode.C && event.isControlDown()) {
                 appendOutputText(promptLabel.getText() + cmdInput.getText() + "^C\n");
@@ -1960,6 +2082,22 @@ public class TerminalPane extends BorderPane {
             } else if (event.getCode() == KeyCode.L && event.isControlDown()) {
                 clearOutput();
                 event.consume();
+            }
+        }
+
+        private void sendInputToProgram(String input) {
+            BufferedWriter writer = programWriter;
+            if (writer == null) {
+                appendOutputText("[Waiting for the program to start. Try again in a moment.]\n");
+                return;
+            }
+            try {
+                appendOutputText(input + "\n");
+                writer.write(input);
+                writer.newLine();
+                writer.flush();
+            } catch (IOException e) {
+                appendOutputText("[Failed to send input: " + e.getMessage() + "]\n");
             }
         }
 
@@ -2047,6 +2185,21 @@ public class TerminalPane extends BorderPane {
         }
 
         void interrupt() {
+            Process child = foregroundProcess;
+            if (child != null && child.isAlive()) {
+                ioExecutor.submit(() -> {
+                    child.destroy();
+                    try {
+                        if (!child.waitFor(300, TimeUnit.MILLISECONDS)) {
+                            child.destroyForcibly();
+                        }
+                    } catch (InterruptedException e) {
+                        child.destroyForcibly();
+                        Thread.currentThread().interrupt();
+                    }
+                });
+                return;
+            }
             PlatformOS os = getPlatformOS();
             if (processWriter != null) {
                 try {
@@ -2058,6 +2211,11 @@ public class TerminalPane extends BorderPane {
 
         void destroy() {
             alive = false;
+            closeProgramWriter();
+            if (foregroundProcess != null) {
+                foregroundProcess.destroyForcibly();
+                foregroundProcess = null;
+            }
             if (processWriter != null) {
                 try { processWriter.close(); } catch (IOException ignored) {}
             }

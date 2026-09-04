@@ -131,7 +131,7 @@ public class AiAssistantPane extends VBox {
         // Context Badge
         contextLabel = new Label(" Active context: (none)");
         contextLabel.setGraphic(IconFactory.getIcon(Codicons.FILE_CODE, 12));
-        contextLabel.setStyle("-fx-font-size: 10.5px; -fx-text-fill: -text-secondary; -fx-padding: 2 12 2 12;");
+        contextLabel.setStyle("-fx-font-size: 10.5px; -fx-text-fill: -text-secondary; -fx-padding: 2 12 8 12;");
 
         // Input Area
         VBox inputArea = new VBox(6);
@@ -139,7 +139,7 @@ public class AiAssistantPane extends VBox {
         inputArea.setStyle("-fx-border-color: -border-color transparent transparent transparent; -fx-border-width: 1 0 0 0;");
 
         promptInput = new TextArea();
-        promptInput.setPromptText("Ask AI Copilot anything... (Cmd+Enter / Ctrl+Enter to send)");
+        promptInput.setPromptText("Ask Copilot anything — Cmd/Ctrl+Enter to send");
         promptInput.setPrefRowCount(3);
         promptInput.setWrapText(true);
         promptInput.getStyleClass().add("ai-prompt-input");
@@ -754,7 +754,7 @@ public class AiAssistantPane extends VBox {
         if (value.isEmpty()) return;
         Text segment = new Text(value);
         double size = heading ? (headingLevel <= 2 ? 15 : 13.5) : 12.5;
-        String color = heading ? "-accent-color" : inlineCode ? "-syntax-string" : "-text-primary";
+        String color = heading ? "-accent-color" : inlineCode ? "-syntax-string" : "#ffffff";
         String weight = (heading || bold) ? "bold" : "normal";
         String fontFamily = inlineCode ? " -fx-font-family: 'Menlo', 'Monaco', 'Consolas', monospace;" : "";
         segment.setStyle("-fx-fill: " + color + "; -fx-font-size: " + size

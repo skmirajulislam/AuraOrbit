@@ -341,13 +341,20 @@
 .ai-prompt-input {
     -fx-background-color: -bg-editor;
     -fx-text-fill: -text-primary;
+    -fx-prompt-text-fill: -text-secondary;
     -fx-border-color: -border-color;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
     -fx-font-size: 12px;
 }
+.ai-prompt-input .content {
+    -fx-background-color: -bg-editor;
+}
 .ai-prompt-input:focused {
     -fx-border-color: -accent-color;
+}
+.ai-prompt-input .prompt-text {
+    -fx-fill: -text-secondary;
 }
 .combo-box {
     -fx-background-color: -bg-editor;

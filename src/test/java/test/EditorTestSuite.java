@@ -48,6 +48,7 @@ public class EditorTestSuite {
         testCodeDiagnosticsEngine();
         testCodeFormatterService();
         testAiServiceConfig();
+        testProgramArgumentParsing();
 
         System.out.println("\n-------------------------------------------------");
         System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -570,5 +571,12 @@ public class EditorTestSuite {
             aiService.setGeminiKey(origGemini);
             aiService.setGrokKey(origGrok);
         }
+    }
+
+    private static void testProgramArgumentParsing() {
+        System.out.println("\n[14] Testing program argument parsing for Run...");
+        assertEquals(List.of(), service.CodeExecutionService.parseProgramArguments("  "), "Empty args parse to none");
+        assertEquals(List.of("10", "20", "hello"), service.CodeExecutionService.parseProgramArguments("10 20 hello"), "Whitespace-separated args");
+        assertEquals(List.of("hello world", "x"), service.CodeExecutionService.parseProgramArguments("\"hello world\" x"), "Quoted args keep spaces");
     }
 }

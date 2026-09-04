@@ -3,22 +3,46 @@ package service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Builds safe, platform-neutral shell commands for common runnable source files. */
+/** Builds safe, platform-neutral process steps for common runnable source files. */
 public final class CodeExecutionService {
     private static final Pattern JAVA_PACKAGE = Pattern.compile("(?m)^\\s*package\\s+([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\s*;");
+    private static final Pattern ARG_TOKEN = Pattern.compile("\"([^\"]*)\"|'([^']*)'|\\S+");
 
-    public record ExecutionPlan(String command, String missingTool, String message) {
-        public boolean isRunnable() { return command != null; }
+    public record ExecutionPlan(String command, List<List<String>> steps, String missingTool, String message) {
+        public boolean isRunnable() {
+            return command != null && steps != null && !steps.isEmpty();
+        }
+
+        public ExecutionPlan withProgramArguments(List<String> programArgs) {
+            if (!isRunnable() || programArgs == null || programArgs.isEmpty()) {
+                return this;
+            }
+            List<List<String>> copy = new ArrayList<>(steps.size());
+            for (int i = 0; i < steps.size(); i++) {
+                List<String> step = new ArrayList<>(steps.get(i));
+                if (i == steps.size() - 1) {
+                    step.addAll(programArgs);
+                }
+                copy.add(List.copyOf(step));
+            }
+            StringBuilder display = new StringBuilder(command);
+            for (String arg : programArgs) {
+                display.append(' ').append(quote(arg));
+            }
+            return new ExecutionPlan(display.toString(), List.copyOf(copy), missingTool, message);
+        }
     }
 
     public ExecutionPlan createPlan(Path source) {
         if (source == null || !Files.isRegularFile(source)) {
-            return new ExecutionPlan(null, null, "Save the active file before running it.");
+            return new ExecutionPlan(null, null, null, "Save the active file before running it.");
         }
         String name = source.getFileName().toString();
         String extension = extensionOf(name);
@@ -30,7 +54,7 @@ public final class CodeExecutionService {
             case "rb" -> interpreterPlan(source, "ruby", "ruby", "Ruby");
             case "c" -> compiledPlan(source, "gcc", "GCC", "c");
             case "cpp", "cc", "cxx" -> compiledPlan(source, "g++", "G++", "cpp");
-            default -> new ExecutionPlan(null, null,
+            default -> new ExecutionPlan(null, null, null,
                     "No runner is configured for ." + (extension.isEmpty() ? "(no extension)" : extension)
                             + ". Supported: Java, Python, JavaScript, Bash, Ruby, C, and C++.");
         };
@@ -51,9 +75,27 @@ public final class CodeExecutionService {
         };
     }
 
+    public static List<String> parseProgramArguments(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        List<String> args = new ArrayList<>();
+        Matcher matcher = ARG_TOKEN.matcher(raw.trim());
+        while (matcher.find()) {
+            if (matcher.group(1) != null) {
+                args.add(matcher.group(1));
+            } else if (matcher.group(2) != null) {
+                args.add(matcher.group(2));
+            } else {
+                args.add(matcher.group());
+            }
+        }
+        return List.copyOf(args);
+    }
+
     private ExecutionPlan javaPlan(Path source) {
-        if (!isAvailable("javac")) return new ExecutionPlan(null, "javac", "Java JDK compiler (javac) was not found on PATH.");
-        if (!isAvailable("java")) return new ExecutionPlan(null, "java", "Java runtime was not found on PATH.");
+        if (!isAvailable("javac")) return new ExecutionPlan(null, null, "javac", "Java JDK compiler (javac) was not found on PATH.");
+        if (!isAvailable("java")) return new ExecutionPlan(null, null, "java", "Java runtime was not found on PATH.");
         try {
             String simpleName = source.getFileName().toString().replaceFirst("\\.java$", "");
             String text = Files.readString(source);
@@ -61,29 +103,37 @@ public final class CodeExecutionService {
             String mainClass = matcher.find() ? matcher.group(1) + "." + simpleName : simpleName;
             Path output = Files.createTempDirectory("auraorbit-java-");
             output.toFile().deleteOnExit();
+            List<List<String>> steps = List.of(
+                    List.of("javac", "-d", output.toString(), source.toString()),
+                    List.of("java", "-cp", output.toString(), mainClass)
+            );
             return new ExecutionPlan("javac -d " + quote(output) + " " + quote(source)
-                    + " && java -cp " + quote(output) + " " + quote(mainClass), null, null);
+                    + " && java -cp " + quote(output) + " " + quote(mainClass), steps, null, null);
         } catch (IOException exception) {
-            return new ExecutionPlan(null, null, "Unable to prepare Java execution: " + exception.getMessage());
+            return new ExecutionPlan(null, null, null, "Unable to prepare Java execution: " + exception.getMessage());
         }
     }
 
     private ExecutionPlan interpreterPlan(Path source, String preferredTool, String fallbackTool, String displayName) {
         String tool = isAvailable(preferredTool) ? preferredTool : (isAvailable(fallbackTool) ? fallbackTool : null);
-        if (tool == null) return new ExecutionPlan(null, preferredTool, displayName + " was not found on PATH.");
-        return new ExecutionPlan(tool + " " + quote(source), null, null);
+        if (tool == null) return new ExecutionPlan(null, null, preferredTool, displayName + " was not found on PATH.");
+        return new ExecutionPlan(tool + " " + quote(source), List.of(List.of(tool, source.toString())), null, null);
     }
 
     private ExecutionPlan compiledPlan(Path source, String compiler, String displayName, String kind) {
-        if (!isAvailable(compiler)) return new ExecutionPlan(null, compiler, displayName + " was not found on PATH.");
+        if (!isAvailable(compiler)) return new ExecutionPlan(null, null, compiler, displayName + " was not found on PATH.");
         try {
             Path output = Files.createTempFile("auraorbit-" + kind + "-", isWindows() ? ".exe" : "");
             Files.deleteIfExists(output);
             output.toFile().deleteOnExit();
+            List<List<String>> steps = List.of(
+                    List.of(compiler, source.toString(), "-o", output.toString()),
+                    List.of(output.toString())
+            );
             return new ExecutionPlan(compiler + " " + quote(source) + " -o " + quote(output)
-                    + " && " + quote(output), null, null);
+                    + " && " + quote(output), steps, null, null);
         } catch (IOException exception) {
-            return new ExecutionPlan(null, null, "Unable to prepare executable: " + exception.getMessage());
+            return new ExecutionPlan(null, null, null, "Unable to prepare executable: " + exception.getMessage());
         }
     }
 

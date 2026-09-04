@@ -33,6 +33,7 @@ public class ModalOverlayPane extends StackPane {
     public ModalOverlayPane() {
         setVisible(false);
         setManaged(false);
+        setMouseTransparent(true);
         setAlignment(Pos.CENTER);
 
         // 1. Scrim Backdrop
@@ -358,6 +359,7 @@ public class ModalOverlayPane extends StackPane {
     public void open() {
         setVisible(true);
         setManaged(true);
+        setMouseTransparent(false);
         toFront();
         requestFocus();
 
@@ -383,6 +385,7 @@ public class ModalOverlayPane extends StackPane {
         ft.setOnFinished(e -> {
             setVisible(false);
             setManaged(false);
+            setMouseTransparent(true);
         });
         ft.play();
     }

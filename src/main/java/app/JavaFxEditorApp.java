@@ -7,6 +7,7 @@ import javafx.geometry.Pos;
 import javafx.geometry.Orientation;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
+import javafx.scene.control.Tooltip;
 import javafx.scene.Scene;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TabPane;
@@ -14,6 +15,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import service.ThemeService;
@@ -72,9 +74,10 @@ public class JavaFxEditorApp extends Application {
 
         Button runButton = new Button("Run");
         runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#89d185"));
-        runButton.setTooltip(new javafx.scene.control.Tooltip("Run Active File (F5)"));
+        runButton.setTooltip(new Tooltip("Run Active File (F5). Type runtime input in the terminal."));
         runButton.getStyleClass().add("editor-run-button");
         runButton.setStyle("-fx-background-color: transparent; -fx-text-fill: -text-primary; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
+        runButton.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         runButton.setOnAction(e -> controller.runActiveFile());
         editorCenterStack.getChildren().add(runButton);
         StackPane.setAlignment(runButton, Pos.TOP_RIGHT);
@@ -126,6 +129,8 @@ public class JavaFxEditorApp extends Application {
         editorTerminalSplitPane,
         modalOverlayPane
     );
+
+        controller.setRunButton(runButton);
 
         // Scene Setup
         Scene scene = new Scene(rootStackPane, 1200, 780);
