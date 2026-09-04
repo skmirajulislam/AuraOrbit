@@ -208,7 +208,7 @@ public class ModalOverlayPane extends StackPane {
 
         // 1. Google Gemini Key
         VBox geminiBox = new VBox(4);
-        Label geminiLbl = new Label("Google Gemini API Key (Gemini 2.0 Flash / 1.5 Pro)");
+        Label geminiLbl = new Label("Google Gemini API Key (Gemini 3.5 Flash)");
         geminiLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 11.5px; -fx-text-fill: -text-primary;");
         PasswordField geminiField = new PasswordField();
         geminiField.setPromptText("AIzaSy...");
@@ -232,7 +232,7 @@ public class ModalOverlayPane extends StackPane {
 
         // 3. xAI Grok Key
         VBox grokBox = new VBox(4);
-        Label grokLbl = new Label("xAI Grok API Key (Grok-2)");
+        Label grokLbl = new Label("xAI Grok API Key (Grok-3)");
         grokLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 11.5px; -fx-text-fill: -text-primary;");
         PasswordField grokField = new PasswordField();
         grokField.setPromptText("xai-...");

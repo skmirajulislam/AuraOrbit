@@ -129,6 +129,10 @@ public class HostWorkspaceDialog extends Stage {
             showError("Session name is required");
             return false;
         }
+        if (!sessionName.matches("[A-Za-z0-9 _.-]{1,64}")) {
+            showError("Use up to 64 letters, numbers, spaces, dots, dashes, or underscores");
+            return false;
+        }
 
         String portStr = portField.getText().trim();
         if (!portStr.isEmpty()) {

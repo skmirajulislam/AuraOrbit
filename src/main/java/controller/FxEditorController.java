@@ -1,11 +1,16 @@
 package controller;
 
+import collaboration.integration.CollaborationController;
+import collaboration.ui.HostWorkspaceDialog;
+import collaboration.ui.JoinWorkspaceDialog;
 import javafx.application.Platform;
 import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import service.FileService;
+import service.CodeExecutionService;
 import service.ThemeService;
 import template.Template;
 import view.fx.*;
@@ -14,9 +19,12 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 /**
  * Master JavaFX Controller orchestrating multi-tab documents, sidebars,
@@ -27,6 +35,7 @@ public class FxEditorController {
     private final Stage stage;
     private final ThemeService themeService;
     private final FileService fileService;
+    private final CodeExecutionService codeExecutionService = new CodeExecutionService();
 
     private WelcomeWatermarkPane welcomeWatermarkPane;
     private TabPane tabPaneLeft;
@@ -41,6 +50,10 @@ public class FxEditorController {
     private TerminalPane terminalPane;
     private SplitPane editorTerminalSplitPane;
     private ModalOverlayPane modalOverlayPane;
+    private CollaborationController collaborationController;
+    private boolean applyingRemoteCollaborationChange;
+    private Consumer<Boolean> onRunAvailabilityChanged;
+    private long runAvailabilityRevision;
 
     private final List<EditorTabController> tabControllers = new ArrayList<>();
     private boolean isSplitEditorActive = false;
@@ -56,6 +69,12 @@ public class FxEditorController {
         this.stage = stage;
         this.themeService = themeService;
         this.fileService = new FileService();
+        try {
+            this.collaborationController = new CollaborationController("auraorbit-local-session-secret");
+            this.collaborationController.setOnRemoteMessage(this::handleCollaborationMessage);
+        } catch (Exception exception) {
+            System.err.println("Collaboration is unavailable: " + exception.getMessage());
+        }
     }
 
     public void initializeComponents(
@@ -107,8 +126,14 @@ public class FxEditorController {
     }
 
     private void setupTabPanes() {
-        tabPaneLeft.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> updateActiveTabMetrics());
-        tabPaneRight.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> updateActiveTabMetrics());
+        tabPaneLeft.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            updateActiveTabMetrics();
+            refreshRunAvailability();
+        });
+        tabPaneRight.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            updateActiveTabMetrics();
+            refreshRunAvailability();
+        });
     }
 
     private void setupSidebar() {
@@ -150,6 +175,8 @@ public class FxEditorController {
                 handleFind(true);
             } else if (panel == ActivityBar.Panel.AI_COPILOT) {
                 showAiPanel(true);
+            } else if (panel == ActivityBar.Panel.COLLABORATION) {
+                showCollaborationOptions();
             } else if (panel == ActivityBar.Panel.TERMINAL) {
                 toggleTerminal();
             } else if (panel == null) {
@@ -463,6 +490,7 @@ public class FxEditorController {
         commandPalette.registerCommand("File: Close All Tabs", "", this::closeAllTabs);
         commandPalette.registerCommand("Workspaces: Close Workspace Folder", "", this::closeWorkspaceFolder);
         commandPalette.registerCommand("Edit: Format Document", "Shift+Alt+F", this::formatActiveDocument);
+        commandPalette.registerCommand("Run: Run Active File", "F5", this::runActiveFile);
         commandPalette.registerCommand("Edit: Find & Replace", "Cmd+F", () -> handleFind(true));
         commandPalette.registerCommand("View: Toggle Side-by-Side Split Editor", "Cmd+\\", this::toggleSplitEditor);
         commandPalette.registerCommand("View: Toggle AI IDE Copilot", "Cmd+Shift+A", this::toggleAiPanel);
@@ -477,6 +505,9 @@ public class FxEditorController {
         commandPalette.registerCommand("View: Toggle Templates", "", () -> activityBar.setActivePanel(ActivityBar.Panel.TEMPLATES));
         commandPalette.registerCommand("View: Toggle Integrated Terminal", "Ctrl+`", this::toggleTerminal);
         commandPalette.registerCommand("Terminal: Create New Terminal", "Ctrl+Shift+`", this::createNewTerminalTab);
+        commandPalette.registerCommand("Collaboration: Host Workspace...", "", this::hostCollaborationWorkspace);
+        commandPalette.registerCommand("Collaboration: Join Workspace...", "", this::joinCollaborationWorkspace);
+        commandPalette.registerCommand("Collaboration: Disconnect", "", this::disconnectCollaborationWorkspace);
         commandPalette.registerCommand("Help: About AuraOrbit", "", this::showAboutDialog);
 
         for (ThemeService.Theme theme : ThemeService.Theme.values()) {
@@ -579,6 +610,8 @@ public class FxEditorController {
         tabCtrl.setOnStateChanged(() -> {
             updateActiveTabMetrics();
             triggerLiveDiagnostics(tabCtrl);
+            broadcastDocumentSnapshot(tabCtrl);
+            refreshRunAvailability();
         });
     }
 
@@ -773,6 +806,44 @@ public class FxEditorController {
         }
     }
 
+    /** Detects the active file's runtime/compiler and executes it in the built-in terminal. */
+    public void runActiveFile() {
+        EditorTabController current = getActiveTabController();
+        if (current == null) {
+            showRunMessage("No file is open to run.");
+            return;
+        }
+        if (current.getDocument().getFilePath() == null) {
+            showRunMessage("Save the active file before running it.");
+            return;
+        }
+        if (current.isModified() && !handleSave(false)) {
+            return;
+        }
+
+        Path source = current.getDocument().getFilePath();
+        Thread detector = new Thread(() -> {
+            CodeExecutionService.ExecutionPlan plan = codeExecutionService.createPlan(source);
+            Platform.runLater(() -> {
+                if (!plan.isRunnable()) {
+                    showRunMessage(plan.message());
+                    return;
+                }
+                terminalPane.executeInIntegratedTerminal(plan.command(), source.getParent());
+            });
+        }, "runtime-detector");
+        detector.setDaemon(true);
+        detector.start();
+    }
+
+    private void showRunMessage(String message) {
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showInformation("Run Active File", message);
+        } else {
+            System.err.println(message);
+        }
+    }
+
     public boolean handleSave(boolean forceSaveAs) {
         EditorTabController current = getActiveTabController();
         if (current == null) return false;
@@ -817,6 +888,139 @@ public class FxEditorController {
         }
     }
 
+    private void showCollaborationOptions() {
+        if (modalOverlayPane == null) {
+            hostCollaborationWorkspace();
+            return;
+        }
+
+        VBox content = new VBox(8);
+        Label description = new Label("Share the active document with teammates on your local network. "
+                + "Changes are synchronized as complete document updates.");
+        description.setWrapText(true);
+        description.setStyle("-fx-text-fill: -text-secondary; -fx-font-size: 12px;");
+        Label status = new Label(collaborationController != null && collaborationController.isConnected()
+                ? "Connected to a collaboration workspace." : "Not connected to a workspace.");
+        status.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12px; -fx-font-weight: bold;");
+        content.getChildren().addAll(description, status);
+
+        Button host = modalOverlayPane.createPrimaryButton("Host Workspace", () -> {
+            modalOverlayPane.close();
+            hostCollaborationWorkspace();
+        });
+        Button join = modalOverlayPane.createSecondaryButton("Join Workspace", () -> {
+            modalOverlayPane.close();
+            joinCollaborationWorkspace();
+        });
+        Button disconnect = modalOverlayPane.createSecondaryButton("Disconnect", this::disconnectCollaborationWorkspace);
+        disconnect.setDisable(collaborationController == null || !collaborationController.isConnected());
+        modalOverlayPane.showCustom("Live Collaboration", org.kordamp.ikonli.codicons.Codicons.LIVE_SHARE,
+                content, join, disconnect, host);
+    }
+
+    private void hostCollaborationWorkspace() {
+        if (collaborationController == null) {
+            showCollaborationError("Collaboration could not be initialized on this device.");
+            return;
+        }
+        HostWorkspaceDialog dialog = new HostWorkspaceDialog();
+        dialog.initOwner(stage);
+        dialog.showAndWait();
+        if (!dialog.isConfirmed()) return;
+
+        try {
+            disconnectExistingCollaboration();
+            collaborationController.startHostingSession(dialog.getSessionName(), dialog.getServerPort(), "Host");
+            EditorTabController active = getActiveTabController();
+            if (active != null) broadcastDocumentSnapshot(active);
+            showCollaborationInfo("Hosting \"" + dialog.getSessionName() + "\" on port " + dialog.getServerPort()
+                    + ". Share your network address, port, and workspace name with collaborators.");
+        } catch (Exception exception) {
+            showCollaborationError("Unable to host workspace: " + exception.getMessage());
+        }
+    }
+
+    private void joinCollaborationWorkspace() {
+        if (collaborationController == null) {
+            showCollaborationError("Collaboration could not be initialized on this device.");
+            return;
+        }
+        JoinWorkspaceDialog dialog = new JoinWorkspaceDialog();
+        dialog.initOwner(stage);
+        dialog.showAndWait();
+        if (!dialog.isConfirmed()) return;
+
+        try {
+            disconnectExistingCollaboration();
+            collaborationController.joinSession(dialog.getHost(), dialog.getPort(), dialog.getUserName(), dialog.getSessionName());
+            collaborationController.broadcastDocument("SYNC_REQUEST");
+            showCollaborationInfo("Joined \"" + dialog.getSessionName() + "\". The host's active document will open shortly.");
+        } catch (Exception exception) {
+            showCollaborationError("Unable to join workspace: " + exception.getMessage());
+        }
+    }
+
+    private void disconnectCollaborationWorkspace() {
+        try {
+            disconnectExistingCollaboration();
+            if (modalOverlayPane != null) modalOverlayPane.close();
+            showCollaborationInfo("Collaboration disconnected.");
+        } catch (Exception exception) {
+            showCollaborationError("Unable to disconnect: " + exception.getMessage());
+        }
+    }
+
+    private void disconnectExistingCollaboration() throws Exception {
+        if (collaborationController != null && collaborationController.isConnected()) {
+            collaborationController.disconnect();
+        }
+    }
+
+    private void broadcastDocumentSnapshot(EditorTabController tabController) {
+        if (applyingRemoteCollaborationChange || collaborationController == null
+                || !collaborationController.isConnected() || tabController == null) return;
+        String fileName = tabController.getDocument().getFileName();
+        String content = tabController.getEditorPane().getCodeArea().getText();
+        String encodedName = Base64.getEncoder().encodeToString(fileName.getBytes(StandardCharsets.UTF_8));
+        String encodedContent = Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
+        collaborationController.broadcastDocument("DOC\t" + encodedName + "\t" + encodedContent);
+    }
+
+    private void handleCollaborationMessage(String message) {
+        if (message == null || message.isBlank()) return;
+        Platform.runLater(() -> {
+            if ("SYNC_REQUEST".equals(message)) {
+                if (collaborationController != null && collaborationController.isHosting()) {
+                    broadcastDocumentSnapshot(getActiveTabController());
+                }
+                return;
+            }
+            String[] parts = message.split("\\t", 3);
+            if (parts.length != 3 || !"DOC".equals(parts[0])) return;
+            try {
+                String fileName = new String(Base64.getDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+                String content = new String(Base64.getDecoder().decode(parts[2]), StandardCharsets.UTF_8);
+                EditorTabController target = tabControllers.stream()
+                        .filter(tab -> fileName.equals(tab.getDocument().getFileName()))
+                        .findFirst().orElseGet(() -> createNewTab(fileName));
+                applyingRemoteCollaborationChange = true;
+                target.setContent(content, false);
+            } catch (IllegalArgumentException ignored) {
+                // Invalid messages are ignored rather than rendered as editor content.
+            } finally {
+                applyingRemoteCollaborationChange = false;
+            }
+        });
+    }
+
+    private void showCollaborationInfo(String message) {
+        if (modalOverlayPane != null) modalOverlayPane.showInformation("Live Collaboration", message);
+    }
+
+    private void showCollaborationError(String message) {
+        if (modalOverlayPane != null) modalOverlayPane.showError("Live Collaboration", message);
+    }
+
     public void showAboutDialog() {
         if (modalOverlayPane != null) {
             modalOverlayPane.showAbout();
@@ -831,6 +1035,11 @@ public class FxEditorController {
 
     public void shutdown() {
         diagnosticDebounceExecutor.shutdown();
+        try {
+            disconnectExistingCollaboration();
+        } catch (Exception exception) {
+            System.err.println("Could not close collaboration session: " + exception.getMessage());
+        }
         if (terminalPane != null) {
             terminalPane.dispose();
         }

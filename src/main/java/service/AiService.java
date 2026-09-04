@@ -83,14 +83,13 @@ public class AiService {
         codeContext = limitContext(codeContext);
         String m = model.toLowerCase();
 
-        // 1. Google Gemini (latest models)
+        // 1. Google Gemini. Gemini 2.0 Flash was shut down in 2026.
         if (m.contains("gemini")) {
             String key = getGeminiKey();
             if (key.isEmpty()) {
                 throw new IllegalStateException("Google Gemini API Key is not configured. Click the Key icon in the AI panel to set it.");
             }
-            String geminiModel = m.contains("1.5") ? "gemini-1.5-pro" : "gemini-2.0-flash-001";
-            return queryGemini(geminiModel, key, userPrompt, codeContext, fileName);
+            return queryGemini("gemini-3.5-flash", key, userPrompt, codeContext, fileName);
         }
 
         // 2. OpenAI GPT (latest models)

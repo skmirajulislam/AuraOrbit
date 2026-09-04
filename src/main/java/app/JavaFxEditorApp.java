@@ -5,6 +5,8 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.geometry.Orientation;
+import javafx.geometry.Insets;
+import javafx.scene.control.Button;
 import javafx.scene.Scene;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TabPane;
@@ -16,6 +18,7 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import service.ThemeService;
 import view.fx.*;
+import org.kordamp.ikonli.codicons.Codicons;
 
 import java.nio.file.Paths;
 import java.util.List;
@@ -66,6 +69,16 @@ public class JavaFxEditorApp extends Application {
         StackPane editorCenterStack = new StackPane(welcomeWatermarkPane, editorSplitPane, commandPalette);
         StackPane.setAlignment(commandPalette, Pos.TOP_CENTER);
         StackPane.setAlignment(welcomeWatermarkPane, Pos.CENTER);
+
+        Button runButton = new Button("Run");
+        runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#89d185"));
+        runButton.setTooltip(new javafx.scene.control.Tooltip("Run Active File (F5)"));
+        runButton.getStyleClass().add("editor-run-button");
+        runButton.setStyle("-fx-background-color: transparent; -fx-text-fill: -text-primary; -fx-font-size: 11px; -fx-padding: 5 10; -fx-cursor: hand;");
+        runButton.setOnAction(e -> controller.runActiveFile());
+        editorCenterStack.getChildren().add(runButton);
+        StackPane.setAlignment(runButton, Pos.TOP_RIGHT);
+        StackPane.setMargin(runButton, new Insets(3, 10, 0, 0));
 
         // Sidebars & Studio Panes
         ActivityBar activityBar = new ActivityBar();
@@ -155,6 +168,7 @@ public class JavaFxEditorApp extends Application {
         KeyCombination ctrlShiftBacktick = new KeyCodeCombination(KeyCode.BACK_QUOTE, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
 
         KeyCombination shiftAltF = new KeyCodeCombination(KeyCode.F, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN);
+        KeyCombination runActiveFile = new KeyCodeCombination(KeyCode.F5);
 
         scene.getAccelerators().put(cmdS, () -> controller.handleSave(false));
         scene.getAccelerators().put(cmdShiftS, () -> controller.handleSave(true));
@@ -164,6 +178,7 @@ public class JavaFxEditorApp extends Application {
         scene.getAccelerators().put(cmdF, () -> controller.handleFind(true));
         scene.getAccelerators().put(cmdP, controller::showCommandPalette);
         scene.getAccelerators().put(shiftAltF, controller::formatActiveDocument);
+        scene.getAccelerators().put(runActiveFile, controller::runActiveFile);
         scene.getAccelerators().put(cmdSplit, controller::toggleSplitEditor);
         scene.getAccelerators().put(cmdAi, controller::toggleAiPanel);
         scene.getAccelerators().put(ctrlBacktick, controller::toggleTerminal);

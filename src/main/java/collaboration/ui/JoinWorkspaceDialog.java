@@ -13,6 +13,7 @@ import javafx.stage.Stage;
  */
 public class JoinWorkspaceDialog extends Stage {
     private TextField connectionField;
+    private TextField sessionNameField;
     private TextField userNameField;
     private Button joinButton;
     private Button cancelButton;
@@ -22,11 +23,12 @@ public class JoinWorkspaceDialog extends Stage {
     private String resultHost;
     private int resultPort;
     private String resultUserName;
+    private String resultSessionName;
 
     public JoinWorkspaceDialog() {
         setTitle("Join Collaborative Workspace");
         setWidth(400);
-        setHeight(280);
+        setHeight(330);
         setResizable(false);
 
         VBox mainBox = createMainContent();
@@ -53,6 +55,13 @@ public class JoinWorkspaceDialog extends Stage {
         connectionField = new TextField();
         connectionField.setPromptText("e.g., localhost:8080 or 192.168.1.100:8080");
         connBox.getChildren().addAll(connLabel, connectionField);
+
+        VBox sessionBox = new VBox(5);
+        Label sessionLabel = new Label("Workspace Name:");
+        sessionLabel.setStyle("-fx-font-size: 11; -fx-font-weight: bold;");
+        sessionNameField = new TextField("Untitled Workspace");
+        sessionNameField.setPromptText("Ask the host for this name");
+        sessionBox.getChildren().addAll(sessionLabel, sessionNameField);
 
         // User Name
         VBox userBox = new VBox(5);
@@ -102,6 +111,7 @@ public class JoinWorkspaceDialog extends Stage {
                 titleLabel,
                 new Separator(),
                 connBox,
+                sessionBox,
                 userBox,
                 infoLabel,
                 statusLabel,
@@ -145,6 +155,16 @@ public class JoinWorkspaceDialog extends Stage {
             return false;
         }
 
+        resultSessionName = sessionNameField.getText().trim();
+        if (resultSessionName.isEmpty()) {
+            showError("Workspace name is required");
+            return false;
+        }
+        if (!resultSessionName.matches("[A-Za-z0-9 _.-]{1,64}")) {
+            showError("Workspace name contains unsupported characters");
+            return false;
+        }
+
         return true;
     }
 
@@ -167,5 +187,9 @@ public class JoinWorkspaceDialog extends Stage {
 
     public String getUserName() {
         return resultUserName;
+    }
+
+    public String getSessionName() {
+        return resultSessionName;
     }
 }

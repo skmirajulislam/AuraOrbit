@@ -63,12 +63,11 @@ public class AiAssistantPane extends VBox {
 
         modelSelector = new ComboBox<>();
         modelSelector.getItems().addAll(
-                "Gemini 2.0 Flash (Google)",
-                "Gemini 1.5 Pro (Google)",
-                "GPT-4o (OpenAI)",
+                "Gemini 3.5 Flash (Google)",
+                "GPT-4o 2024-11-20 (OpenAI)",
                 "GPT-4o-mini (OpenAI)",
-                "Grok-2 (xAI)",
-                "DeepSeek-R1 (Local / Ollama)",
+                "Grok-3 (xAI)",
+                "DeepSeek-R1 14B (Local / Ollama)",
                 "Offline Copilot (Built-in)"
         );
         // The offline model works immediately; external models remain opt-in
@@ -104,7 +103,10 @@ public class AiAssistantPane extends VBox {
         Button testsBtn = createActionChip(Codicons.BEAKER, "Tests", () -> handleQuickAction("Write comprehensive JUnit 5 unit tests for this code covering all edge cases."));
         Button fixBugsBtn = createActionChip(Codicons.BUG, "Fix Bugs", () -> handleQuickAction("Analyze this code for potential null pointer exceptions, resource leaks, or concurrency bugs, and provide the fix."));
 
-        ScrollPane quickScroll = new ScrollPane(new HBox(6, explainBtn, refactorBtn, testsBtn, fixBugsBtn));
+        // Keep the padded bar itself as the scroll content; previously this
+        // accidentally used a new HBox and discarded the requested spacing.
+        quickActions.getChildren().addAll(explainBtn, refactorBtn, testsBtn, fixBugsBtn);
+        ScrollPane quickScroll = new ScrollPane(quickActions);
         quickScroll.setFitToHeight(true);
         quickScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         quickScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);

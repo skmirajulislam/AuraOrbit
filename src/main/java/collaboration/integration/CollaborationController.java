@@ -5,6 +5,7 @@ import collaboration.network.*;
 import collaboration.security.*;
 import collaboration.sync.*;
 import collaboration.ui.*;
+import java.util.function.Consumer;
 
 /**
  * Main collaboration controller that orchestrates all components.
@@ -23,6 +24,7 @@ public class CollaborationController {
     private CollaborativeWebSocketClient client;
     private String currentUserId;
     private String currentUserName;
+    private Consumer<String> onRemoteMessage;
 
     public CollaborationController(String serverSecret) throws Exception {
         this.tokenManager = new JwtTokenManager(serverSecret);
@@ -36,13 +38,16 @@ public class CollaborationController {
     /**
      * Start hosting a collaborative session.
      */
-    public void startHostingSession(String sessionId, int port) throws Exception {
+    public void startHostingSession(String sessionId, int port, String userName) throws Exception {
+        currentUserId = generateUserId();
+        currentUserName = userName == null || userName.isBlank() ? "Host" : userName.trim();
         // Create session
         currentSession = new CollaborationSession(sessionId, currentUserId);
         currentSession.addUser(currentUserId, currentUserName, true);
 
         // Set up server
         server = new CollaborativeWebSocketServer(port, sessionId);
+        server.setOnMessageReceived(this::handleRemoteMessage);
         server.start();
 
         // Log event
@@ -58,10 +63,12 @@ public class CollaborationController {
                            String sessionId) throws Exception {
         currentUserName = userName;
         currentUserId = generateUserId();
+        currentSession = new CollaborationSession(sessionId, "host");
+        currentSession.addUser(currentUserId, currentUserName, false);
 
         // Create client connection
         client = new CollaborativeWebSocketClient(sessionId, host, port, currentUserId, userName);
-        client.setOnMessageReceived(this::handleRemoteEdit);
+        client.setOnMessageReceived(this::handleRemoteMessage);
         boolean connected = client.connect();
         
         if (!connected) {
@@ -98,21 +105,17 @@ public class CollaborationController {
     /**
      * Handle a remote edit from another user.
      */
-    private void handleRemoteEdit(String message) {
-        try {
-            // Parse operation from message
-            // This is simplified; in production, deserialize properly
-            SyncEventProcessor.SyncEvent event = new SyncEventProcessor.SyncEvent(
-                    null, // Parse from message
-                    ""    // Extract source user
-            );
+    private void handleRemoteMessage(String message) {
+        if (onRemoteMessage != null) onRemoteMessage.accept(message);
+    }
 
-            syncProcessor.processNextEvent();
-        } catch (Exception ex) {
-            auditLogger.log("", currentSession.getSessionId(),
-                    AuditLogger.EventType.SECURITY_VIOLATION,
-                    "Failed to process remote edit: " + ex.getMessage());
-        }
+    public void broadcastDocument(String message) {
+        if (server != null) server.broadcastToAll(message);
+        else if (client != null) client.sendMessage(message);
+    }
+
+    public void setOnRemoteMessage(Consumer<String> onRemoteMessage) {
+        this.onRemoteMessage = onRemoteMessage;
     }
 
     /**

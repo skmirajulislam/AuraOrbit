@@ -504,6 +504,38 @@ public class TerminalPane extends BorderPane {
         }
     }
 
+    /** Runs a generated IDE command in the integrated terminal at the requested directory. */
+    public void executeInIntegratedTerminal(String command, Path workingDirectory) {
+        if (command == null || command.isBlank()) return;
+        showTerminal();
+        if (activeSession == null) return;
+        String directory = workingDirectory == null ? null : workingDirectory.toAbsolutePath().toString();
+        String prefix;
+        if (directory == null) {
+            prefix = command;
+        } else if (getPlatformOS() == PlatformOS.WINDOWS) {
+            if (getShellName().toLowerCase(Locale.ROOT).contains("power")) {
+                prefix = "Set-Location -LiteralPath '" + directory.replace("'", "''") + "'; "
+                        + translateForPowerShell(command);
+            } else {
+                prefix = "cd /d \"" + directory.replace("\"", "\\\"") + "\" && " + command;
+            }
+        } else {
+            prefix = "cd '" + directory.replace("'", "'\\\"'\\\"'") + "' && " + command;
+        }
+        activeSession.executeCommand(prefix);
+    }
+
+    private String translateForPowerShell(String command) {
+        String[] stages = command.split("\\s+&&\\s+");
+        if (stages.length == 1) return command;
+        String translated = stages[stages.length - 1];
+        for (int index = stages.length - 2; index >= 0; index--) {
+            translated = stages[index] + "; if ($LASTEXITCODE -eq 0) { " + translated + " }";
+        }
+        return translated;
+    }
+
     public void hideTerminal() {
         setVisible(false);
         setManaged(false);

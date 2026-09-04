@@ -53,6 +53,7 @@ public class SidebarExplorer extends VBox {
     private Runnable onOpenFolderRequested;
     private Consumer<Path> onWorkspaceChanged;
     private BiConsumer<Path, Path> onFileRenamed;
+    private TreeItem<FileItem> renamingTreeItem;
 
     /**
      * Tree item data model representing files, folders, or in-progress inline creation.
@@ -311,6 +312,38 @@ public class SidebarExplorer extends VBox {
                     Platform.runLater(inlineInput::requestFocus);
 
                 } else {
+                    if (getTreeItem() == renamingTreeItem) {
+                        setText(null);
+                        setContextMenu(null);
+                        if (editorBox == null) {
+                            editorBox = new HBox(6);
+                            editorBox.setAlignment(Pos.CENTER_LEFT);
+                            inlineInput = new TextField();
+                            inlineInput.getStyleClass().add("inline-tree-input");
+                            HBox.setHgrow(inlineInput, Priority.ALWAYS);
+                            inlineInput.setMaxWidth(Double.MAX_VALUE);
+                        }
+                        editorBox.getChildren().setAll(item.getIcon(false), inlineInput);
+                        setGraphic(editorBox);
+                        inlineInput.setText(item.file.getName());
+                        inlineInput.selectAll();
+                        inlineInput.setOnKeyPressed(ke -> {
+                            if (ke.getCode() == KeyCode.ENTER) {
+                                commitInlineRename(getTreeItem(), inlineInput.getText());
+                                ke.consume();
+                            } else if (ke.getCode() == KeyCode.ESCAPE) {
+                                cancelInlineRename();
+                                ke.consume();
+                            }
+                        });
+                        inlineInput.focusedProperty().addListener((obs, oldFocus, focused) -> {
+                            if (!focused && getTreeItem() == renamingTreeItem) {
+                                Platform.runLater(SidebarExplorer.this::cancelInlineRename);
+                            }
+                        });
+                        Platform.runLater(inlineInput::requestFocus);
+                        return;
+                    }
                     setText(item.file.getName().isEmpty() ? item.file.getAbsolutePath() : item.file.getName());
                     boolean expanded = getTreeItem() != null && getTreeItem().isExpanded();
                     setGraphic(item.getIcon(expanded));
@@ -553,24 +586,43 @@ public class SidebarExplorer extends VBox {
 
     private void renameFileItem(TreeItem<FileItem> treeItem) {
         if (treeItem == null || treeItem.getValue() == null || treeItem.getValue().file == null) return;
+        renamingTreeItem = treeItem;
+        fileTreeView.getSelectionModel().select(treeItem);
+        fileTreeView.refresh();
+    }
+
+    private void commitInlineRename(TreeItem<FileItem> treeItem, String requestedName) {
+        if (treeItem == null || treeItem.getValue() == null || treeItem.getValue().file == null) {
+            cancelInlineRename();
+            return;
+        }
         File source = treeItem.getValue().file;
-        TextInputDialog dialog = new TextInputDialog(source.getName());
-        dialog.setTitle("Rename " + (source.isDirectory() ? "Folder" : "File"));
-        dialog.setHeaderText(null);
-        dialog.setContentText("New name:");
-        dialog.showAndWait().ifPresent(name -> {
-            String trimmed = name.trim();
-            if (trimmed.isEmpty() || trimmed.equals(source.getName()) || trimmed.matches(".*[\\\\/:*?\"<>|].*")) return;
-            Path target = source.toPath().resolveSibling(trimmed);
-            if (Files.exists(target)) return;
-            try {
-                Files.move(source.toPath(), target);
-                if (onFileRenamed != null) onFileRenamed.accept(source.toPath(), target);
-                if (currentWorkspacePath != null) setWorkspacePath(currentWorkspacePath);
-            } catch (IOException ex) {
-                System.err.println("Rename failed: " + ex.getMessage());
-            }
-        });
+        String name = requestedName == null ? "" : requestedName.trim();
+        if (name.isEmpty() || name.equals(source.getName()) || name.matches(".*[\\\\/:*?\"<>|].*")) {
+            cancelInlineRename();
+            return;
+        }
+        Path target = source.toPath().resolveSibling(name);
+        if (Files.exists(target)) {
+            cancelInlineRename();
+            return;
+        }
+        try {
+            Files.move(source.toPath(), target);
+            if (onFileRenamed != null) onFileRenamed.accept(source.toPath(), target);
+        } catch (IOException ex) {
+            System.err.println("Rename failed: " + ex.getMessage());
+        } finally {
+            renamingTreeItem = null;
+            if (currentWorkspacePath != null) setWorkspacePath(currentWorkspacePath);
+            else fileTreeView.refresh();
+        }
+    }
+
+    private void cancelInlineRename() {
+        if (renamingTreeItem == null) return;
+        renamingTreeItem = null;
+        fileTreeView.refresh();
     }
 
     private void revealInFileManager(File file) {

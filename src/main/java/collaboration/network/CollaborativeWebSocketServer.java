@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * WebSocket server for hosting collaborative sessions.
@@ -18,6 +19,7 @@ public class CollaborativeWebSocketServer {
     private ServerSocket serverSocket;
     private ExecutorService executorService;
     private AtomicBoolean running;
+    private Consumer<String> onMessageReceived;
 
     public CollaborativeWebSocketServer(int port, String sessionId) {
         this.port = port;
@@ -64,23 +66,22 @@ public class CollaborativeWebSocketServer {
 
     private void handleClientConnection(Socket clientSocket) {
         try {
-            // Read initial handshake (simplified)
             String clientId = UUID.randomUUID().toString();
-            ClientConnection conn = new ClientConnection(clientId, clientSocket);
-            connections.put(clientId, conn);
+            // Line framing prevents TCP packet boundaries from corrupting messages.
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(), StandardCharsets.UTF_8))) {
+                String handshake = reader.readLine();
+                if (!isValidHandshake(handshake)) {
+                    clientSocket.close();
+                    return;
+                }
 
-            System.out.println("✅ Client connected: " + clientId);
-
-            // Read messages from client and broadcast
-            while (running.get() && clientSocket.isConnected()) {
-                byte[] buffer = new byte[4096];
-                int bytesRead = clientSocket.getInputStream().read(buffer);
-
-                if (bytesRead > 0) {
-                    String message = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
+                ClientConnection conn = new ClientConnection(clientId, clientSocket);
+                connections.put(clientId, conn);
+                System.out.println("✅ Client connected: " + clientId);
+                String message;
+                while (running.get() && (message = reader.readLine()) != null) {
+                    if (onMessageReceived != null) onMessageReceived.accept(message);
                     broadcastMessage(message, clientId);
-                } else {
-                    break; // Connection closed
                 }
             }
 
@@ -89,6 +90,11 @@ public class CollaborativeWebSocketServer {
         } catch (IOException ex) {
             System.err.println("⚠️ Client error: " + ex.getMessage());
         }
+    }
+
+    private boolean isValidHandshake(String handshake) {
+        return handshake != null && handshake.contains("\"type\":\"join\"")
+                && handshake.contains("\"session_id\":\"" + sessionId + "\"");
     }
 
     public void broadcastMessage(String message, String excludeClientId) {
@@ -136,6 +142,10 @@ public class CollaborativeWebSocketServer {
 
     public int getConnectionCount() {
         return connections.size();
+    }
+
+    public void setOnMessageReceived(Consumer<String> onMessageReceived) {
+        this.onMessageReceived = onMessageReceived;
     }
 
     private static class ClientConnection {
