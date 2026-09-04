@@ -49,6 +49,10 @@ public class EditorTabController {
         this.fileService = fileService;
         this.document = new Document(initialName);
         this.editorPane = new CodeEditorPane();
+        int dot = initialName.lastIndexOf('.');
+        if (dot != -1 && dot < initialName.length() - 1) {
+            this.editorPane.setFileType(initialName.substring(dot + 1).toLowerCase());
+        }
         this.tab = new Tab("", editorPane);
         this.tab.setClosable(false); // Using custom built-in close button
         this.isModified = false;
@@ -124,10 +128,16 @@ public class EditorTabController {
             }
         });
 
+        String name = document.getFileName();
+        int dot = name.lastIndexOf('.');
+        if (dot != -1 && dot < name.length() - 1) {
+            editorPane.setFileType(name.substring(dot + 1).toLowerCase());
+        }
+
         if (java.nio.file.Files.exists(sanitized)) {
-            TextBuffer buffer = fileService.loadFile(sanitized);
             suppressEvents = true;
-            editorPane.getCodeArea().replaceText(String.join("\n", buffer.getLines()));
+            String content = fileService.readString(sanitized);
+            editorPane.getCodeArea().replaceText(content);
             editorPane.getCodeArea().moveTo(0);
             suppressEvents = false;
         }
@@ -195,10 +205,7 @@ public class EditorTabController {
 
         try {
             String text = editorPane.getCodeArea().getText();
-            String[] lines = text.split("\\R", -1);
-            TextBuffer buffer = new TextBuffer(List.of(lines));
-
-            fileService.saveFileAtomically(document.getFilePath(), buffer, true);
+            fileService.saveStringAtomically(document.getFilePath(), text, true);
             isModified = false;
             updateTabTitle();
             if (onStateChanged != null) onStateChanged.run();

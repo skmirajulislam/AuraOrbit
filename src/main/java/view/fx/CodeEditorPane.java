@@ -111,6 +111,15 @@ public class CodeEditorPane extends StackPane {
     }
 
     private StyleSpans<Collection<String>> computeHighlighting(String text) {
+        if (text.isEmpty()) {
+            return new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), 0).create();
+        }
+
+        // For plain text, logs, or simple documents, skip expensive multi-group regex matching
+        if (fileType != null && (fileType.equals("txt") || fileType.equals("log") || fileType.equals("csv") || fileType.equals("tsv"))) {
+            return new StyleSpansBuilder<Collection<String>>().add(Collections.emptyList(), text.length()).create();
+        }
+
         Matcher matcher = PATTERN.matcher(text);
         int lastKwEnd = 0;
         StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
@@ -187,12 +196,26 @@ public class CodeEditorPane extends StackPane {
     public int findText(String query, boolean matchCase, int fromIndex, boolean select) {
         if (query == null || query.isEmpty()) return -1;
         String text = codeArea.getText();
-        String searchIn = matchCase ? text : text.toLowerCase();
-        String searchFor = matchCase ? query : query.toLowerCase();
+        int textLen = text.length();
+        int queryLen = query.length();
+        int start = Math.max(0, fromIndex);
 
-        int idx = searchIn.indexOf(searchFor, Math.max(0, fromIndex));
+        int idx = -1;
+        if (matchCase) {
+            idx = text.indexOf(query, start);
+        } else {
+            // High-performance zero-allocation case-insensitive search
+            int max = textLen - queryLen;
+            for (int i = start; i <= max; i++) {
+                if (text.regionMatches(true, i, query, 0, queryLen)) {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+
         if (idx != -1 && select) {
-            codeArea.selectRange(idx, idx + query.length());
+            codeArea.selectRange(idx, idx + queryLen);
             codeArea.showParagraphAtCenter(codeArea.getCurrentParagraph());
         }
         return idx;
@@ -201,12 +224,25 @@ public class CodeEditorPane extends StackPane {
     public int findTextPrev(String query, boolean matchCase, int fromIndex) {
         if (query == null || query.isEmpty()) return -1;
         String text = codeArea.getText();
-        String searchIn = matchCase ? text : text.toLowerCase();
-        String searchFor = matchCase ? query : query.toLowerCase();
+        int textLen = text.length();
+        int queryLen = query.length();
+        int start = Math.min(textLen - queryLen, fromIndex);
 
-        int idx = searchIn.lastIndexOf(searchFor, Math.min(text.length(), fromIndex));
+        int idx = -1;
+        if (matchCase) {
+            idx = text.lastIndexOf(query, start);
+        } else {
+            // High-performance zero-allocation case-insensitive reverse search
+            for (int i = start; i >= 0; i--) {
+                if (text.regionMatches(true, i, query, 0, queryLen)) {
+                    idx = i;
+                    break;
+                }
+            }
+        }
+
         if (idx != -1) {
-            codeArea.selectRange(idx, idx + query.length());
+            codeArea.selectRange(idx, idx + queryLen);
             codeArea.showParagraphAtCenter(codeArea.getCurrentParagraph());
         }
         return idx;

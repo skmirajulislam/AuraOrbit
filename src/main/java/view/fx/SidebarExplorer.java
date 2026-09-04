@@ -1,11 +1,14 @@
 package view.fx;
 
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
 import org.kordamp.ikonli.codicons.Codicons;
+import org.kordamp.ikonli.javafx.FontIcon;
 import template.Template;
 import template.TemplateFactory;
 
@@ -18,6 +21,7 @@ import java.util.function.Consumer;
 /**
  * Collapsible, responsive Sidebar showing Project Explorer and 1-click Template Scaffolds
  * powered by official VS Code Codicons.
+ * Features lazy on-demand directory expansion for high performance and low memory footprint.
  */
 public class SidebarExplorer extends VBox {
 
@@ -35,9 +39,22 @@ public class SidebarExplorer extends VBox {
 
     public static class FileItem {
         public final File file;
+        private FontIcon cachedIcon;
+
         public FileItem(File file) {
             this.file = file;
         }
+
+        public FontIcon getIcon(boolean isExpanded) {
+            if (file.isDirectory()) {
+                return IconFactory.getFolderIcon(isExpanded, 14);
+            }
+            if (cachedIcon == null) {
+                cachedIcon = IconFactory.getFileIcon(file.getName(), 14);
+            }
+            return cachedIcon;
+        }
+
         @Override
         public String toString() {
             return file.getName().isEmpty() ? file.getAbsolutePath() : file.getName();
@@ -123,11 +140,8 @@ public class SidebarExplorer extends VBox {
                     setGraphic(null);
                 } else {
                     setText(item.file.getName().isEmpty() ? item.file.getAbsolutePath() : item.file.getName());
-                    if (item.file.isDirectory()) {
-                        setGraphic(IconFactory.getFolderIcon(getTreeItem() != null && getTreeItem().isExpanded(), 14));
-                    } else {
-                        setGraphic(IconFactory.getFileIcon(item.file.getName(), 14));
-                    }
+                    boolean expanded = getTreeItem() != null && getTreeItem().isExpanded();
+                    setGraphic(item.getIcon(expanded));
                 }
             }
         });
@@ -226,32 +240,70 @@ public class SidebarExplorer extends VBox {
     public void setWorkspacePath(Path path) {
         this.currentWorkspacePath = path.toAbsolutePath().normalize();
         File rootFile = this.currentWorkspacePath.toFile();
-        TreeItem<FileItem> rootItem = new TreeItem<>(new FileItem(rootFile));
+        TreeItem<FileItem> rootItem = new LazyTreeItem(new FileItem(rootFile));
         rootItem.setExpanded(true);
-
-        populateTree(rootFile, rootItem);
         fileTreeView.setRoot(rootItem);
         fileTreeView.setShowRoot(true);
     }
 
-    private void populateTree(File dir, TreeItem<FileItem> parent) {
-        File[] files = dir.listFiles();
-        if (files == null) return;
+    /**
+     * High-performance lazy-loading TreeItem for file system hierarchies.
+     * Children are only queried and instantiated when a folder is actually expanded,
+     * reducing startup time and memory footprint to O(1) per folder.
+     */
+    private static class LazyTreeItem extends TreeItem<FileItem> {
+        private boolean isFirstChildren = true;
+        private boolean isFirstLeaf = true;
+        private boolean isLeaf = false;
 
-        // Sort folders first, then files alphabetically
-        java.util.Arrays.sort(files, (a, b) -> {
-            if (a.isDirectory() && !b.isDirectory()) return -1;
-            if (!a.isDirectory() && b.isDirectory()) return 1;
-            return a.getName().compareToIgnoreCase(b.getName());
-        });
+        public LazyTreeItem(FileItem item) {
+            super(item);
+        }
 
-        for (File f : files) {
-            if (f.getName().startsWith(".") || f.getName().equals("target")) continue;
-            TreeItem<FileItem> item = new TreeItem<>(new FileItem(f));
-            parent.getChildren().add(item);
-            if (f.isDirectory()) {
-                populateTree(f, item);
+        @Override
+        public ObservableList<TreeItem<FileItem>> getChildren() {
+            if (isFirstChildren) {
+                isFirstChildren = false;
+                super.getChildren().setAll(buildChildren(this));
             }
+            return super.getChildren();
+        }
+
+        @Override
+        public boolean isLeaf() {
+            if (isFirstLeaf) {
+                isFirstLeaf = false;
+                File f = getValue() != null ? getValue().file : null;
+                isLeaf = f == null || f.isFile();
+            }
+            return isLeaf;
+        }
+
+        private static ObservableList<TreeItem<FileItem>> buildChildren(TreeItem<FileItem> treeItem) {
+            if (treeItem == null || treeItem.getValue() == null) {
+                return FXCollections.emptyObservableList();
+            }
+            File dir = treeItem.getValue().file;
+            if (dir != null && dir.isDirectory()) {
+                File[] files = dir.listFiles();
+                if (files != null && files.length > 0) {
+                    ObservableList<TreeItem<FileItem>> children = FXCollections.observableArrayList();
+                    // Sort folders first, then files alphabetically
+                    java.util.Arrays.sort(files, (a, b) -> {
+                        if (a.isDirectory() && !b.isDirectory()) return -1;
+                        if (!a.isDirectory() && b.isDirectory()) return 1;
+                        return a.getName().compareToIgnoreCase(b.getName());
+                    });
+                    for (File child : files) {
+                        String name = child.getName();
+                        // Filter hidden files, VCS, and build output directories
+                        if (name.startsWith(".") || name.equals("target") || name.equals("node_modules")) continue;
+                        children.add(new LazyTreeItem(new FileItem(child)));
+                    }
+                    return children;
+                }
+            }
+            return FXCollections.emptyObservableList();
         }
     }
 

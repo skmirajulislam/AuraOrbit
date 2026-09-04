@@ -37,6 +37,7 @@ public class EditorTestSuite {
         testTemplateEngine();
         testConcurrencyAndThreadSafety();
         testMultiLineUndoRedoAndEdgeCases();
+        testStringAtomicSaveAndLoad();
 
         System.out.println("\n-------------------------------------------------");
         System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -310,5 +311,36 @@ public class EditorTestSuite {
             caughtAds = true;
         }
         assertTrue(caughtAds, "Alternative Data Stream syntax blocked");
+    }
+
+    private static void testStringAtomicSaveAndLoad() {
+        System.out.println("\n[8] Testing Zero-Copy String Atomic Save & Load...");
+        FileService fs = new FileService();
+        Path testFile = Paths.get("test_atomic_string.tmp");
+
+        try {
+            String originalContent = "package test;\n\npublic class FastLoad {\n    // zero allocation\n}\n";
+            fs.saveStringAtomically(testFile, originalContent, false);
+            assertTrue(Files.exists(testFile), "File exists after atomic string save");
+
+            String loaded = fs.readString(testFile);
+            assertEquals(originalContent, loaded, "Loaded content matches saved string exactly");
+
+            // Overwrite check
+            String updated = originalContent + "// modified line\n";
+            fs.saveStringAtomically(testFile, updated, true);
+            assertEquals(updated, fs.readString(testFile), "Updated content persists correctly");
+
+            Path bakFile = Paths.get("test_atomic_string.tmp.bak");
+            assertTrue(Files.exists(bakFile), "Backup .bak file created on overwrite");
+            assertEquals(originalContent, fs.readString(bakFile), "Backup content preserved");
+
+            // Cleanup
+            Files.deleteIfExists(testFile);
+            Files.deleteIfExists(bakFile);
+        } catch (IOException e) {
+            System.err.println("  ✖ FAIL: testStringAtomicSaveAndLoad threw exception: " + e.getMessage());
+            testsFailed++;
+        }
     }
 }

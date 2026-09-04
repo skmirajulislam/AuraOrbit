@@ -56,6 +56,79 @@ public class FileService {
     }
 
     /**
+     * Reads a file directly into a String using NIO.2 without creating intermediate line lists.
+     * Ideal for GUI code editors to cut memory consumption and load time.
+     */
+    public String readString(Path path) throws IOException {
+        FileSecurityValidator.validateReadable(path);
+
+        long fileSize = Files.size(path);
+        if (fileSize > MAX_FILE_SIZE_BYTES) {
+            throw new IOException(String.format(
+                    "File size (%.2f MB) exceeds safety threshold (50 MB).",
+                    fileSize / (1024.0 * 1024.0)
+            ));
+        }
+
+        return Files.readString(path, DEFAULT_CHARSET);
+    }
+
+    /**
+     * Atomically saves a raw String to disk via a sibling temporary file.
+     * Prevents partial write corruption and avoids line-splitting allocations.
+     */
+    public void saveStringAtomically(Path targetPath, String content, boolean createBackup) throws IOException {
+        FileSecurityValidator.validateWritable(targetPath);
+
+        Path parentDir = targetPath.getParent();
+        if (parentDir != null && !Files.exists(parentDir)) {
+            Files.createDirectories(parentDir);
+        }
+
+        if (parentDir != null && Files.exists(parentDir)) {
+            cleanOrphanTempFiles(parentDir);
+        }
+
+        // 1. Create a backup if requested and original file exists
+        if (createBackup && Files.exists(targetPath)) {
+            Path backupPath = Paths.get(targetPath.toString() + ".bak");
+            Files.copy(targetPath, backupPath, StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        // 2. Write to sibling temp file
+        String tempFileName = "." + targetPath.getFileName().toString() + ".tmp." + UUID.randomUUID().toString().substring(0, 8);
+        Path tempPath = (parentDir != null) ? parentDir.resolve(tempFileName) : Paths.get(tempFileName);
+        tempPath.toFile().deleteOnExit();
+
+        try {
+            try (BufferedWriter writer = Files.newBufferedWriter(
+                    tempPath,
+                    DEFAULT_CHARSET,
+                    StandardOpenOption.CREATE_NEW,
+                    StandardOpenOption.WRITE,
+                    StandardOpenOption.SYNC)) {
+                if (content != null) {
+                    writer.write(content);
+                }
+                writer.flush();
+            }
+
+            // 3. Atomically replace target file
+            try {
+                Files.move(tempPath, targetPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tempPath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            if (Files.exists(tempPath)) {
+                try {
+                    Files.delete(tempPath);
+                } catch (IOException ignored) {}
+            }
+        }
+    }
+
+    /**
      * Atomically saves the TextBuffer to disk.
      * Prevents partial write corruption by writing to a sibling temp file
      * and performing an atomic rename/move.
