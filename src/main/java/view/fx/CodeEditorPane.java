@@ -8,6 +8,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.StackPane;
+import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.StyleSpans;
@@ -98,6 +99,8 @@ public class CodeEditorPane extends StackPane {
         this.codeArea.getStyleClass().add("vscode-code-editor");
         this.codeArea.setWrapText(false);
         this.codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+        this.codeArea.setMaxWidth(Double.MAX_VALUE);
+        this.codeArea.setMaxHeight(Double.MAX_VALUE);
         this.highlightExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "syntax-highlight-thread");
             t.setDaemon(true);
@@ -106,7 +109,7 @@ public class CodeEditorPane extends StackPane {
 
         // Async debounced syntax highlighting
         this.codeArea.multiPlainChanges()
-                .successionEnds(Duration.ofMillis(80))
+                .successionEnds(Duration.ofMillis(120))
                 .retainLatestUntilLater(highlightExecutor)
                 .supplyTask(this::computeHighlightingAsync)
                 .awaitLatest(codeArea.multiPlainChanges())
@@ -134,7 +137,14 @@ public class CodeEditorPane extends StackPane {
             }
         });
 
-        getChildren().addAll(codeArea, findReplaceBar);
+        VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
+        scrollPane.getStyleClass().add("code-scroll-pane");
+        scrollPane.setMaxWidth(Double.MAX_VALUE);
+        scrollPane.setMaxHeight(Double.MAX_VALUE);
+
+        getChildren().addAll(scrollPane, findReplaceBar);
+        setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        setMinSize(0, 0);
     }
 
     private void setupEditorContextMenu() {

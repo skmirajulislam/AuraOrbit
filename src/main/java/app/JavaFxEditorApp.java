@@ -15,6 +15,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
@@ -69,6 +70,7 @@ public class JavaFxEditorApp extends Application {
         // Command Palette Floating Overlay
         CommandPalette commandPalette = new CommandPalette();
         StackPane editorCenterStack = new StackPane(welcomeWatermarkPane, editorSplitPane, commandPalette);
+        editorCenterStack.setPickOnBounds(false);
         StackPane.setAlignment(commandPalette, Pos.TOP_CENTER);
         StackPane.setAlignment(welcomeWatermarkPane, Pos.CENTER);
 
@@ -77,11 +79,15 @@ public class JavaFxEditorApp extends Application {
         runButton.setTooltip(new Tooltip("Run Active File (F5). Type runtime input in the terminal."));
         runButton.getStyleClass().add("editor-run-button");
         runButton.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        runButton.setPickOnBounds(true);
         runButton.setOnAction(e -> controller.runActiveFile());
-        editorCenterStack.getChildren().add(runButton);
-        StackPane.setAlignment(runButton, Pos.TOP_RIGHT);
-        StackPane.setMargin(runButton, new Insets(3, 10, 0, 0));
+
+        HBox runOverlay = new HBox(runButton);
+        runOverlay.setAlignment(Pos.CENTER_RIGHT);
+        runOverlay.setPadding(new Insets(4, 10, 0, 0));
+        runOverlay.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        runOverlay.setPickOnBounds(false);
+        editorCenterStack.getChildren().add(runOverlay);
+        StackPane.setAlignment(runOverlay, Pos.TOP_RIGHT);
 
         // Sidebars & Studio Panes
         ActivityBar activityBar = new ActivityBar();

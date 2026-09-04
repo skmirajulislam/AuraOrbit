@@ -70,25 +70,24 @@
 
 .sidebar {
     -fx-background-color: -bg-sidebar;
-    -fx-background-radius: 8;
-    -fx-border-radius: 8;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
     -fx-border-color: -border-color;
     -fx-border-width: 1;
-    -fx-background-insets: 6 3 6 4;
-    -fx-border-insets: 6 3 6 4;
-    -fx-padding: 6 3 6 4;
+    -fx-background-insets: 4 2 4 4;
+    -fx-border-insets: 4 2 4 4;
+    -fx-padding: 4 2 4 4;
 }
 
 .sidebar-header {
     -fx-background-color: transparent;
-    -fx-border-color: transparent transparent derive(-border-color, 10%) transparent;
+    -fx-border-color: transparent transparent -border-color transparent;
     -fx-border-width: 0 0 1 0;
-    -fx-background-radius: 12 12 0 0;
 }
 
 .tree-cell {
     -fx-background-radius: 4;
-    -fx-background-insets: 1 6 1 6;
+    -fx-background-insets: 1 4 1 4;
 }
 
 .editor-split-pane {
@@ -97,22 +96,24 @@
 }
 
 .editor-split-pane > .split-pane-divider {
-    -fx-background-color: transparent;
-    -fx-padding: 0 2 0 2;
+    -fx-background-color: -border-color;
+    -fx-padding: 0 4 0 4;
+    -fx-background-insets: 0 4 0 3;
 }
 
 .editor-split-pane:vertical > .split-pane-divider {
-    -fx-padding: 2 0 2 0;
+    -fx-padding: 4 0 4 0;
+    -fx-background-color: -border-color;
+    -fx-background-insets: 4 0 3 0;
 }
 
 .tab-pane {
-    -fx-background-color: transparent;
-    -fx-background-radius: 8;
+    -fx-background-color: -bg-editor;
 }
 
 .tab-pane > .tab-header-area {
-    -fx-background-color: transparent;
-    -fx-padding: 4 6 0 6;
+    -fx-background-color: -bg-secondary;
+    -fx-padding: 0 8 0 4;
 }
 
 .tab-pane > .tab-header-area > .headers-region > .tab {
@@ -120,23 +121,26 @@
     -fx-border-radius: 6 6 0 0;
     -fx-border-width: 1 1 0 1;
     -fx-border-color: transparent;
-    -fx-padding: 6 12 6 12;
+    -fx-padding: 7 14 7 12;
 }
 
 .tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -bg-editor;
     -fx-border-color: -border-color -border-color transparent -border-color;
     -fx-border-width: 1 1 0 1;
-    -fx-background-radius: 6 6 0 0;
 }
 
 .tab-pane > .tab-content-area {
     -fx-background-color: -bg-editor;
-    -fx-background-radius: 0 8 8 8;
-    -fx-border-color: -border-color;
-    -fx-border-width: 1;
-    -fx-border-radius: 0 8 8 8;
-    -fx-background-insets: 0 6 6 6;
-    -fx-border-insets: 0 6 6 6;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
+    -fx-padding: 0;
+    -fx-border-width: 0;
+}
+
+.code-scroll-pane {
+    -fx-background-color: -bg-editor;
+    -fx-padding: 0 0 4 0;
 }
 
 .status-bar {
@@ -332,17 +336,17 @@
 
 .terminal-pane {
     -fx-background-color: -bg-secondary;
-    -fx-background-radius: 8;
-    -fx-border-radius: 8;
-    -fx-border-color: -border-color;
-    -fx-border-width: 1;
-    -fx-background-insets: 2 6 6 6;
-    -fx-border-insets: 2 6 6 6;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: -border-color transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-background-insets: 0;
+    -fx-border-insets: 0;
 }
 
 .terminal-header {
-    -fx-background-color: transparent;
-    -fx-background-radius: 8 8 0 0;
+    -fx-background-color: -bg-secondary;
+    -fx-background-radius: 0;
 }
 
 .dock-segment {

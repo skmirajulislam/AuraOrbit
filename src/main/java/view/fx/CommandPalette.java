@@ -78,6 +78,7 @@ public class CommandPalette extends VBox {
         setMaxHeight(Region.USE_PREF_SIZE);
         setVisible(false);
         setManaged(false);
+        setPickOnBounds(false);
 
         searchField = new TextField();
         searchField.setPromptText("Type a command or search actions...");
