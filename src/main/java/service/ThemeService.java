@@ -51,6 +51,13 @@ public class ThemeService {
         } else {
             System.err.println("Warning: Theme CSS not found: " + theme.getCssPath());
         }
+
+        // Shared editor geometry is loaded after the theme so every color
+        // scheme keeps the same clear, VS Code-like code-reading experience.
+        URL editorCss = getClass().getResource("/themes/vscode-editor.css");
+        if (editorCss != null) {
+            scene.getStylesheets().add(editorCss.toExternalForm());
+        }
     }
 
     public Map<String, Theme> getAllThemes() {

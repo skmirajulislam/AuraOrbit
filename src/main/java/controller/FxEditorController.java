@@ -127,6 +127,15 @@ public class FxEditorController {
             }
             updateActiveTabMetrics();
         });
+        sidebarExplorer.setOnFileRenamed((oldPath, newPath) -> {
+            for (EditorTabController tabController : tabControllers) {
+                if (oldPath.equals(tabController.getDocument().getFilePath())) {
+                    tabController.getDocument().setFilePath(newPath);
+                    tabController.updateTabTitle();
+                }
+            }
+            updateActiveTabMetrics();
+        });
         if (sidebarExplorer.getRootPath() != null) {
             statusBar.updateGitBranch(sidebarExplorer.getRootPath());
         }
@@ -191,7 +200,11 @@ public class FxEditorController {
 
         aiAssistantPane.setOnInsertCodeToEditor(code -> {
             EditorTabController current = getActiveTabController();
-            if (current != null && code != null) {
+            if (code == null || code.isBlank()) return;
+            if (current == null) {
+                current = createNewTab("untitled.java");
+            }
+            if (current != null) {
                 int caret = current.getEditorPane().getCodeArea().getCaretPosition();
                 current.getEditorPane().getCodeArea().insertText(caret, code);
             }
@@ -199,7 +212,11 @@ public class FxEditorController {
 
         aiAssistantPane.setOnReplaceSelectionInEditor(code -> {
             EditorTabController current = getActiveTabController();
-            if (current != null && code != null) {
+            if (code == null || code.isBlank()) return;
+            if (current == null) {
+                current = createNewTab("untitled.java");
+            }
+            if (current != null) {
                 current.getEditorPane().getCodeArea().replaceSelection(code);
             }
         });
@@ -394,9 +411,7 @@ public class FxEditorController {
     }
 
     private void setupStatusBar() {
-        statusBar.setOnThemeSelected(theme -> {
-            themeService.applyTheme(stage.getScene(), theme);
-        });
+        statusBar.setOnThemePickerRequested(this::showThemePicker);
 
         statusBar.setOnLineEndingsClicked(() -> {
             EditorTabController current = getActiveTabController();
@@ -407,17 +422,19 @@ public class FxEditorController {
         });
 
         statusBar.setOnIndentationClicked(() -> {
-            ChoiceDialog<String> dialog = new ChoiceDialog<>("Spaces: 4", "Spaces: 2", "Spaces: 4", "Tab Size: 4");
-            dialog.setTitle("Indentation");
-            dialog.setHeaderText("Select Indentation Mode:");
-            dialog.showAndWait().ifPresent(statusBar::setIndentation);
+            if (modalOverlayPane != null) {
+                modalOverlayPane.showOptionSelection(
+                        "Indentation", "Select indentation mode:", statusBar.getIndentation(),
+                        List.of("Spaces: 2", "Spaces: 4", "Tab Size: 4"), statusBar::setIndentation);
+            }
         });
 
         statusBar.setOnEncodingClicked(() -> {
-            ChoiceDialog<String> dialog = new ChoiceDialog<>("UTF-8", "UTF-8", "UTF-16", "US-ASCII", "ISO-8859-1");
-            dialog.setTitle("File Encoding");
-            dialog.setHeaderText("Select Character Encoding:");
-            dialog.showAndWait().ifPresent(statusBar::setEncoding);
+            if (modalOverlayPane != null) {
+                modalOverlayPane.showOptionSelection(
+                        "File Encoding", "Select file encoding:", statusBar.getEncoding(),
+                        List.of("UTF-8", "UTF-16", "US-ASCII", "ISO-8859-1"), statusBar::setEncoding);
+            }
         });
 
         statusBar.setOnGitBranchClicked(() -> {

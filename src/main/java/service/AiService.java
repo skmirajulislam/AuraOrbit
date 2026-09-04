@@ -16,10 +16,17 @@ import java.util.regex.Pattern;
  */
 public class AiService {
 
+    /** Keeps requests predictable and prevents an entire huge file from being sent accidentally. */
+    private static final int MAX_CONTEXT_CHARS = 24_000;
+
     private static final String PREF_NODE = "com.auraorbit.ai";
     private static final String KEY_OPENAI = "openai_api_key";
     private static final String KEY_GEMINI = "gemini_api_key";
     private static final String KEY_GROK = "grok_api_key";
+
+    private static final Pattern GEMINI_PATTERN = Pattern.compile("\"text\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
+    private static final Pattern OPENAI_PATTERN = Pattern.compile("\"content\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
+    private static final Pattern OLLAMA_RESPONSE_PATTERN = Pattern.compile("\"response\"\\s*:\\s*\"(.*?)\"(?:,|\\})", Pattern.DOTALL);
 
     private final Preferences prefs;
     private final HttpClient httpClient;
@@ -73,43 +80,53 @@ public class AiService {
      * Sends context-aware prompt to selected model and returns markdown response.
      */
     public String generateResponse(String model, String userPrompt, String codeContext, String fileName) throws Exception {
+        codeContext = limitContext(codeContext);
         String m = model.toLowerCase();
 
-        // 1. Google Gemini
+        // 1. Google Gemini (latest models)
         if (m.contains("gemini")) {
             String key = getGeminiKey();
             if (key.isEmpty()) {
                 throw new IllegalStateException("Google Gemini API Key is not configured. Click the Key icon in the AI panel to set it.");
             }
-            String geminiModel = m.contains("1.5") ? "gemini-1.5-flash" : "gemini-2.0-flash";
+            String geminiModel = m.contains("1.5") ? "gemini-1.5-pro" : "gemini-2.0-flash-001";
             return queryGemini(geminiModel, key, userPrompt, codeContext, fileName);
         }
 
-        // 2. OpenAI GPT
+        // 2. OpenAI GPT (latest models)
         if (m.contains("gpt") || m.contains("openai")) {
             String key = getOpenAiKey();
             if (key.isEmpty()) {
                 throw new IllegalStateException("OpenAI API Key is not configured. Click the Key icon in the AI panel to set it.");
             }
-            String gptModel = m.contains("mini") ? "gpt-4o-mini" : "gpt-4o";
+            String gptModel = m.contains("mini") ? "gpt-4o-mini" : "gpt-4o-2024-11-20";
             return queryOpenAi(gptModel, key, userPrompt, codeContext, fileName);
         }
 
-        // 3. xAI Grok
+        // 3. xAI Grok (latest models)
         if (m.contains("grok") || m.contains("xai")) {
             String key = getGrokKey();
             if (key.isEmpty()) {
                 throw new IllegalStateException("xAI Grok API Key is not configured. Click the Key icon in the AI panel to set it.");
             }
-            return queryGrok("grok-2-latest", key, userPrompt, codeContext, fileName);
+            return queryGrok("grok-3", key, userPrompt, codeContext, fileName);
         }
 
-        // 4. Local Ollama / DeepSeek
+        // 4. Local Ollama / DeepSeek (latest models)
         if (m.contains("local") || m.contains("deepseek")) {
-            return queryLocalOllama("deepseek-r1:latest", userPrompt, codeContext, fileName);
+            return queryLocalOllama("deepseek-r1:14b", userPrompt, codeContext, fileName);
         }
 
         throw new IllegalArgumentException("Unsupported AI model: " + model);
+    }
+
+    private String limitContext(String codeContext) {
+        if (codeContext == null || codeContext.length() <= MAX_CONTEXT_CHARS) return codeContext;
+        int firstPartLength = MAX_CONTEXT_CHARS * 3 / 4;
+        int lastPartLength = MAX_CONTEXT_CHARS - firstPartLength;
+        return codeContext.substring(0, firstPartLength)
+                + "\n\n/* AuraOrbit: middle of the file omitted to stay within the AI context limit. */\n\n"
+                + codeContext.substring(codeContext.length() - lastPartLength);
     }
 
     private String queryGemini(String model, String apiKey, String userPrompt, String codeContext, String fileName) throws Exception {
@@ -237,7 +254,7 @@ public class AiService {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() == 200) {
-            Matcher m = Pattern.compile("\"response\"\\s*:\\s*\"(.*?)\"(?:,|\\})", Pattern.DOTALL).matcher(response.body());
+            Matcher m = OLLAMA_RESPONSE_PATTERN.matcher(response.body());
             if (m.find()) {
                 return unescapeJson(m.group(1));
             }
@@ -248,8 +265,7 @@ public class AiService {
     }
 
     private String parseGeminiResponse(String json) {
-        Pattern pattern = Pattern.compile("\"text\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
-        Matcher matcher = pattern.matcher(json);
+        Matcher matcher = GEMINI_PATTERN.matcher(json);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
             sb.append(unescapeJson(matcher.group(1)));
@@ -258,8 +274,7 @@ public class AiService {
     }
 
     private String parseOpenAiResponse(String json) {
-        Pattern pattern = Pattern.compile("\"content\"\\s*:\\s*\"(.*?)\"", Pattern.DOTALL);
-        Matcher matcher = pattern.matcher(json);
+        Matcher matcher = OPENAI_PATTERN.matcher(json);
         if (matcher.find()) {
             return unescapeJson(matcher.group(1));
         }

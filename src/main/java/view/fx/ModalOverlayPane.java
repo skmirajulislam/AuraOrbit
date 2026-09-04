@@ -2,6 +2,7 @@ package view.fx;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.ScaleTransition;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -26,6 +27,7 @@ public class ModalOverlayPane extends StackPane {
     private final Label titleLabel;
     private final Button closeButton;
     private final VBox bodyContainer;
+    private final ScrollPane bodyScroll;
     private final HBox footerContainer;
 
     public ModalOverlayPane() {
@@ -39,9 +41,14 @@ public class ModalOverlayPane extends StackPane {
 
         // 2. Centered Modal Dialog Card with strictly bounded fixed dimensions
         dialogCard = new VBox(0);
-        dialogCard.setPrefWidth(500);
+        dialogCard.setPrefWidth(520);
+        dialogCard.setMinWidth(0);
         dialogCard.setMaxWidth(520);
-        dialogCard.setMinWidth(360);
+        // Keep dialogs inside the app frame on small windows as well.
+        dialogCard.prefWidthProperty().bind(Bindings.max(0, Bindings.min(520, widthProperty().subtract(32))));
+        dialogCard.maxWidthProperty().bind(Bindings.max(0, Bindings.min(520, widthProperty().subtract(32))));
+        // USE_PREF_SIZE tells StackPane to preserve the dialog's natural height
+        // instead of stretching it to the available window height.
         dialogCard.setMaxHeight(Region.USE_PREF_SIZE);
         dialogCard.setAlignment(Pos.TOP_LEFT);
         dialogCard.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 24, 0, 0, 8);");
@@ -66,11 +73,19 @@ public class ModalOverlayPane extends StackPane {
 
         header.getChildren().addAll(titleLabel, spacer, closeButton);
 
-        // Body with maximum height boundary
+        // A scrollable, height-capped body keeps long dialogs within the window.
         bodyContainer = new VBox(12);
         bodyContainer.setPadding(new Insets(16));
-        bodyContainer.setMaxHeight(460);
         bodyContainer.setStyle("-fx-background-color: transparent;");
+
+        bodyScroll = new ScrollPane(bodyContainer);
+        bodyScroll.setFitToWidth(true);
+        bodyScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        bodyScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        bodyScroll.setMaxHeight(430);
+        bodyScroll.setMinHeight(0);
+        bodyScroll.getStyleClass().add("modal-dialog-body");
+        VBox.setVgrow(bodyScroll, Priority.NEVER);
 
         // Footer
         footerContainer = new HBox(10);
@@ -78,17 +93,12 @@ public class ModalOverlayPane extends StackPane {
         footerContainer.setPadding(new Insets(12, 16, 14, 16));
         footerContainer.setStyle("-fx-border-color: -border-color transparent transparent transparent; -fx-border-width: 1 0 0 0;");
 
-        dialogCard.getChildren().addAll(header, bodyContainer, footerContainer);
+        dialogCard.getChildren().addAll(header, bodyScroll, footerContainer);
 
         getChildren().addAll(backdrop, dialogCard);
 
         // Clicking outside the dialog card closes the modal immediately
-        this.setOnMouseClicked(e -> {
-            javafx.geometry.Bounds bounds = dialogCard.localToScene(dialogCard.getBoundsInLocal());
-            if (bounds != null && !bounds.contains(e.getSceneX(), e.getSceneY())) {
-                close();
-            }
-        });
+        backdrop.setOnMouseClicked(e -> close());
 
         // Escape Key closes the modal
         setOnKeyPressed(e -> {
@@ -256,21 +266,28 @@ public class ModalOverlayPane extends StackPane {
         Label prompt = new Label("Choose your preferred code studio aesthetic:");
         prompt.setStyle("-fx-font-size: 12px; -fx-text-fill: -text-primary;");
 
-        ComboBox<String> themeBox = new ComboBox<>();
-        themeBox.setStyle("-fx-font-size: 12px; -fx-pref-width: 320px;");
+        ToggleGroup themeGroup = new ToggleGroup();
+        VBox themeOptions = new VBox(6);
         for (String themeName : themeService.getAllThemes().keySet()) {
-            themeBox.getItems().add(themeName);
+            RadioButton themeOption = new RadioButton(themeName);
+            themeOption.setToggleGroup(themeGroup);
+            themeOption.setUserData(themeName);
+            themeOption.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12px;");
+            if (themeName.equals(themeService.getCurrentTheme().getDisplayName())) {
+                themeOption.setSelected(true);
+            }
+            themeOptions.getChildren().add(themeOption);
         }
-        themeBox.getSelectionModel().select(themeService.getCurrentTheme().getDisplayName());
 
-        content.getChildren().addAll(prompt, themeBox);
+        content.getChildren().addAll(prompt, themeOptions);
         bodyContainer.getChildren().add(content);
 
         Button cancelBtn = createSecondaryButton("Cancel", this::close);
         Button applyBtn = createPrimaryButton("Apply Theme", () -> {
-            String chosen = themeBox.getValue();
+            Toggle chosenToggle = themeGroup.getSelectedToggle();
             close();
-            if (chosen != null && onSelected != null) {
+            if (chosenToggle != null && onSelected != null) {
+                String chosen = String.valueOf(chosenToggle.getUserData());
                 service.ThemeService.Theme theme = themeService.getAllThemes().get(chosen);
                 if (theme != null) {
                     onSelected.accept(theme);
@@ -278,6 +295,44 @@ public class ModalOverlayPane extends StackPane {
             }
         });
 
+        footerContainer.getChildren().addAll(cancelBtn, applyBtn);
+        open();
+    }
+
+    /**
+     * In-frame alternative to ChoiceDialog. Radio buttons avoid a separate
+     * ContextMenu popup and therefore remain themed and bounded by this overlay.
+     */
+    public void showOptionSelection(String title, String prompt, String selectedValue,
+                                    java.util.List<String> options, Consumer<String> onSelected) {
+        setupDialog(title, Codicons.SETTINGS_GEAR, "#4ea8de");
+
+        Label promptLabel = new Label(prompt);
+        promptLabel.setWrapText(true);
+        promptLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: -text-primary;");
+
+        ToggleGroup optionGroup = new ToggleGroup();
+        VBox optionBox = new VBox(6);
+        for (String option : options) {
+            RadioButton optionButton = new RadioButton(option);
+            optionButton.setToggleGroup(optionGroup);
+            optionButton.setUserData(option);
+            optionButton.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12px;");
+            if (option.equals(selectedValue)) {
+                optionButton.setSelected(true);
+            }
+            optionBox.getChildren().add(optionButton);
+        }
+        bodyContainer.getChildren().addAll(promptLabel, optionBox);
+
+        Button cancelBtn = createSecondaryButton("Cancel", this::close);
+        Button applyBtn = createPrimaryButton("Apply", () -> {
+            Toggle selected = optionGroup.getSelectedToggle();
+            close();
+            if (selected != null && onSelected != null) {
+                onSelected.accept(String.valueOf(selected.getUserData()));
+            }
+        });
         footerContainer.getChildren().addAll(cancelBtn, applyBtn);
         open();
     }

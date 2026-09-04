@@ -63,12 +63,6 @@ public class CodeFormatterService {
             int openBraces = countOccurrences(trimmed, '{');
             int closeBraces = countOccurrences(trimmed, '}');
 
-            int leadingCloses = 0;
-            for (char c : trimmed.toCharArray()) {
-                if (c == '}' || c == ')') leadingCloses++;
-                else if (!Character.isWhitespace(c)) break;
-            }
-
             if (trimmed.startsWith("}") || trimmed.startsWith(")") || trimmed.startsWith("]")) {
                 indentLevel = Math.max(0, indentLevel - 1);
             }

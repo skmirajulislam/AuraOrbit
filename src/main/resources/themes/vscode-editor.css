@@ -1,0 +1,51 @@
+/* Shared RichTextFX editor geometry inspired by VS Code's default editor. */
+.vscode-code-editor,
+.styled-text-area {
+    -fx-font-family: "Menlo", "Monaco", "Consolas", monospace;
+    -fx-font-size: 14px;
+    -fx-background-color: -bg-editor;
+}
+
+/* Comfortable 20px-like rows, clear code edge, and a stable dark canvas. */
+.vscode-code-editor .paragraph-box,
+.styled-text-area .paragraph-box {
+    -fx-background-color: -bg-editor;
+    -fx-padding: 1px 0 1px 0;
+}
+
+.vscode-code-editor .paragraph-text,
+.styled-text-area .paragraph-text {
+    -fx-padding: 0 14px 0 8px;
+}
+
+/* A subtle active-line treatment makes it easy to track the cursor. */
+.vscode-code-editor .paragraph-box:has-caret,
+.styled-text-area .paragraph-box:has-caret {
+    -fx-background-color: derive(-bg-editor, 4%);
+}
+
+.vscode-code-editor .text,
+.styled-text-area .text {
+    -fx-font-family: "Menlo", "Monaco", "Consolas", monospace;
+    -fx-font-size: 14px;
+}
+
+.vscode-code-editor .lineno,
+.styled-text-area .lineno {
+    -fx-font-family: "Menlo", "Monaco", "Consolas", monospace;
+    -fx-font-size: 13px;
+    -fx-padding: 0 14px 0 12px;
+    -fx-opacity: 0.9;
+}
+
+.vscode-code-editor .selection,
+.styled-text-area .selection {
+    -fx-fill: -bg-highlight;
+}
+
+/* Keep overflow horizontal, as VS Code does; long source lines are never
+   squeezed into unreadable wrapped fragments. */
+.vscode-code-editor .scroll-bar:horizontal,
+.vscode-code-editor .scroll-bar:vertical {
+    -fx-opacity: 0.8;
+}

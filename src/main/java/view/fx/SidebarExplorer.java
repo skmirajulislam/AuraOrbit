@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 /**
  * AuraOrbit VS Code-Identical Explorer Sidebar.
@@ -51,6 +52,7 @@ public class SidebarExplorer extends VBox {
     private Runnable onNewFileRequested;
     private Runnable onOpenFolderRequested;
     private Consumer<Path> onWorkspaceChanged;
+    private BiConsumer<Path, Path> onFileRenamed;
 
     /**
      * Tree item data model representing files, folders, or in-progress inline creation.
@@ -531,6 +533,10 @@ public class SidebarExplorer extends VBox {
             }
         });
 
+        MenuItem renameItem = new MenuItem("Rename...");
+        renameItem.setGraphic(IconFactory.getIcon(Codicons.EDIT, 13));
+        renameItem.setOnAction(e -> renameFileItem(treeItem));
+
         MenuItem deleteItem = new MenuItem("Delete");
         deleteItem.setGraphic(IconFactory.getIcon(Codicons.TRASH, 13, "#e76f51"));
         deleteItem.setOnAction(e -> deleteFileItem(treeItem));
@@ -538,11 +544,33 @@ public class SidebarExplorer extends VBox {
         menu.getItems().addAll(
                 newFile, newFolder,
                 new SeparatorMenuItem(),
-                reveal, copyPath, copyRelPath,
+                reveal, copyPath, copyRelPath, renameItem,
                 new SeparatorMenuItem(),
                 deleteItem
         );
         return menu;
+    }
+
+    private void renameFileItem(TreeItem<FileItem> treeItem) {
+        if (treeItem == null || treeItem.getValue() == null || treeItem.getValue().file == null) return;
+        File source = treeItem.getValue().file;
+        TextInputDialog dialog = new TextInputDialog(source.getName());
+        dialog.setTitle("Rename " + (source.isDirectory() ? "Folder" : "File"));
+        dialog.setHeaderText(null);
+        dialog.setContentText("New name:");
+        dialog.showAndWait().ifPresent(name -> {
+            String trimmed = name.trim();
+            if (trimmed.isEmpty() || trimmed.equals(source.getName()) || trimmed.matches(".*[\\\\/:*?\"<>|].*")) return;
+            Path target = source.toPath().resolveSibling(trimmed);
+            if (Files.exists(target)) return;
+            try {
+                Files.move(source.toPath(), target);
+                if (onFileRenamed != null) onFileRenamed.accept(source.toPath(), target);
+                if (currentWorkspacePath != null) setWorkspacePath(currentWorkspacePath);
+            } catch (IOException ex) {
+                System.err.println("Rename failed: " + ex.getMessage());
+            }
+        });
     }
 
     private void revealInFileManager(File file) {
@@ -826,6 +854,7 @@ public class SidebarExplorer extends VBox {
     public void setOnNewFileRequested(Runnable onNewFileRequested) { this.onNewFileRequested = onNewFileRequested; }
     public Runnable getOnNewFileRequested() { return this.onNewFileRequested; }
     public void setOnWorkspaceChanged(Consumer<Path> onWorkspaceChanged) { this.onWorkspaceChanged = onWorkspaceChanged; }
+    public void setOnFileRenamed(BiConsumer<Path, Path> onFileRenamed) { this.onFileRenamed = onFileRenamed; }
 
     public Path getRootPath() {
         return currentWorkspacePath;

@@ -2,20 +2,18 @@ package view.fx;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
-import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import org.kordamp.ikonli.codicons.Codicons;
 import service.ThemeService;
+import view.fx.IconFactory;
 
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.function.Consumer;
 
 /**
  * Modern VS Code-styled Status Bar in JavaFX with Codicons.
@@ -42,7 +40,7 @@ public class FxStatusBar extends HBox {
     private final Label themeButton;
     private final Label bellLabel;
 
-    private Consumer<ThemeService.Theme> onThemeSelected;
+    private Runnable onThemePickerRequested;
 
     public FxStatusBar(ThemeService themeService) {
         getStyleClass().add("status-bar");
@@ -109,21 +107,8 @@ public class FxStatusBar extends HBox {
         bellLabel.getStyleClass().add("status-item");
         bellLabel.setTooltip(new Tooltip("Notifications"));
 
-        // Setup Theme Switcher Context Menu
-        ContextMenu themeMenu = new ContextMenu();
-        for (ThemeService.Theme theme : ThemeService.Theme.values()) {
-            MenuItem item = new MenuItem(theme.getDisplayName());
-            item.setOnAction(e -> {
-                themeButton.setText(" " + theme.getDisplayName());
-                if (onThemeSelected != null) {
-                    onThemeSelected.accept(theme);
-                }
-            });
-            themeMenu.getItems().add(item);
-        }
-
         themeButton.setOnMouseClicked(e -> {
-            themeMenu.show(themeButton, e.getScreenX(), e.getScreenY() - 130);
+            if (onThemePickerRequested != null) onThemePickerRequested.run();
         });
 
         getChildren().addAll(
@@ -159,8 +144,16 @@ public class FxStatusBar extends HBox {
         spacesLabel.setText(indentation != null ? indentation : "Spaces: 4");
     }
 
+    public String getIndentation() {
+        return spacesLabel.getText();
+    }
+
     public void setEncoding(String encoding) {
         encodingLabel.setText(encoding != null ? encoding : "UTF-8");
+    }
+
+    public String getEncoding() {
+        return encodingLabel.getText();
     }
 
     public void setProblems(int errors, int warnings) {
@@ -226,8 +219,8 @@ public class FxStatusBar extends HBox {
         languageLabel.setText(language);
     }
 
-    public void setOnThemeSelected(Consumer<ThemeService.Theme> onThemeSelected) {
-        this.onThemeSelected = onThemeSelected;
+    public void setOnThemePickerRequested(Runnable onThemePickerRequested) {
+        this.onThemePickerRequested = onThemePickerRequested;
     }
 
     public void updateThemeDisplay(String themeName) {

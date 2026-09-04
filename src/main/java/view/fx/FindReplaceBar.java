@@ -59,6 +59,7 @@ public class FindReplaceBar extends VBox {
         setSpacing(6);
         setPadding(new Insets(6, 10, 6, 10));
         setMaxWidth(460);
+        setMinWidth(0);
         setVisible(false);
         setManaged(false);
 
@@ -75,6 +76,7 @@ public class FindReplaceBar extends VBox {
         findField = new TextField();
         findField.setPromptText("Find");
         findField.setPrefWidth(160);
+        findField.setMinWidth(0);
         findField.getStyleClass().add("find-text-input");
 
         Button prevBtn = new Button();
@@ -114,6 +116,7 @@ public class FindReplaceBar extends VBox {
         replaceField = new TextField();
         replaceField.setPromptText("Replace");
         replaceField.setPrefWidth(160);
+        replaceField.setMinWidth(0);
         replaceField.getStyleClass().add("find-text-input");
 
         Button replaceBtn = new Button();

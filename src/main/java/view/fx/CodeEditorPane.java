@@ -7,7 +7,6 @@ import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.StackPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
@@ -96,6 +95,8 @@ public class CodeEditorPane extends StackPane {
     public CodeEditorPane() {
         this.codeArea = new CodeArea();
         this.codeArea.getStyleClass().add("code-area");
+        this.codeArea.getStyleClass().add("vscode-code-editor");
+        this.codeArea.setWrapText(false);
         this.codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         this.highlightExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "syntax-highlight-thread");

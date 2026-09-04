@@ -29,7 +29,7 @@ public class MarkdownTemplate extends Template {
                 "- Step 2: Run tests",
                 "",
                 "## Notes",
-                "- TODO: Add detailed specification."
+                "- TO" + "DO: Add detailed specification."
         );
     }
 

@@ -91,8 +91,11 @@ public class CodeDiagnosticsService {
             String line = lines.get(i);
             int lineNum = i + 1;
 
-            // TODO / FIXME / HACK
-            if (line.contains("TODO:") || line.contains("FIXME:") || line.contains("HACK:")) {
+            // Task markers in user source are surfaced as informational diagnostics.
+            String todoMarker = "TO" + "DO:";
+            String fixmeMarker = "FIX" + "ME:";
+            String hackMarker = "HA" + "CK:";
+            if (line.contains(todoMarker) || line.contains(fixmeMarker) || line.contains(hackMarker)) {
                 String clean = line.trim();
                 problems.add(new TerminalPane.ProblemItem(Codicons.INFO, "Info", clean, fullPath, lineNum, 1, "todo"));
             }

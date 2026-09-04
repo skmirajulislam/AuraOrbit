@@ -74,17 +74,20 @@ public class CommandPalette extends VBox {
         setPadding(new Insets(8));
         setPrefWidth(540);
         setMaxWidth(540);
+        setMinWidth(0);
         setMaxHeight(Region.USE_PREF_SIZE);
         setVisible(false);
         setManaged(false);
 
         searchField = new TextField();
         searchField.setPromptText("Type a command or search actions...");
+        searchField.setMinWidth(0);
         searchField.getStyleClass().add("command-palette-input");
 
         listView = new ListView<>(filteredCommands);
         listView.setPrefHeight(280);
         listView.setMaxHeight(280);
+        listView.setMinWidth(0);
         listView.getStyleClass().add("command-palette-list");
 
         // Custom Cell Factory for VS Code styling

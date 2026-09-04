@@ -595,10 +595,25 @@ public class TerminalPane extends BorderPane {
 
     public void dispose() {
         for (TerminalSession s : sessions) {
-            s.destroy();
+            try {
+                s.destroy();
+            } catch (Exception ex) {
+                System.err.println("Error destroying terminal session: " + ex.getMessage());
+            }
         }
         sessions.clear();
-        ioExecutor.shutdownNow();
+        
+        if (ioExecutor != null && !ioExecutor.isShutdown()) {
+            ioExecutor.shutdown();
+            try {
+                if (!ioExecutor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    ioExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                ioExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

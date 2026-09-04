@@ -1,17 +1,15 @@
 package view.fx;
 
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import org.kordamp.ikonli.codicons.Codicons;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -29,6 +27,9 @@ public class AiAssistantPane extends VBox {
     private final TextArea promptInput;
     private final Button sendButton;
     private final Label contextLabel;
+    private boolean requestInProgress;
+    private static final int MAX_CHAT_MESSAGES = 100;
+    private static final int CLEANUP_THRESHOLD = 150;
 
     private final service.AiService aiService = new service.AiService();
     private Runnable onConfigureApiKeysRequested;
@@ -42,15 +43,15 @@ public class AiAssistantPane extends VBox {
 
     public AiAssistantPane() {
         getStyleClass().add("ai-assistant-pane");
-        setPrefWidth(340);
-        setMinWidth(260);
-        setMaxWidth(550);
+        setPrefWidth(380);
+        setMinWidth(300);
+        setMaxWidth(460);
         VBox.setVgrow(this, Priority.ALWAYS);
 
         // Header
         HBox header = new HBox(8);
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(10, 12, 8, 12));
+        header.setPadding(new Insets(14, 12, 12, 12));
         header.getStyleClass().add("ai-header");
 
         Label title = new Label(" AI COPILOT");
@@ -70,7 +71,9 @@ public class AiAssistantPane extends VBox {
                 "DeepSeek-R1 (Local / Ollama)",
                 "Offline Copilot (Built-in)"
         );
-        modelSelector.getSelectionModel().selectFirst();
+        // The offline model works immediately; external models remain opt-in
+        // after the user has configured the corresponding API key.
+        modelSelector.getSelectionModel().select("Offline Copilot (Built-in)");
         modelSelector.setStyle("-fx-font-size: 11px; -fx-pref-width: 155px;");
 
         Button keyBtn = new Button();
@@ -92,7 +95,7 @@ public class AiAssistantPane extends VBox {
 
         // Quick Actions Bar
         HBox quickActions = new HBox(6);
-        quickActions.setPadding(new Insets(6, 12, 6, 12));
+        quickActions.setPadding(new Insets(10, 12, 10, 12));
         quickActions.setAlignment(Pos.CENTER_LEFT);
         quickActions.setStyle("-fx-border-color: transparent transparent -border-color transparent; -fx-border-width: 0 0 1 0;");
 
@@ -181,6 +184,10 @@ public class AiAssistantPane extends VBox {
     }
 
     private void handleQuickAction(String actionPrompt) {
+        if (requestInProgress) {
+            addAssistantMessage("### Request in progress\n\nWait for the current AI response before starting another task.");
+            return;
+        }
         String selectedCode = selectedCodeSupplier != null ? selectedCodeSupplier.get() : null;
         String fileName = activeFileSupplier != null ? activeFileSupplier.get() : "file";
         String fullContent = entireFileContentSupplier != null ? entireFileContentSupplier.get() : "";
@@ -194,10 +201,14 @@ public class AiAssistantPane extends VBox {
         }
 
         addUserMessage(actionPrompt + " (" + fileName + ")");
-        generateAiResponse(actionPrompt, codeToProcess, fileName);
+        generateAiResponse(actionPrompt, codeToProcess, fileName, true);
     }
 
     private void sendMessage() {
+        if (requestInProgress) {
+            addAssistantMessage("### Request in progress\n\nWait for the current AI response before sending another message.");
+            return;
+        }
         String query = promptInput.getText();
         if (query == null || query.trim().isEmpty()) return;
 
@@ -209,11 +220,34 @@ public class AiAssistantPane extends VBox {
         String fullContent = entireFileContentSupplier != null ? entireFileContentSupplier.get() : "";
         String codeToProcess = (selectedCode != null && !selectedCode.trim().isEmpty()) ? selectedCode : fullContent;
 
-        generateAiResponse(query, codeToProcess, fileName);
+        generateAiResponse(query, codeToProcess, fileName, requiresConnectedModel(query, codeToProcess));
     }
 
-    private void generateAiResponse(String prompt, String codeContext, String fileName) {
+    private boolean requiresConnectedModel(String prompt, String codeContext) {
+        String request = prompt == null ? "" : prompt.toLowerCase(Locale.ROOT);
+        return (codeContext != null && !codeContext.isBlank())
+                || request.matches(".*\\b(write|generate|create|explain|analy[sz]e|refactor|fix|debug|test|implement|optimi[sz]e)\\b.*");
+    }
+
+    private boolean isProviderReady(String model) {
+        if (model == null || model.startsWith("Offline")) return false;
+        String normalized = model.toLowerCase(Locale.ROOT);
+        return normalized.contains("local") || normalized.contains("deepseek") || aiService.hasKeyForModel(model);
+    }
+
+    private void generateAiResponse(String prompt, String codeContext, String fileName, boolean requiresProvider) {
         String selectedModel = modelSelector.getValue();
+
+        if (requiresProvider && !isProviderReady(selectedModel)) {
+            addAssistantMessage("### AI model connection required\n\n"
+                    + "This request needs a connected AI model to generate reliable code or analysis. "
+                    + "Choose Gemini, GPT, Grok, or a running local Ollama model, then use the **Key** button to configure it.");
+            return;
+        }
+
+        requestInProgress = true;
+        sendButton.setDisable(true);
+        promptInput.setDisable(true);
 
         // Show thinking indicator
         VBox thinkingBox = new VBox(4);
@@ -225,43 +259,60 @@ public class AiAssistantPane extends VBox {
         chatMessagesContainer.getChildren().add(thinkingBox);
         scrollToBottom();
 
-        // Perform async intelligent code analysis with daemon thread
+        // Perform async intelligent code analysis with proper error handling
         Thread aiThread = new Thread(() -> {
-            String response = null;
-
-            if (selectedModel != null && !selectedModel.startsWith("Offline")) {
-                try {
-                    response = aiService.generateResponse(selectedModel, prompt, codeContext, fileName);
-                } catch (Exception ex) {
-                    String err = ex.getMessage();
-                    if (err != null && err.contains("not configured")) {
-                        response = "⚠️ **API Key Required**\n\n" + err + "\n\n"
-                                + "Click the **Key 🔑** icon in the header above to configure your API key.";
-                    } else {
-                        response = "⚠️ **" + selectedModel + " Notice:**\n\n" + (err != null ? err : "Network request error.")
-                                + "\n\n*Falling back to dynamic offline copilot analysis:*\n\n"
-                                + generateDynamicCodeAiResponse(prompt, codeContext, fileName);
+            String response;
+            try {
+                if (selectedModel != null && !selectedModel.startsWith("Offline")) {
+                    try {
+                        response = aiService.generateResponse(selectedModel, prompt, codeContext, fileName);
+                        if (response == null || response.isBlank()) {
+                            response = "### Empty AI response\n\nThe provider returned no usable content. Please try again.";
+                        }
+                    } catch (Exception ex) {
+                        String err = ex.getMessage();
+                        response = "### AI provider unavailable\n\n"
+                                + (err != null ? err : "The selected provider did not return a response.")
+                                + "\n\nCheck the model connection and try again. AuraOrbit did not fabricate a fallback result.";
                     }
+                } else {
+                    response = "### Offline Copilot\n\nOffline mode can answer basic interface questions, but it does not generate code or perform code analysis. "
+                            + "Connect an AI model for this request.";
                 }
-            }
 
-            if (response == null || response.isBlank()) {
-                response = generateDynamicCodeAiResponse(prompt, codeContext, fileName);
+                final String finalResponse = response;
+                Platform.runLater(() -> {
+                    try {
+                        if (chatMessagesContainer.getChildren().contains(thinkingBox)) {
+                            chatMessagesContainer.getChildren().remove(thinkingBox);
+                        }
+                        addAssistantMessage(finalResponse);
+                    } finally {
+                        requestInProgress = false;
+                        sendButton.setDisable(false);
+                        promptInput.setDisable(false);
+                        promptInput.requestFocus();
+                    }
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    try {
+                        if (chatMessagesContainer.getChildren().contains(thinkingBox)) {
+                            chatMessagesContainer.getChildren().remove(thinkingBox);
+                        }
+                        addAssistantMessage("### Unexpected error\n\n" + (ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred."));
+                    } finally {
+                        requestInProgress = false;
+                        sendButton.setDisable(false);
+                        promptInput.setDisable(false);
+                        promptInput.requestFocus();
+                    }
+                });
             }
-
-            final String finalResponse = response;
-            Platform.runLater(() -> {
-                chatMessagesContainer.getChildren().remove(thinkingBox);
-                addAssistantMessage(finalResponse);
-            });
         }, "ai-assistant-worker");
         aiThread.setDaemon(true);
         aiThread.start();
     }
-
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
-            .build();
 
     private record ParsedMethod(String returnType, String name, String params) {}
 
@@ -348,35 +399,6 @@ public class AiAssistantPane extends VBox {
         if (code.contains("java.net.http") || code.contains("java.net.Socket")) frameworks.add("Networking & HTTP");
 
         return new CodeAnalysis(pkg, cls, methods, total, codeCount, comments, complexity, smells, frameworks);
-    }
-
-    private String queryExternalLlmIfConfigured(String prompt, String code, String fileName, String model) {
-        try {
-            // Local Ollama instance check (http://localhost:11434)
-            if (model.toLowerCase().contains("local") || model.toLowerCase().contains("deepseek")) {
-                String payload = "{\"model\": \"deepseek-r1:latest\", \"prompt\": \"" 
-                        + escapeJson(prompt + " for file " + fileName + ":\n" + (code.length() > 2000 ? code.substring(0, 2000) : code)) 
-                        + "\", \"stream\": false}";
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:11434/api/generate"))
-                        .timeout(Duration.ofSeconds(4))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(payload))
-                        .build();
-                HttpResponse<String> resp = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-                if (resp.statusCode() == 200) {
-                    Matcher m = Pattern.compile("\"response\"\\s*:\\s*\"(.*?)\"").matcher(resp.body());
-                    if (m.find()) {
-                        return m.group(1).replace("\\n", "\n").replace("\\\"", "\"");
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-        return null;
-    }
-
-    private String escapeJson(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
     }
 
     private String generateDynamicCodeAiResponse(String prompt, String code, String fileName) {
@@ -562,10 +584,12 @@ public class AiAssistantPane extends VBox {
 
         Label label = new Label(text);
         label.setWrapText(true);
+        label.maxWidthProperty().bind(scrollPane.widthProperty().subtract(56));
         label.setStyle("-fx-background-color: -accent-color; -fx-text-fill: #ffffff; -fx-padding: 8 12 8 12; -fx-background-radius: 12 12 2 12; -fx-font-size: 12.5px;");
 
         msgBox.getChildren().add(label);
         chatMessagesContainer.getChildren().add(msgBox);
+        enforceChatHistoryLimit();
         scrollToBottom();
     }
 
@@ -575,6 +599,7 @@ public class AiAssistantPane extends VBox {
         msgBox.setPadding(new Insets(2, 20, 2, 0));
 
         VBox contentBox = new VBox(8);
+        contentBox.maxWidthProperty().bind(scrollPane.widthProperty().subtract(44));
         contentBox.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color; -fx-border-width: 1; -fx-padding: 10 12 10 12; -fx-background-radius: 2 12 12 12; -fx-border-radius: 2 12 12 12;");
 
         // Split markdown by code fences ```
@@ -584,11 +609,8 @@ public class AiAssistantPane extends VBox {
             if (part == null || part.isBlank()) continue;
 
             if (i % 2 == 0) {
-                // Regular prose/explanation
-                Label textLabel = new Label(part.trim());
-                textLabel.setWrapText(true);
-                textLabel.setStyle("-fx-text-fill: -text-primary; -fx-font-size: 12.5px; -fx-line-spacing: 2;");
-                contentBox.getChildren().add(textLabel);
+                // Render Markdown prose instead of showing **, ###, and list markers literally.
+                contentBox.getChildren().add(renderMarkdownProse(part.trim(), contentBox));
             } else {
                 // Code block
                 int firstNewline = part.indexOf('\n');
@@ -664,7 +686,78 @@ public class AiAssistantPane extends VBox {
 
         msgBox.getChildren().add(contentBox);
         chatMessagesContainer.getChildren().add(msgBox);
+        enforceChatHistoryLimit();
         scrollToBottom();
+    }
+
+    /** Renders the compact Markdown used by AI responses (headings, bold, inline code, and lists). */
+    private VBox renderMarkdownProse(String markdown, VBox parent) {
+        VBox prose = new VBox(4);
+        prose.setFillWidth(true);
+        prose.setMaxWidth(Double.MAX_VALUE);
+
+        for (String rawLine : markdown.split("\\R", -1)) {
+            if (rawLine.isBlank()) {
+                Region gap = new Region();
+                gap.setMinHeight(5);
+                prose.getChildren().add(gap);
+                continue;
+            }
+
+            String line = rawLine.trim();
+            int headingLevel = 0;
+            while (headingLevel < line.length() && line.charAt(headingLevel) == '#') headingLevel++;
+            boolean isHeading = headingLevel > 0 && headingLevel < line.length()
+                    && Character.isWhitespace(line.charAt(headingLevel));
+            if (isHeading) line = line.substring(headingLevel).trim();
+
+            boolean isBullet = line.startsWith("- ") || line.startsWith("* ");
+            if (isBullet) line = line.substring(2).trim();
+
+            TextFlow lineFlow = new TextFlow();
+            lineFlow.setLineSpacing(2);
+            lineFlow.setPrefWidth(0);
+            lineFlow.maxWidthProperty().bind(Bindings.max(0, parent.widthProperty().subtract(24)));
+
+            if (isBullet) {
+                Text bullet = new Text("•  ");
+                bullet.setStyle("-fx-fill: -accent-color; -fx-font-size: 12.5px;");
+                lineFlow.getChildren().add(bullet);
+            }
+
+            appendMarkdownInline(lineFlow, line, isHeading, headingLevel);
+            prose.getChildren().add(lineFlow);
+        }
+        return prose;
+    }
+
+    private void appendMarkdownInline(TextFlow flow, String text, boolean heading, int headingLevel) {
+        Pattern inlinePattern = Pattern.compile("\\*\\*(.+?)\\*\\*|`([^`]+)`");
+        Matcher matcher = inlinePattern.matcher(text);
+        int cursor = 0;
+        while (matcher.find()) {
+            addMarkdownText(flow, text.substring(cursor, matcher.start()), heading, headingLevel, false, false);
+            if (matcher.group(1) != null) {
+                addMarkdownText(flow, matcher.group(1), heading, headingLevel, true, false);
+            } else {
+                addMarkdownText(flow, matcher.group(2), heading, headingLevel, false, true);
+            }
+            cursor = matcher.end();
+        }
+        addMarkdownText(flow, text.substring(cursor), heading, headingLevel, false, false);
+    }
+
+    private void addMarkdownText(TextFlow flow, String value, boolean heading, int headingLevel,
+                                 boolean bold, boolean inlineCode) {
+        if (value.isEmpty()) return;
+        Text segment = new Text(value);
+        double size = heading ? (headingLevel <= 2 ? 15 : 13.5) : 12.5;
+        String color = heading ? "-accent-color" : inlineCode ? "-syntax-string" : "-text-primary";
+        String weight = (heading || bold) ? "bold" : "normal";
+        String fontFamily = inlineCode ? " -fx-font-family: 'Menlo', 'Monaco', 'Consolas', monospace;" : "";
+        segment.setStyle("-fx-fill: " + color + "; -fx-font-size: " + size
+                + "px; -fx-font-weight: " + weight + ";" + fontFamily);
+        flow.getChildren().add(segment);
     }
 
     public void updateActiveContext(String fileName, int lineCount, int selectedChars) {
@@ -675,6 +768,18 @@ public class AiAssistantPane extends VBox {
             info += " (" + lineCount + " lines)";
         }
         contextLabel.setText(info);
+    }
+
+    private void enforceChatHistoryLimit() {
+        int childCount = chatMessagesContainer.getChildren().size();
+        if (childCount > CLEANUP_THRESHOLD) {
+            int removeCount = childCount - MAX_CHAT_MESSAGES;
+            chatMessagesContainer.getChildren().subList(0, removeCount).clear();
+        }
+    }
+    
+    public void setMaxChatMessages(int max) {
+        // Allow dynamic configuration if needed
     }
 
     private void scrollToBottom() {
