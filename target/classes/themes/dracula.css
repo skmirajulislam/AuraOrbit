@@ -1,0 +1,354 @@
+/* Dracula Theme */
+.root {
+    -fx-base: #282a36;
+    -fx-background: #282a36;
+    -fx-control-inner-background: #282a36;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -fx-font-size: 13px;
+    
+    /* Dracula Theme Colors */
+    -bg-primary: #282a36;
+    -bg-secondary: #21222c;
+    -bg-sidebar: #21222c;
+    -bg-activity-bar: #191a21;
+    -bg-tab-active: #282a36;
+    -bg-tab-inactive: #21222c;
+    -bg-status-bar: #6272a4;
+    -bg-editor: #282a36;
+    -bg-gutter: #282a36;
+    -bg-highlight: #44475a;
+    -bg-hover: #343746;
+    
+    -text-primary: #f8f8f2;
+    -text-secondary: #6272a4;
+    -text-status: #ffffff;
+    -text-gutter: #6272a4;
+    
+    -border-color: #44475a;
+    -accent-color: #bd93f9;
+    -accent-hover: #caa7fc;
+
+    /* Syntax Highlighting */
+    -syntax-keyword: #ff79c6;
+    -syntax-string: #f1fa8c;
+    -syntax-comment: #6272a4;
+    -syntax-number: #bd93f9;
+    -syntax-annotation: #8be9fd;
+    -syntax-type: #8be9fd;
+}
+
+.main-container {
+    -fx-background-color: -bg-primary;
+}
+
+/* Activity Bar */
+.activity-bar {
+    -fx-background-color: -bg-activity-bar;
+    -fx-border-color: transparent -border-color transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 8 4 8 4;
+}
+
+.activity-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 16px;
+    -fx-padding: 8 6 8 6;
+    -fx-cursor: hand;
+    -fx-background-radius: 4;
+}
+.activity-button:hover {
+    -fx-text-fill: #ffffff;
+    -fx-background-color: -bg-hover;
+}
+.activity-button:selected, .activity-button.active {
+    -fx-text-fill: -accent-color;
+    -fx-border-color: transparent transparent transparent -accent-color;
+    -fx-border-width: 0 0 0 2;
+}
+
+/* Sidebar */
+.sidebar {
+    -fx-background-color: -bg-sidebar;
+    -fx-border-color: transparent -border-color transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+.sidebar-header {
+    -fx-background-color: -bg-sidebar;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* TreeView in Sidebar */
+.tree-view {
+    -fx-background-color: -bg-sidebar;
+    -fx-background-insets: 0;
+    -fx-padding: 4 0 0 0;
+}
+.tree-cell {
+    -fx-background-color: -bg-sidebar;
+    -fx-text-fill: -text-primary;
+    -fx-padding: 3 6 3 6;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+.tree-cell:filled:hover {
+    -fx-background-color: -bg-hover;
+}
+.tree-cell:filled:selected {
+    -fx-background-color: -bg-highlight;
+    -fx-text-fill: #ffffff;
+}
+
+/* SplitPane */
+.editor-split-pane {
+    -fx-background-color: -bg-primary;
+    -fx-box-border: transparent;
+    -fx-padding: 0;
+}
+.editor-split-pane > .split-pane-divider {
+    -fx-background-color: -border-color;
+    -fx-padding: 0 1 0 1;
+}
+
+/* TabPane */
+.tab-pane {
+    -fx-background-color: -bg-primary;
+}
+.tab-pane > .tab-header-area {
+    -fx-background-color: -bg-secondary;
+    -fx-padding: 0;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: -bg-tab-inactive;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-padding: 7 14 7 14;
+    -fx-border-color: transparent -border-color transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-cursor: hand;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -bg-tab-active;
+    -fx-border-color: -accent-color -border-color transparent transparent;
+    -fx-border-width: 2 1 0 0;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 13px;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
+    -fx-text-fill: -text-primary;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-close-button {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-shape: "M 0,0 L 7,7 M 7,0 L 0,7";
+    -fx-stroke: -text-secondary;
+    -fx-stroke-width: 1.5;
+    -fx-padding: 3 4 3 4;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:hover .tab-close-button {
+    -fx-stroke: #ffffff;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-close-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.2);
+    -fx-background-radius: 3;
+    -fx-stroke: #ffffff;
+}
+
+/* VS Code Codicons */
+.codicon {
+    -fx-icon-color: -text-secondary;
+}
+.activity-button:hover .codicon, .activity-button.active .codicon {
+    -fx-icon-color: -accent-color;
+}
+
+/* Custom VS Code Tab Header & In-tab Close Button */
+.custom-tab-header {
+    -fx-alignment: center-left;
+    -fx-padding: 0;
+}
+.custom-tab-label {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 13px;
+}
+.tab:selected .custom-tab-label {
+    -fx-text-fill: -text-primary;
+}
+.custom-tab-close-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 2 4 2 4;
+    -fx-background-radius: 4;
+    -fx-min-width: 18px;
+    -fx-min-height: 18px;
+}
+.custom-tab-close-btn .codicon {
+    -fx-icon-color: -text-secondary;
+}
+.custom-tab-close-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+}
+.custom-tab-close-btn:hover .codicon {
+    -fx-icon-color: #ffffff;
+}
+
+/* RichTextFX Styled Code Area */
+.styled-text-area {
+    -fx-background-color: -bg-editor;
+    -fx-cursor: text;
+}
+.styled-text-area .paragraph-box {
+    -fx-background-color: -bg-editor;
+}
+.styled-text-area .lineno {
+    -fx-background-color: -bg-gutter;
+    -fx-text-fill: -text-gutter;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13.5px;
+    -fx-padding: 0 12 0 10;
+    -fx-border-color: transparent -border-color transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.styled-text-area .caret {
+    -fx-stroke: #ffffff;
+    -fx-stroke-width: 1.5;
+}
+.styled-text-area .selection {
+    -fx-fill: -bg-highlight;
+}
+.styled-text-area .text {
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13.5px;
+    -fx-fill: -text-primary;
+}
+
+/* Syntax Highlighting */
+.keyword { -fx-fill: -syntax-keyword; -fx-font-weight: bold; }
+.string { -fx-fill: -syntax-string; }
+.comment { -fx-fill: -syntax-comment; -fx-font-style: italic; }
+.number { -fx-fill: -syntax-number; }
+.annotation { -fx-fill: -syntax-annotation; }
+.paren, .brace, .bracket, .semicolon { -fx-fill: #ff79c6; }
+.plain { -fx-fill: -text-primary; }
+
+/* Status Bar */
+.status-bar {
+    -fx-background-color: -bg-status-bar;
+    -fx-text-fill: -text-status;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 12px;
+}
+.status-item {
+    -fx-text-fill: -text-status;
+    -fx-padding: 2 6 2 6;
+    -fx-cursor: hand;
+}
+.status-item:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 3;
+}
+
+/* Floating Search Bar */
+.search-bar {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 8 12 8 12;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 14, 0, 0, 6);
+}
+
+.text-field {
+    -fx-background-color: -bg-editor;
+    -fx-text-fill: -text-primary;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-padding: 4 8 4 8;
+}
+.text-field:focused {
+    -fx-border-color: -accent-color;
+}
+
+.btn-modern {
+    -fx-background-color: -accent-color;
+    -fx-text-fill: #282a36;
+    -fx-font-weight: bold;
+    -fx-background-radius: 4;
+    -fx-padding: 6 12 6 12;
+    -fx-cursor: hand;
+    -fx-font-size: 12px;
+}
+.btn-modern:hover {
+    -fx-background-color: -accent-hover;
+}
+
+/* AI Assistant & Copilot Studio */
+.ai-assistant-pane {
+    -fx-background-color: -bg-sidebar;
+    -fx-border-color: transparent transparent transparent -border-color;
+    -fx-border-width: 0 0 0 1;
+}
+.ai-header {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.ai-prompt-input {
+    -fx-background-color: -bg-editor;
+    -fx-text-fill: -text-primary;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-font-size: 12px;
+}
+.ai-prompt-input:focused {
+    -fx-border-color: -accent-color;
+}
+.combo-box {
+    -fx-background-color: -bg-editor;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.combo-box .list-cell {
+    -fx-text-fill: -text-primary;
+    -fx-background-color: -bg-editor;
+}
+.combo-box-popup .list-view {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: -border-color;
+}
+.combo-box-popup .list-cell:hover {
+    -fx-background-color: -bg-hover;
+}
+
+/* Custom Scrollbars */
+.scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 12;
+}
+.scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-height: 12;
+}
+.scroll-bar .thumb {
+    -fx-background-color: rgba(189, 147, 249, 0.35);
+    -fx-background-radius: 6;
+}
+.scroll-bar .thumb:hover {
+    -fx-background-color: rgba(189, 147, 249, 0.6);
+}
+.scroll-bar .track {
+    -fx-background-color: transparent;
+}
+.scroll-bar .increment-button, .scroll-bar .decrement-button {
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+}
