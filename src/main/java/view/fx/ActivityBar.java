@@ -19,13 +19,15 @@ public class ActivityBar extends VBox {
         EXPLORER,
         TEMPLATES,
         SEARCH,
-        AI_COPILOT
+        AI_COPILOT,
+        TERMINAL
     }
 
     private final Button explorerBtn;
     private final Button templatesBtn;
     private final Button searchBtn;
     private final Button aiBtn;
+    private final Button terminalBtn;
     private final Button themeBtn;
     private final Button infoBtn;
 
@@ -44,6 +46,7 @@ public class ActivityBar extends VBox {
         templatesBtn = createIconButton(Codicons.PACKAGE, "Templates & Scaffolds", Panel.TEMPLATES);
         searchBtn = createIconButton(Codicons.SEARCH, "Search in Document (Cmd/Ctrl+F)", Panel.SEARCH);
         aiBtn = createIconButton(Codicons.HUBOT, "AI Copilot & Assistant Studio (Cmd/Ctrl+Shift+A)", Panel.AI_COPILOT);
+        terminalBtn = createIconButton(Codicons.TERMINAL, "Terminal (Ctrl+`)", Panel.TERMINAL);
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
@@ -59,7 +62,7 @@ public class ActivityBar extends VBox {
             if (onInfoAction != null) onInfoAction.run();
         });
 
-        getChildren().addAll(explorerBtn, templatesBtn, searchBtn, aiBtn, spacer, themeBtn, infoBtn);
+        getChildren().addAll(explorerBtn, templatesBtn, searchBtn, aiBtn, terminalBtn, spacer, themeBtn, infoBtn);
         setActivePanel(Panel.EXPLORER);
     }
 
@@ -93,11 +96,13 @@ public class ActivityBar extends VBox {
         templatesBtn.getStyleClass().remove("active");
         searchBtn.getStyleClass().remove("active");
         aiBtn.getStyleClass().remove("active");
+        terminalBtn.getStyleClass().remove("active");
 
         if (panel == Panel.EXPLORER) explorerBtn.getStyleClass().add("active");
         else if (panel == Panel.TEMPLATES) templatesBtn.getStyleClass().add("active");
         else if (panel == Panel.SEARCH) searchBtn.getStyleClass().add("active");
         else if (panel == Panel.AI_COPILOT) aiBtn.getStyleClass().add("active");
+        else if (panel == Panel.TERMINAL) terminalBtn.getStyleClass().add("active");
 
         if (onPanelToggled != null) {
             onPanelToggled.accept(panel);

@@ -4,6 +4,7 @@ import controller.FxEditorController;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
+import javafx.geometry.Orientation;
 import javafx.scene.Scene;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TabPane;
@@ -58,10 +59,16 @@ public class JavaFxEditorApp extends Application {
         ActivityBar activityBar = new ActivityBar();
         SidebarExplorer sidebarExplorer = new SidebarExplorer();
         AiAssistantPane aiAssistantPane = new AiAssistantPane();
+        TerminalPane terminalPane = new TerminalPane();
         FxStatusBar statusBar = new FxStatusBar(themeService);
 
-        // Master 3-way Split Pane: [Sidebar | Editor Area (Left/Right) | AI Copilot]
-        SplitPane masterSplitPane = new SplitPane(sidebarExplorer, editorCenterStack);
+        // Vertical SplitPane: [Editor Area (top) | Terminal (bottom)]
+        SplitPane editorTerminalSplitPane = new SplitPane(editorCenterStack);
+        editorTerminalSplitPane.setOrientation(Orientation.VERTICAL);
+        editorTerminalSplitPane.getStyleClass().add("editor-split-pane");
+
+        // Master 3-way Split Pane: [Sidebar | Editor+Terminal Area | AI Copilot]
+        SplitPane masterSplitPane = new SplitPane(sidebarExplorer, editorTerminalSplitPane);
         masterSplitPane.getStyleClass().add("editor-split-pane");
         masterSplitPane.setDividerPositions(0.22);
         SplitPane.setResizableWithParent(sidebarExplorer, false);
@@ -84,7 +91,9 @@ public class JavaFxEditorApp extends Application {
                 sidebarExplorer,
                 aiAssistantPane,
                 statusBar,
-                commandPalette
+                commandPalette,
+                terminalPane,
+                editorTerminalSplitPane
         );
 
         // Scene Setup
@@ -123,6 +132,10 @@ public class JavaFxEditorApp extends Application {
         KeyCombination cmdSplit = new KeyCodeCombination(KeyCode.BACK_SLASH, KeyCombination.SHORTCUT_DOWN);
         KeyCombination cmdAi = new KeyCodeCombination(KeyCode.A, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
 
+        // Terminal shortcuts use CONTROL_DOWN (not SHORTCUT) to match VS Code behavior on all platforms
+        KeyCombination ctrlBacktick = new KeyCodeCombination(KeyCode.BACK_QUOTE, KeyCombination.CONTROL_DOWN);
+        KeyCombination ctrlShiftBacktick = new KeyCodeCombination(KeyCode.BACK_QUOTE, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
+
         scene.getAccelerators().put(cmdS, () -> controller.handleSave(false));
         scene.getAccelerators().put(cmdShiftS, () -> controller.handleSave(true));
         scene.getAccelerators().put(cmdO, controller::handleOpenFile);
@@ -132,6 +145,8 @@ public class JavaFxEditorApp extends Application {
         scene.getAccelerators().put(cmdP, controller::showCommandPalette);
         scene.getAccelerators().put(cmdSplit, controller::toggleSplitEditor);
         scene.getAccelerators().put(cmdAi, controller::toggleAiPanel);
+        scene.getAccelerators().put(ctrlBacktick, controller::toggleTerminal);
+        scene.getAccelerators().put(ctrlShiftBacktick, controller::createNewTerminalTab);
     }
 
     public static void main(String[] args) {

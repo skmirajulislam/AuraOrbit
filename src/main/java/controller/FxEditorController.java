@@ -38,6 +38,8 @@ public class FxEditorController {
     private FxStatusBar statusBar;
     private CommandPalette commandPalette;
     private SplitPane masterSplitPane;
+    private TerminalPane terminalPane;
+    private SplitPane editorTerminalSplitPane;
 
     private final List<EditorTabController> tabControllers = new ArrayList<>();
     private boolean isSplitEditorActive = false;
@@ -57,7 +59,9 @@ public class FxEditorController {
             SidebarExplorer sidebarExplorer,
             AiAssistantPane aiAssistantPane,
             FxStatusBar statusBar,
-            CommandPalette commandPalette
+            CommandPalette commandPalette,
+            TerminalPane terminalPane,
+            SplitPane editorTerminalSplitPane
     ) {
         this.tabPaneLeft = tabPaneLeft;
         this.tabPaneRight = tabPaneRight;
@@ -68,11 +72,14 @@ public class FxEditorController {
         this.aiAssistantPane = aiAssistantPane;
         this.statusBar = statusBar;
         this.commandPalette = commandPalette;
+        this.terminalPane = terminalPane;
+        this.editorTerminalSplitPane = editorTerminalSplitPane;
 
         setupTabPanes();
         setupSidebar();
         setupActivityBar();
         setupAiAssistant();
+        setupTerminal();
         setupStatusBar();
         setupCommandPalette();
 
@@ -104,6 +111,8 @@ public class FxEditorController {
                 handleFind(true);
             } else if (panel == ActivityBar.Panel.AI_COPILOT) {
                 toggleAiPanel();
+            } else if (panel == ActivityBar.Panel.TERMINAL) {
+                toggleTerminal();
             } else if (panel == null) {
                 ensureSidebarVisible(false);
             }
@@ -167,6 +176,49 @@ public class FxEditorController {
         aiAssistantPane.setOnCloseRequested(this::toggleAiPanel);
     }
 
+    private void setupTerminal() {
+        terminalPane.setWorkingDirectorySupplier(() -> {
+            // Use the sidebar explorer's root path if available
+            Path explorerRoot = sidebarExplorer.getRootPath();
+            if (explorerRoot != null) return explorerRoot;
+            // Fallback: use the active file's parent directory
+            EditorTabController current = getActiveTabController();
+            if (current != null && current.getDocument().getFilePath() != null) {
+                return current.getDocument().getFilePath().getParent();
+            }
+            return null;
+        });
+        terminalPane.setOnCloseRequested(this::toggleTerminal);
+    }
+
+    /**
+     * Toggle integrated terminal panel visibility.
+     */
+    public void toggleTerminal() {
+        if (terminalPane.isTerminalVisible()) {
+            terminalPane.hideTerminal();
+            editorTerminalSplitPane.getItems().remove(terminalPane);
+        } else {
+            terminalPane.showTerminal();
+            if (!editorTerminalSplitPane.getItems().contains(terminalPane)) {
+                editorTerminalSplitPane.getItems().add(terminalPane);
+                editorTerminalSplitPane.setDividerPosition(
+                        editorTerminalSplitPane.getItems().size() - 2, 0.7);
+            }
+        }
+    }
+
+    /**
+     * Create a new terminal tab (Ctrl+Shift+`)
+     */
+    public void createNewTerminalTab() {
+        if (!terminalPane.isTerminalVisible()) {
+            toggleTerminal();
+        } else {
+            terminalPane.createNewTerminal();
+        }
+    }
+
     public void toggleAiPanel() {
         if (masterSplitPane.getItems().contains(aiAssistantPane)) {
             masterSplitPane.getItems().remove(aiAssistantPane);
@@ -225,6 +277,8 @@ public class FxEditorController {
         commandPalette.registerCommand("View: Toggle AI IDE Copilot", "Cmd+Shift+A", this::toggleAiPanel);
         commandPalette.registerCommand("View: Toggle Explorer", "Cmd+Shift+E", () -> activityBar.setActivePanel(ActivityBar.Panel.EXPLORER));
         commandPalette.registerCommand("View: Toggle Templates", "", () -> activityBar.setActivePanel(ActivityBar.Panel.TEMPLATES));
+        commandPalette.registerCommand("View: Toggle Integrated Terminal", "Ctrl+`", this::toggleTerminal);
+        commandPalette.registerCommand("Terminal: Create New Terminal", "Ctrl+Shift+`", this::createNewTerminalTab);
 
         for (ThemeService.Theme theme : ThemeService.Theme.values()) {
             commandPalette.registerCommand("Preferences: Color Theme - " + theme.getDisplayName(), "", () -> {
@@ -494,6 +548,7 @@ public class FxEditorController {
                 "• Instant File Explorer & Scaffolding\n" +
                 "• Side-by-Side Split Editor (Cmd+\\)\n" +
                 "• Integrated AI Copilot (Cmd+Shift+A)\n" +
+                "• Integrated Terminal (Ctrl+`)\n" +
                 "• File Close (Cmd+W) & Tab Context Menu\n" +
                 "• Official VS Code Codicons Vector Icons\n" +
                 "• Multi-Theme Styling ('Various Shades')\n" +
@@ -503,6 +558,8 @@ public class FxEditorController {
                 "• Cmd/Ctrl+P : Command Palette\n" +
                 "• Cmd/Ctrl+\\ : Toggle Split Editor\n" +
                 "• Cmd/Ctrl+Shift+A : Toggle AI Copilot\n" +
+                "• Ctrl+` : Toggle Terminal\n" +
+                "• Ctrl+Shift+` : New Terminal\n" +
                 "• Cmd/Ctrl+F : Find & Replace\n" +
                 "• Cmd/Ctrl+S : Save File"
         );
@@ -510,6 +567,9 @@ public class FxEditorController {
     }
 
     public void shutdown() {
+        if (terminalPane != null) {
+            terminalPane.dispose();
+        }
         for (EditorTabController tc : tabControllers) {
             tc.dispose();
         }

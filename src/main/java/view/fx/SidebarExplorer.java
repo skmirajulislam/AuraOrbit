@@ -258,4 +258,11 @@ public class SidebarExplorer extends VBox {
     public void setOnFileSelected(Consumer<Path> onFileSelected) { this.onFileSelected = onFileSelected; }
     public void setOnTemplateSelected(Consumer<TemplateChoice> onTemplateSelected) { this.onTemplateSelected = onTemplateSelected; }
     public void setOnNewFileRequested(Runnable onNewFileRequested) { this.onNewFileRequested = onNewFileRequested; }
+
+    /**
+     * Returns the current workspace root path, or null if not set.
+     */
+    public Path getRootPath() {
+        return currentWorkspacePath;
+    }
 }

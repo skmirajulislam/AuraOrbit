@@ -15,6 +15,7 @@ template/MarkdownTemplate.class
 template/TemplateFactory.class
 controller/EditorTabController.class
 view/fx/ActivityBar.class
+view/fx/TerminalPane.class
 controller/FxEditorController.class
 command/ReplaceLineCommand.class
 command/AppendLineCommand.class
@@ -34,6 +35,7 @@ app/JavaFxEditorApp.class
 view/fx/SidebarExplorer.class
 template/JsonTemplate.class
 view/fx/AiAssistantPane.class
+view/fx/TerminalPane$TerminalSession.class
 view/fx/FxStatusBar.class
 service/FileSecurityValidator.class
 view/fx/CommandPalette.class

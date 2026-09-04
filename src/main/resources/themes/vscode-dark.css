@@ -351,3 +351,83 @@
     -fx-pref-height: 0;
     -fx-padding: 0;
 }
+
+/* Integrated Terminal Panel */
+.terminal-pane {
+    -fx-background-color: #1e1e1e;
+    -fx-border-color: -border-color transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.terminal-header {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.terminal-header-title {
+    -fx-text-fill: -text-secondary;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+}
+.terminal-header-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 3 5 3 5;
+    -fx-background-radius: 4;
+}
+.terminal-header-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+}
+.terminal-header-btn .codicon {
+    -fx-icon-color: -text-secondary;
+}
+.terminal-header-btn:hover .codicon {
+    -fx-icon-color: #ffffff;
+}
+.terminal-output {
+    -fx-background-color: #1e1e1e;
+    -fx-control-inner-background: #1e1e1e;
+    -fx-text-fill: #cccccc;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13px;
+    -fx-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+.terminal-input {
+    -fx-background-color: #2d2d2d;
+    -fx-text-fill: #e0e0e0;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13px;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-padding: 5 8 5 8;
+}
+.terminal-input:focused {
+    -fx-border-color: -accent-color;
+}
+.terminal-prompt {
+    -fx-text-fill: #4ec9b0;
+    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+.terminal-tab-pane > .tab-header-area {
+    -fx-background-color: -bg-secondary;
+}
+.terminal-tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: -bg-tab-inactive;
+    -fx-padding: 4 10 4 10;
+}
+.terminal-tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: -bg-tab-active;
+    -fx-border-color: -accent-color transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+.terminal-tab-label {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 12px;
+}
+.terminal-tab-pane > .tab-header-area > .headers-region > .tab:selected .terminal-tab-label {
+    -fx-text-fill: -text-primary;
+}
