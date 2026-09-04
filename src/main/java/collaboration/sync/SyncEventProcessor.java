@@ -1,7 +1,13 @@
 package collaboration.sync;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Processes sync events from multiple users in order.
@@ -57,9 +63,6 @@ public class SyncEventProcessor {
 
     private OperationalTransform.Operation processEvent(SyncEvent event) {
         OperationalTransform.Operation op = event.operation;
-
-        // Track this user's revision
-        int userCurrentRevision = userRevisions.getOrDefault(op.userId, 0);
 
         // If operation is not at the current revision, transform it
         if (op.revision < documentRevision) {
@@ -122,6 +125,10 @@ public class SyncEventProcessor {
     public void shutdown() {
         shutdown = true;
         eventQueue.clear();
+    }
+
+    public boolean isShutdown() {
+        return shutdown;
     }
 
     /**

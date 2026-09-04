@@ -7,9 +7,6 @@ import javafx.scene.layout.*;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
-import collaboration.core.PermissionManager;
-import collaboration.core.UserPresenceTracker;
-
 /**
  * Main collaboration panel integrated into the IDE.
  * Shows participants, connection status, and provides controls.

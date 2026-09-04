@@ -58,6 +58,10 @@ public class DocumentState {
         return version;
     }
 
+    public Map<Long, Integer> getVersionVector() {
+        return Collections.unmodifiableMap(versionVector);
+    }
+
     public synchronized char getCharAt(int position) {
         if (position < 0 || position >= content.size()) {
             throw new IndexOutOfBoundsException("Position: " + position);

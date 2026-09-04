@@ -1,8 +1,5 @@
 package collaboration.sync;
 
-import java.util.*;
-import java.util.concurrent.*;
-
 /**
  * Operational Transform (OT) algorithm for concurrent text editing.
  * Ensures consistency across all clients without conflicts.

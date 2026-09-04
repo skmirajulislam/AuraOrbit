@@ -4,12 +4,22 @@ import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
+import javafx.stage.FileChooser;
 import org.kordamp.ikonli.codicons.Codicons;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -18,23 +28,59 @@ import java.util.regex.Pattern;
 
 /**
  * Modern AI IDE Copilot & Assistant Studio Pane powered by VS Code Codicons.
+ * Structured with BorderPane for guaranteed bottom-anchored composer visibility.
  */
-public class AiAssistantPane extends VBox {
+public class AiAssistantPane extends BorderPane {
+
+    /**
+     * Attached file or image model for Copilot context.
+     */
+    public static class AttachmentItem {
+        public enum Type { CODE_FILE, TEXT_FILE, IMAGE }
+
+        private final Type type;
+        private final String name;
+        private final Path path;
+        private final String content;
+        private final Image previewImage;
+
+        public AttachmentItem(Type type, String name, Path path, String content, Image previewImage) {
+            this.type = type;
+            this.name = name;
+            this.path = path;
+            this.content = content;
+            this.previewImage = previewImage;
+        }
+
+        public Type getType() { return type; }
+        public String getName() { return name; }
+        public Path getPath() { return path; }
+        public String getContent() { return content; }
+        public Image getPreviewImage() { return previewImage; }
+    }
 
     private final ComboBox<String> modelSelector;
-    private final VBox chatMessagesContainer;
+    private final VBox chatMessagesContainer = new VBox(8);
     private final ScrollPane scrollPane;
     private final TextArea promptInput;
     private final Button sendButton;
+    private final Button attachButton;
     private final Label contextLabel;
+    private final HBox attachmentChipBox;
+    private final ScrollPane attachmentScroll;
+    private final List<AttachmentItem> attachments = new ArrayList<>();
+
     private boolean requestInProgress;
     private static final int MAX_CHAT_MESSAGES = 100;
     private static final int CLEANUP_THRESHOLD = 150;
+    private static final int MAX_ATTACHMENT_CHARS = 50_000;
 
     private final service.AiService aiService = new service.AiService();
     private Runnable onConfigureApiKeysRequested;
 
     private Supplier<String> activeFileSupplier;
+    private Supplier<Path> activeFilePathSupplier;
+    private Supplier<Path> workspacePathSupplier;
     private Supplier<String> selectedCodeSupplier;
     private Supplier<String> entireFileContentSupplier;
     private Consumer<String> onInsertCodeToEditor;
@@ -43,15 +89,26 @@ public class AiAssistantPane extends VBox {
 
     public AiAssistantPane() {
         getStyleClass().add("ai-assistant-pane");
-        setPrefWidth(380);
-        setMinWidth(300);
-        setMaxWidth(460);
-        VBox.setVgrow(this, Priority.ALWAYS);
+        setPrefWidth(320);
+        setMinWidth(240);
+        setMaxWidth(450);
 
-        // Header — VS Code Chat-style tabs + icon actions
+        // Chat viewport components (initialized first for lambda references)
+        chatMessagesContainer.setPadding(new Insets(8, 10, 8, 10));
+        chatMessagesContainer.getStyleClass().add("ai-chat-list");
+
+        scrollPane = new ScrollPane(chatMessagesContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.getStyleClass().add("ai-chat-scroll");
+        scrollPane.setMinHeight(0); // Essential for flexible shrinking without pushing composer
+
+        // ─────────────────────────────────────────────────────────────────────
+        // 1. HEADER & ACTIONS (TOP)
+        // ─────────────────────────────────────────────────────────────────────
         HBox header = new HBox(4);
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(4, 8, 0, 10));
+        header.setPadding(new Insets(0, 6, 0, 10));
         header.getStyleClass().add("ai-header");
 
         Label chatTab = new Label("Chat");
@@ -60,19 +117,16 @@ public class AiAssistantPane extends VBox {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        modelSelector = new ComboBox<>();
-        modelSelector.getItems().addAll(
-                "Gemini 3.5 Flash (Google)",
-                "GPT-4o 2024-11-20 (OpenAI)",
-                "GPT-4o-mini (OpenAI)",
-                "Grok-3 (xAI)",
-                "DeepSeek-R1 14B (Local / Ollama)",
-                "Offline Copilot (Built-in)"
-        );
-        modelSelector.getSelectionModel().select("Offline Copilot (Built-in)");
-        modelSelector.getStyleClass().add("ai-model-pill");
-        modelSelector.setMaxWidth(168);
-        modelSelector.setPrefWidth(168);
+        Button newChatBtn = new Button();
+        newChatBtn.setGraphic(IconFactory.getIcon(Codicons.ADD, 13));
+        newChatBtn.getStyleClass().add("ai-icon-btn");
+        newChatBtn.setTooltip(new Tooltip("New Chat Session"));
+        newChatBtn.setOnAction(e -> {
+            chatMessagesContainer.getChildren().clear();
+            attachments.clear();
+            refreshAttachmentChips();
+            addAssistantMessage("Chat session refreshed. Ready for your next request!");
+        });
 
         Button keyBtn = new Button();
         keyBtn.setGraphic(IconFactory.getIcon(Codicons.KEY, 13, "#cca700"));
@@ -85,15 +139,16 @@ public class AiAssistantPane extends VBox {
         Button closeBtn = new Button();
         closeBtn.setGraphic(IconFactory.getIcon(Codicons.CLOSE, 12));
         closeBtn.getStyleClass().add("ai-icon-btn");
+        closeBtn.setTooltip(new Tooltip("Close Copilot Panel"));
         closeBtn.setOnAction(e -> {
             if (onCloseRequested != null) onCloseRequested.run();
         });
 
-        header.getChildren().addAll(chatTab, spacer, keyBtn, closeBtn);
+        header.getChildren().addAll(chatTab, spacer, newChatBtn, keyBtn, closeBtn);
 
         // Quick Actions Bar
-        HBox quickActions = new HBox(6);
-        quickActions.setPadding(new Insets(8, 12, 8, 12));
+        HBox quickActions = new HBox(5);
+        quickActions.setPadding(new Insets(6, 10, 6, 10));
         quickActions.setAlignment(Pos.CENTER_LEFT);
         quickActions.getStyleClass().add("ai-quick-actions");
 
@@ -110,71 +165,307 @@ public class AiAssistantPane extends VBox {
         quickScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         quickScroll.getStyleClass().add("ai-quick-scroll");
 
-        // Chat messages log
-        chatMessagesContainer = new VBox(8);
-        chatMessagesContainer.setPadding(new Insets(8, 12, 8, 12));
-        chatMessagesContainer.getStyleClass().add("ai-chat-list");
+        VBox topContainer = new VBox(0, header, quickScroll);
+        setTop(topContainer);
 
-        scrollPane = new ScrollPane(chatMessagesContainer);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        scrollPane.getStyleClass().add("ai-chat-scroll");
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        setCenter(scrollPane);
 
         addAssistantMessage("Hello! I'm **AuraOrbit Copilot**.\n\n"
                 + "I can help you write code, debug issues, generate tests, and refactor your project.\n\n"
                 + "Select code in the editor or click one of the quick actions above to start!");
 
-        contextLabel = new Label(" No file");
+        // ─────────────────────────────────────────────────────────────────────
+        // 3. COMPOSER INPUT AREA (BOTTOM - PERMANENTLY ANCHORED)
+        // ─────────────────────────────────────────────────────────────────────
+        contextLabel = new Label(" No active file");
         contextLabel.setGraphic(IconFactory.getIcon(Codicons.FILE_CODE, 11));
         contextLabel.getStyleClass().add("ai-context-label");
 
+        // Attachment chips container
+        attachmentChipBox = new HBox(4);
+        attachmentChipBox.setAlignment(Pos.CENTER_LEFT);
+        attachmentChipBox.setPadding(new Insets(2, 2, 2, 2));
+
+        attachmentScroll = new ScrollPane(attachmentChipBox);
+        attachmentScroll.setFitToHeight(true);
+        attachmentScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        attachmentScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        attachmentScroll.getStyleClass().add("ai-attachment-scroll");
+        attachmentScroll.setMinHeight(0);
+        attachmentScroll.setMaxHeight(32);
+        attachmentScroll.setVisible(false);
+        attachmentScroll.setManaged(false);
+
+        // Multiline prompt input
         promptInput = new TextArea();
-        promptInput.setPromptText("Do anything");
+        promptInput.setPromptText("Ask Copilot or type a prompt...");
         promptInput.setPrefRowCount(2);
-        promptInput.setMinHeight(52);
+        promptInput.setMinHeight(44);
+        promptInput.setMaxHeight(120);
         promptInput.setWrapText(true);
         promptInput.getStyleClass().add("ai-prompt-input");
-        promptInput.setOnKeyPressed(e -> {
-            if (e.isShortcutDown() && e.getCode() == javafx.scene.input.KeyCode.ENTER) {
-                sendMessage();
-                e.consume();
+        promptInput.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == KeyCode.ENTER) {
+                if (e.isShiftDown()) {
+                    // Allow normal multiline newline
+                } else {
+                    e.consume();
+                    sendMessage();
+                }
             }
         });
 
-        Button newChatBtn = new Button();
-        newChatBtn.setGraphic(IconFactory.getIcon(Codicons.ADD, 13));
-        newChatBtn.getStyleClass().add("ai-icon-btn");
-        newChatBtn.setTooltip(new Tooltip("New chat"));
-        newChatBtn.setOnAction(e -> {
-            chatMessagesContainer.getChildren().clear();
-            addAssistantMessage("Chat history cleared. Ready for your next request!");
+        // Attachment '+' button
+        attachButton = new Button();
+        attachButton.setGraphic(IconFactory.getIcon(Codicons.ADD, 13));
+        attachButton.getStyleClass().addAll("ai-icon-btn", "ai-attach-btn");
+        attachButton.setTooltip(new Tooltip("Attach active file, code, or image..."));
+        attachButton.setOnAction(e -> showAttachmentMenu());
+
+        // Model Selector ComboBox
+        modelSelector = new ComboBox<>();
+        modelSelector.getItems().addAll(
+                "Gemini 3.5 Flash (Google)",
+                "GPT-4o 2024-11-20 (OpenAI)",
+                "GPT-4o-mini (OpenAI)",
+                "Grok-3 (xAI)",
+                "DeepSeek-R1 14B (Local / Ollama)",
+                "Offline Copilot (Built-in)"
+        );
+        modelSelector.getSelectionModel().select("Offline Copilot (Built-in)");
+        modelSelector.getStyleClass().add("ai-model-pill");
+        modelSelector.setMaxWidth(160);
+
+        // Custom list cell styling for clean compact display
+        modelSelector.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(formatShortModelName(item));
+                    setGraphic(IconFactory.getIcon(Codicons.LIGHTBULB_AUTOFIX, 11, "#4ea8de"));
+                }
+            }
         });
+        modelSelector.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item);
+                    setGraphic(IconFactory.getIcon(Codicons.LIGHTBULB_AUTOFIX, 11, "#4ea8de"));
+                }
+            }
+        });
+
+        // Send Button
+        sendButton = new Button();
+        sendButton.setGraphic(IconFactory.getIcon(Codicons.ARROW_UP, 13, "#ffffff"));
+        sendButton.getStyleClass().add("ai-send-btn");
+        sendButton.setTooltip(new Tooltip("Send message (Enter, Shift+Enter for newline)"));
+        sendButton.setOnAction(e -> sendMessage());
 
         Region composerSpacer = new Region();
         HBox.setHgrow(composerSpacer, Priority.ALWAYS);
 
-        sendButton = new Button();
-        sendButton.setGraphic(IconFactory.getIcon(Codicons.ARROW_UP, 13, "#ffffff"));
-        sendButton.getStyleClass().add("ai-send-btn");
-        sendButton.setTooltip(new Tooltip("Send (Cmd/Ctrl+Enter)"));
-        sendButton.setOnAction(e -> sendMessage());
-
         HBox composerBar = new HBox(6);
         composerBar.setAlignment(Pos.CENTER_LEFT);
         composerBar.getStyleClass().add("ai-composer-bar");
-        composerBar.getChildren().addAll(newChatBtn, composerSpacer, modelSelector, sendButton);
+        composerBar.getChildren().addAll(attachButton, composerSpacer, modelSelector, sendButton);
 
         VBox composer = new VBox(4);
         composer.getStyleClass().add("ai-composer");
-        composer.getChildren().addAll(promptInput, composerBar);
+        composer.getChildren().addAll(attachmentScroll, promptInput, composerBar);
 
-        VBox inputArea = new VBox(6);
-        inputArea.setPadding(new Insets(4, 10, 10, 10));
+        VBox inputArea = new VBox(4);
+        inputArea.setPadding(new Insets(4, 8, 8, 8));
         inputArea.getStyleClass().add("ai-input-area");
+        inputArea.setMinHeight(Region.USE_PREF_SIZE); // Never pushed off-screen
         inputArea.getChildren().addAll(contextLabel, composer);
 
-        getChildren().addAll(header, quickScroll, scrollPane, inputArea);
+        setBottom(inputArea);
+    }
+
+    private String formatShortModelName(String fullName) {
+        if (fullName == null) return "";
+        if (fullName.contains("Gemini")) return "Gemini 3.5";
+        if (fullName.contains("mini")) return "GPT-4o mini";
+        if (fullName.contains("GPT-4o")) return "GPT-4o";
+        if (fullName.contains("Grok")) return "Grok-3";
+        if (fullName.contains("DeepSeek")) return "DeepSeek-R1";
+        if (fullName.contains("Offline")) return "Offline Copilot";
+        return fullName;
+    }
+
+    /**
+     * Compact attachment popover menu.
+     */
+    private void showAttachmentMenu() {
+        ContextMenu menu = new ContextMenu();
+        menu.getStyleClass().add("ai-attachment-menu");
+
+        // 1. Attach Active File
+        String currentFileName = activeFileSupplier != null ? activeFileSupplier.get() : null;
+        Path currentFilePath = activeFilePathSupplier != null ? activeFilePathSupplier.get() : null;
+        MenuItem attachActiveItem = new MenuItem(
+                currentFileName != null && !currentFileName.isBlank()
+                        ? "Attach Active File (" + currentFileName + ")"
+                        : "Attach Active File"
+        );
+        attachActiveItem.setGraphic(IconFactory.getIcon(Codicons.FILE_CODE, 13, "#4ea8de"));
+        attachActiveItem.setDisable(currentFileName == null || currentFileName.isBlank());
+        attachActiveItem.setOnAction(e -> attachActiveFile(currentFileName, currentFilePath));
+
+        // 2. Attach Code or Text File
+        MenuItem attachFileItem = new MenuItem("Attach Code / Text File...");
+        attachFileItem.setGraphic(IconFactory.getIcon(Codicons.NEW_FILE, 13, "#89d185"));
+        attachFileItem.setOnAction(e -> promptAttachCodeFile());
+
+        // 3. Attach Image
+        MenuItem attachImageItem = new MenuItem("Attach Image...");
+        attachImageItem.setGraphic(IconFactory.getIcon(Codicons.FILE_MEDIA, 13, "#cca700"));
+        attachImageItem.setOnAction(e -> promptAttachImageFile());
+
+        // 4. Attach Workspace File
+        MenuItem attachWorkspaceItem = new MenuItem("Attach From Workspace...");
+        attachWorkspaceItem.setGraphic(IconFactory.getIcon(Codicons.FOLDER_OPENED, 13, "#c586c0"));
+        attachWorkspaceItem.setOnAction(e -> promptAttachWorkspaceFile());
+
+        menu.getItems().addAll(attachActiveItem, attachFileItem, attachImageItem, new SeparatorMenuItem(), attachWorkspaceItem);
+        menu.show(attachButton, javafx.geometry.Side.TOP, 0, -4);
+    }
+
+    private void attachActiveFile(String fileName, Path filePath) {
+        String content = entireFileContentSupplier != null ? entireFileContentSupplier.get() : "";
+        if (content == null) content = "";
+        if (content.length() > MAX_ATTACHMENT_CHARS) {
+            content = content.substring(0, MAX_ATTACHMENT_CHARS) + "\n\n/* [Truncated: middle/end omitted to stay within context] */";
+        }
+        addAttachment(new AttachmentItem(AttachmentItem.Type.CODE_FILE, fileName, filePath, content, null));
+    }
+
+    private void promptAttachCodeFile() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Attach Code or Text File to Copilot");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Source Code & Text", "*.java", "*.py", "*.js", "*.ts", "*.json", "*.xml", "*.html", "*.css", "*.md", "*.txt", "*.c", "*.cpp", "*.h", "*.sql", "*.sh", "*.yaml", "*.yml", "*.properties"),
+                new FileChooser.ExtensionFilter("All Files", "*.*")
+        );
+        if (workspacePathSupplier != null && workspacePathSupplier.get() != null) {
+            File wsDir = workspacePathSupplier.get().toFile();
+            if (wsDir.exists() && wsDir.isDirectory()) chooser.setInitialDirectory(wsDir);
+        }
+        File selected = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (selected != null && selected.isFile()) {
+            try {
+                String content = Files.readString(selected.toPath());
+                if (content.length() > MAX_ATTACHMENT_CHARS) {
+                    content = content.substring(0, MAX_ATTACHMENT_CHARS) + "\n\n/* [Truncated for AI context] */";
+                }
+                addAttachment(new AttachmentItem(AttachmentItem.Type.CODE_FILE, selected.getName(), selected.toPath(), content, null));
+            } catch (Exception ex) {
+                addAssistantMessage("⚠️ Failed to read attached file `" + selected.getName() + "`: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void promptAttachImageFile() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Attach Image to Copilot");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"),
+                new FileChooser.ExtensionFilter("All Files", "*.*")
+        );
+        File selected = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (selected != null && selected.isFile()) {
+            try {
+                Image img = new Image(new FileInputStream(selected), 48, 48, true, true);
+                addAttachment(new AttachmentItem(AttachmentItem.Type.IMAGE, selected.getName(), selected.toPath(), null, img));
+            } catch (Exception ex) {
+                addAssistantMessage("⚠️ Failed to load attached image `" + selected.getName() + "`: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void promptAttachWorkspaceFile() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Attach Project File from Workspace");
+        if (workspacePathSupplier != null && workspacePathSupplier.get() != null) {
+            File wsDir = workspacePathSupplier.get().toFile();
+            if (wsDir.exists() && wsDir.isDirectory()) chooser.setInitialDirectory(wsDir);
+        }
+        File selected = chooser.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+        if (selected != null && selected.isFile()) {
+            try {
+                String content = Files.readString(selected.toPath());
+                if (content.length() > MAX_ATTACHMENT_CHARS) {
+                    content = content.substring(0, MAX_ATTACHMENT_CHARS) + "\n\n/* [Truncated] */";
+                }
+                addAttachment(new AttachmentItem(AttachmentItem.Type.CODE_FILE, selected.getName(), selected.toPath(), content, null));
+            } catch (Exception ex) {
+                addAssistantMessage("⚠️ Failed to attach workspace file: " + ex.getMessage());
+            }
+        }
+    }
+
+    private void addAttachment(AttachmentItem item) {
+        // Prevent duplicate attachment of the same file
+        for (AttachmentItem existing : attachments) {
+            if (existing.getName().equalsIgnoreCase(item.getName())) return;
+        }
+        attachments.add(item);
+        refreshAttachmentChips();
+    }
+
+    private void removeAttachment(AttachmentItem item) {
+        attachments.remove(item);
+        refreshAttachmentChips();
+    }
+
+    private void refreshAttachmentChips() {
+        attachmentChipBox.getChildren().clear();
+        if (attachments.isEmpty()) {
+            attachmentScroll.setVisible(false);
+            attachmentScroll.setManaged(false);
+            return;
+        }
+
+        for (AttachmentItem item : attachments) {
+            HBox chip = new HBox(4);
+            chip.setAlignment(Pos.CENTER_LEFT);
+            chip.getStyleClass().add("ai-attachment-chip");
+
+            Node icon;
+            if (item.getType() == AttachmentItem.Type.IMAGE && item.getPreviewImage() != null) {
+                ImageView iv = new ImageView(item.getPreviewImage());
+                iv.setFitWidth(16);
+                iv.setFitHeight(16);
+                icon = iv;
+            } else {
+                icon = IconFactory.getIcon(Codicons.FILE_CODE, 12, "#4ea8de");
+            }
+
+            Label nameLbl = new Label(item.getName());
+            nameLbl.getStyleClass().add("ai-attachment-chip-label");
+
+            Button removeBtn = new Button();
+            removeBtn.setGraphic(IconFactory.getIcon(Codicons.CLOSE, 9, "#888888"));
+            removeBtn.getStyleClass().add("ai-attachment-remove-btn");
+            removeBtn.setTooltip(new Tooltip("Remove attachment"));
+            removeBtn.setOnAction(e -> removeAttachment(item));
+
+            chip.getChildren().addAll(icon, nameLbl, removeBtn);
+            attachmentChipBox.getChildren().add(chip);
+        }
+
+        attachmentScroll.setVisible(true);
+        attachmentScroll.setManaged(true);
     }
 
     private Button createActionChip(Codicons icon, String text, Runnable action) {
@@ -212,17 +503,40 @@ public class AiAssistantPane extends VBox {
             return;
         }
         String query = promptInput.getText();
-        if (query == null || query.trim().isEmpty()) return;
+        if ((query == null || query.trim().isEmpty()) && attachments.isEmpty()) return;
 
         promptInput.clear();
-        addUserMessage(query);
+
+        List<AttachmentItem> attachedList = new ArrayList<>(attachments);
+        attachments.clear();
+        refreshAttachmentChips();
+
+        addUserMessage(query != null ? query : "", attachedList);
 
         String selectedCode = selectedCodeSupplier != null ? selectedCodeSupplier.get() : null;
         String fileName = activeFileSupplier != null ? activeFileSupplier.get() : "file";
         String fullContent = entireFileContentSupplier != null ? entireFileContentSupplier.get() : "";
         String codeToProcess = (selectedCode != null && !selectedCode.trim().isEmpty()) ? selectedCode : fullContent;
 
-        generateAiResponse(query, codeToProcess, fileName, requiresConnectedModel(query, codeToProcess));
+        // Build combined context with attached files
+        StringBuilder combinedContext = new StringBuilder();
+        if (codeToProcess != null && !codeToProcess.isBlank()) {
+            combinedContext.append(codeToProcess);
+        }
+        for (AttachmentItem att : attachedList) {
+            if (att.getContent() != null && !att.getContent().isBlank()) {
+                if (combinedContext.length() > 0) combinedContext.append("\n\n");
+                combinedContext.append("/* ─── Attached File: ").append(att.getName()).append(" ─── */\n");
+                combinedContext.append(att.getContent());
+            } else if (att.getType() == AttachmentItem.Type.IMAGE) {
+                if (combinedContext.length() > 0) combinedContext.append("\n\n");
+                combinedContext.append("/* [Attached Image: ").append(att.getName()).append("] */\n");
+            }
+        }
+
+        String finalContext = combinedContext.toString();
+        String effectivePrompt = (query != null && !query.isBlank()) ? query : "Please analyze the attached files and provide recommendations.";
+        generateAiResponse(effectivePrompt, finalContext, fileName, requiresConnectedModel(effectivePrompt, finalContext));
     }
 
     private boolean requiresConnectedModel(String prompt, String codeContext) {
@@ -278,8 +592,13 @@ public class AiAssistantPane extends VBox {
                                 + "\n\nCheck the model connection and try again. AuraOrbit did not fabricate a fallback result.";
                     }
                 } else {
-                    response = "### Offline Copilot\n\nOffline mode can answer basic interface questions, but it does not generate code or perform code analysis. "
-                            + "Connect an AI model for this request.";
+                    if (codeContext != null && !codeContext.isBlank()) {
+                        response = generateDynamicCodeAiResponse(prompt, codeContext, fileName);
+                    } else {
+                        response = "### Offline Copilot (Built-in)\n\n"
+                                + "Offline mode can answer structural questions, explain code, and generate unit tests for active editor files without an API key.\n\n"
+                                + "To chat freely with external LLMs, select Gemini, GPT, Grok, or Ollama and configure your API key.";
+                    }
                 }
 
                 final String finalResponse = response;
@@ -580,16 +899,45 @@ public class AiAssistantPane extends VBox {
     }
 
     public void addUserMessage(String text) {
+        addUserMessage(text, Collections.emptyList());
+    }
+
+    public void addUserMessage(String text, List<AttachmentItem> attached) {
         VBox msgBox = new VBox(4);
         msgBox.setAlignment(Pos.CENTER_RIGHT);
         msgBox.setPadding(new Insets(2, 0, 2, 20));
 
-        Label label = new Label(text);
-        label.setWrapText(true);
-        label.maxWidthProperty().bind(scrollPane.widthProperty().subtract(56));
-        label.setStyle("-fx-background-color: -accent-color; -fx-text-fill: #ffffff; -fx-padding: 7 11 7 11; -fx-background-radius: 10 10 3 10; -fx-font-size: 12.5px;");
+        VBox bubbleBox = new VBox(4);
+        bubbleBox.setAlignment(Pos.CENTER_RIGHT);
+        bubbleBox.maxWidthProperty().bind(scrollPane.widthProperty().subtract(56));
+        bubbleBox.setStyle("-fx-background-color: -accent-color; -fx-padding: 7 11 7 11; -fx-background-radius: 10 10 3 10;");
 
-        msgBox.getChildren().add(label);
+        if (attached != null && !attached.isEmpty()) {
+            HBox attachRow = new HBox(4);
+            attachRow.setAlignment(Pos.CENTER_RIGHT);
+            for (AttachmentItem att : attached) {
+                HBox chip = new HBox(3);
+                chip.setAlignment(Pos.CENTER_LEFT);
+                chip.setStyle("-fx-background-color: rgba(255,255,255,0.22); -fx-padding: 2 6 2 6; -fx-background-radius: 4;");
+                Label nameLbl = new Label(att.getName());
+                nameLbl.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 10.5px; -fx-font-weight: bold;");
+                chip.getChildren().addAll(
+                        IconFactory.getIcon(att.getType() == AttachmentItem.Type.IMAGE ? Codicons.FILE_MEDIA : Codicons.FILE_CODE, 10, "#ffffff"),
+                        nameLbl
+                );
+                attachRow.getChildren().add(chip);
+            }
+            bubbleBox.getChildren().add(attachRow);
+        }
+
+        if (text != null && !text.isBlank()) {
+            Label label = new Label(text);
+            label.setWrapText(true);
+            label.setStyle("-fx-text-fill: #ffffff; -fx-font-size: 12.5px;");
+            bubbleBox.getChildren().add(label);
+        }
+
+        msgBox.getChildren().add(bubbleBox);
         chatMessagesContainer.getChildren().add(msgBox);
         enforceChatHistoryLimit();
         scrollToBottom();
@@ -791,6 +1139,8 @@ public class AiAssistantPane extends VBox {
     public service.AiService getAiService() { return aiService; }
     public void setOnConfigureApiKeysRequested(Runnable onConfigureApiKeysRequested) { this.onConfigureApiKeysRequested = onConfigureApiKeysRequested; }
     public void setActiveFileSupplier(Supplier<String> activeFileSupplier) { this.activeFileSupplier = activeFileSupplier; }
+    public void setActiveFilePathSupplier(Supplier<Path> activeFilePathSupplier) { this.activeFilePathSupplier = activeFilePathSupplier; }
+    public void setWorkspacePathSupplier(Supplier<Path> workspacePathSupplier) { this.workspacePathSupplier = workspacePathSupplier; }
     public void setSelectedCodeSupplier(Supplier<String> selectedCodeSupplier) { this.selectedCodeSupplier = selectedCodeSupplier; }
     public void setEntireFileContentSupplier(Supplier<String> entireFileContentSupplier) { this.entireFileContentSupplier = entireFileContentSupplier; }
     public void setOnInsertCodeToEditor(Consumer<String> onInsertCodeToEditor) { this.onInsertCodeToEditor = onInsertCodeToEditor; }

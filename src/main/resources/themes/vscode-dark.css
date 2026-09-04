@@ -1,11 +1,15 @@
-/* VS Code Dark+ Theme */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   AuraOrbit — VS Code Dark+ Theme
+   Polished, production-grade IDE styling
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
 .root {
     -fx-base: #1e1e1e;
     -fx-background: #1e1e1e;
     -fx-control-inner-background: #1e1e1e;
     -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -fx-font-size: 13px;
-    
+
     /* VS Code Theme Colors */
     -bg-primary: #1e1e1e;
     -bg-secondary: #252526;
@@ -20,12 +24,13 @@
     -bg-hover: #2a2d2e;
     -bg-input: #252526;
     -bg-menu: #252526;
-    
+    -bg-terminal: #181818;
+
     -text-primary: #d4d4d4;
     -text-secondary: #969696;
     -text-status: #ffffff;
     -text-gutter: #6e7681;
-    
+
     -border-color: #3c3c3c;
     -accent-color: #007acc;
     -accent-hover: #1f8ad2;
@@ -47,21 +52,22 @@
     -fx-background-color: -bg-primary;
 }
 
-/* Activity Bar */
+/* ─── Activity Bar ────────────────────────────────────────────────────────── */
 .activity-bar {
     -fx-background-color: -bg-activity-bar;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
-    -fx-padding: 8 4 8 4;
+    -fx-padding: 4 0 4 0;
 }
-
 .activity-button {
     -fx-background-color: transparent;
     -fx-text-fill: -text-secondary;
     -fx-font-size: 16px;
-    -fx-padding: 8 6 8 6;
+    -fx-padding: 8 10 8 10;
     -fx-cursor: hand;
     -fx-background-radius: 4;
+    -fx-min-width: 38;
+    -fx-min-height: 38;
 }
 .activity-button:hover {
     -fx-text-fill: #ffffff;
@@ -73,29 +79,28 @@
     -fx-border-width: 0 0 0 2;
 }
 
-/* Sidebar */
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
     -fx-background-color: -bg-sidebar;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
 }
-
 .sidebar-header {
     -fx-background-color: -bg-sidebar;
     -fx-border-color: transparent transparent -border-color transparent;
     -fx-border-width: 0 0 1 0;
 }
 
-/* TreeView in Sidebar */
+/* TreeView */
 .tree-view {
     -fx-background-color: -bg-sidebar;
     -fx-background-insets: 0;
-    -fx-padding: 4 0 0 0;
+    -fx-padding: 2 0 0 0;
 }
 .tree-cell {
     -fx-background-color: -bg-sidebar;
     -fx-text-fill: -text-primary;
-    -fx-padding: 3 6 3 6;
+    -fx-padding: 2 6 2 6;
     -fx-font-size: 13px;
     -fx-cursor: hand;
 }
@@ -107,7 +112,7 @@
     -fx-text-fill: #ffffff;
 }
 
-/* SplitPane */
+/* ─── SplitPane ───────────────────────────────────────────────────────────── */
 .editor-split-pane {
     -fx-background-color: -bg-primary;
     -fx-box-border: transparent;
@@ -115,34 +120,59 @@
 }
 .editor-split-pane > .split-pane-divider {
     -fx-background-color: -border-color;
-    -fx-padding: 0 1 0 1;
+    -fx-padding: 0 0.5 0 0.5;
 }
 
-/* TabPane */
+/* ─── TabPane ─────────────────────────────────────────────────────────────── */
 .tab-pane {
     -fx-background-color: -bg-primary;
+    -fx-tab-min-height: 29;
+    -fx-tab-max-height: 29;
 }
 .tab-pane > .tab-header-area {
     -fx-background-color: -bg-secondary;
-    -fx-padding: 0;
+    -fx-padding: 0 85 0 0;
+    -fx-min-height: 35;
+    -fx-pref-height: 35;
+    -fx-max-height: 35;
+}
+.tab-pane > .tab-header-area > .tab-header-background {
+    -fx-background-color: -bg-secondary;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+.tab-pane > .tab-header-area > .headers-region {
+    -fx-padding: 3 0 0 0;
+    -fx-effect: null;
 }
 .tab-pane > .tab-header-area > .headers-region > .tab {
     -fx-background-color: -bg-tab-inactive;
     -fx-background-insets: 0;
-    -fx-background-radius: 0;
-    -fx-padding: 7 14 7 14;
-    -fx-border-color: transparent -border-color transparent transparent;
-    -fx-border-width: 0 1 0 0;
+    -fx-background-radius: 4 4 0 0;
+    -fx-border-radius: 4 4 0 0;
+    -fx-padding: 4 12 4 12;
+    -fx-border-color: -border-color -border-color transparent -border-color;
+    -fx-border-width: 1 1 0 1;
     -fx-cursor: hand;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:hover {
+    -fx-background-color: derive(-bg-tab-inactive, 10%);
 }
 .tab-pane > .tab-header-area > .headers-region > .tab:selected {
     -fx-background-color: -bg-tab-active;
-    -fx-border-color: -accent-color -border-color transparent transparent;
-    -fx-border-width: 2 1 0 0;
+    -fx-border-color: -accent-color -border-color transparent -border-color;
+    -fx-border-width: 2 1 0 1;
+    -fx-background-radius: 4 4 0 0;
+    -fx-border-radius: 4 4 0 0;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .focus-indicator,
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
 }
 .tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
     -fx-text-fill: -text-secondary;
-    -fx-font-size: 13px;
+    -fx-font-size: 12.5px;
 }
 .tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label {
     -fx-text-fill: -text-primary;
@@ -153,7 +183,7 @@
     -fx-shape: "M 0,0 L 7,7 M 7,0 L 0,7";
     -fx-stroke: -text-secondary;
     -fx-stroke-width: 1.5;
-    -fx-padding: 3 4 3 4;
+    -fx-padding: 2 3 2 3;
 }
 .tab-pane > .tab-header-area > .headers-region > .tab:hover .tab-close-button {
     -fx-stroke: #ffffff;
@@ -164,7 +194,7 @@
     -fx-stroke: #ffffff;
 }
 
-/* VS Code Codicons */
+/* Codicons */
 .codicon {
     -fx-icon-color: -text-secondary;
 }
@@ -172,14 +202,14 @@
     -fx-icon-color: #ffffff;
 }
 
-/* Custom VS Code Tab Header & In-tab Close Button */
+/* Custom Tab Header & Close Button */
 .custom-tab-header {
     -fx-alignment: center-left;
     -fx-padding: 0;
 }
 .custom-tab-label {
     -fx-text-fill: -text-secondary;
-    -fx-font-size: 13px;
+    -fx-font-size: 12.5px;
 }
 .tab:selected .custom-tab-label {
     -fx-text-fill: -text-primary;
@@ -187,10 +217,10 @@
 .custom-tab-close-btn {
     -fx-background-color: transparent;
     -fx-cursor: hand;
-    -fx-padding: 2 4 2 4;
-    -fx-background-radius: 4;
-    -fx-min-width: 18px;
-    -fx-min-height: 18px;
+    -fx-padding: 2 3 2 3;
+    -fx-background-radius: 3;
+    -fx-min-width: 16px;
+    -fx-min-height: 16px;
 }
 .custom-tab-close-btn .codicon {
     -fx-icon-color: -text-secondary;
@@ -202,7 +232,7 @@
     -fx-icon-color: #ffffff;
 }
 
-/* RichTextFX Styled Code Area */
+/* ─── RichTextFX Styled Code Area ─────────────────────────────────────────── */
 .styled-text-area {
     -fx-background-color: -bg-editor;
     -fx-cursor: text;
@@ -214,8 +244,8 @@
     -fx-background-color: -bg-gutter;
     -fx-text-fill: -text-gutter;
     -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13.5px;
-    -fx-padding: 0 12 0 10;
+    -fx-font-size: 13px;
+    -fx-padding: 0 10 0 8;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
 }
@@ -228,11 +258,11 @@
 }
 .styled-text-area .text {
     -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13.5px;
+    -fx-font-size: 13px;
     -fx-fill: -text-primary;
 }
 
-/* Syntax Highlighting with high specificity for RichTextFX text nodes */
+/* Syntax Highlighting */
 .styled-text-area .text.control-keyword, .code-area .text.control-keyword, .control-keyword {
     -fx-fill: -syntax-control;
     -fx-font-weight: bold;
@@ -276,34 +306,38 @@
     -fx-fill: -text-primary;
 }
 
-/* Status Bar */
+/* ─── Status Bar ──────────────────────────────────────────────────────────── */
 .status-bar {
     -fx-background-color: -bg-status-bar;
     -fx-text-fill: -text-status;
-    -fx-padding: 3 10 3 10;
+    -fx-padding: 0 8 0 8;
     -fx-font-size: 12px;
+    -fx-min-height: 22;
+    -fx-max-height: 22;
 }
 .status-item {
     -fx-text-fill: -text-status;
-    -fx-padding: 2 6 2 6;
+    -fx-padding: 1 5 1 5;
+    -fx-font-size: 12px;
     -fx-cursor: hand;
 }
 .status-item:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-color: rgba(255, 255, 255, 0.12);
     -fx-background-radius: 3;
 }
 
-/* Floating Search Bar */
+/* ─── Search Bar ──────────────────────────────────────────────────────────── */
 .search-bar {
     -fx-background-color: -bg-secondary;
     -fx-border-color: -border-color;
     -fx-border-width: 1;
     -fx-border-radius: 4;
     -fx-background-radius: 4;
-    -fx-padding: 8 12 8 12;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 14, 0, 0, 6);
+    -fx-padding: 6 10 6 10;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 12, 0, 0, 4);
 }
 
+/* ─── Text Fields ─────────────────────────────────────────────────────────── */
 .text-field {
     -fx-background-color: -bg-editor;
     -fx-text-fill: -text-primary;
@@ -311,16 +345,18 @@
     -fx-border-radius: 3;
     -fx-background-radius: 3;
     -fx-padding: 4 8 4 8;
+    -fx-font-size: 12.5px;
 }
 .text-field:focused {
     -fx-border-color: -accent-color;
 }
 
+/* ─── Buttons ─────────────────────────────────────────────────────────────── */
 .btn-modern {
     -fx-background-color: -accent-color;
     -fx-text-fill: #ffffff;
     -fx-background-radius: 4;
-    -fx-padding: 6 12 6 12;
+    -fx-padding: 5 12 5 12;
     -fx-cursor: hand;
     -fx-font-size: 12px;
 }
@@ -328,7 +364,21 @@
     -fx-background-color: -accent-hover;
 }
 
-/* AI Assistant & Copilot Studio */
+/* Run button overlay */
+.editor-run-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #89d185;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-padding: 3 10 3 10;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+}
+.editor-run-button:hover {
+    -fx-background-color: rgba(137, 209, 133, 0.15);
+}
+
+/* ─── AI Assistant & Copilot Studio ───────────────────────────────────────── */
 .ai-assistant-pane {
     -fx-background-color: -bg-sidebar;
     -fx-border-color: transparent transparent transparent -border-color;
@@ -338,25 +388,194 @@
     -fx-background-color: -bg-secondary;
     -fx-border-color: transparent transparent -border-color transparent;
     -fx-border-width: 0 0 1 0;
+    -fx-min-height: 35;
+    -fx-max-height: 35;
 }
-.ai-prompt-input {
-    -fx-background-color: -bg-editor;
+.ai-panel-tab {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 6 8 6 8;
+    -fx-cursor: hand;
+}
+.ai-panel-tab.active {
     -fx-text-fill: -text-primary;
-    -fx-prompt-text-fill: -text-secondary;
+    -fx-border-color: transparent transparent -accent-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.ai-icon-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 4 5 4 5;
+    -fx-background-radius: 4;
+}
+.ai-icon-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.1);
+}
+.ai-quick-actions {
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.ai-quick-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+.ai-action-chip {
+    -fx-background-color: -bg-secondary;
+    -fx-text-fill: -text-primary;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-font-size: 11px;
+    -fx-padding: 3 8 3 6;
+    -fx-cursor: hand;
+}
+.ai-action-chip:hover {
+    -fx-background-color: -bg-hover;
+    -fx-border-color: -accent-color;
+}
+.ai-chat-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+.ai-chat-list {
+    -fx-background-color: transparent;
+}
+.ai-context-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-secondary;
+    -fx-padding: 2 4 2 4;
+}
+.ai-model-pill {
+    -fx-background-color: -bg-secondary;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
     -fx-border-color: -border-color;
     -fx-border-radius: 4;
+    -fx-border-width: 1;
+    -fx-padding: 1 4 1 6;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+}
+.ai-model-pill:hover {
+    -fx-background-color: -bg-hover;
+    -fx-border-color: -accent-color;
+}
+.ai-model-pill:focused {
+    -fx-border-color: -accent-color;
+}
+.ai-model-pill .list-cell {
+    -fx-text-fill: -text-primary;
+    -fx-font-size: 11px;
+    -fx-background-color: transparent;
+    -fx-padding: 0 4 0 0;
+}
+.ai-model-pill .arrow-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0 2 0 4;
+}
+.ai-model-pill .arrow {
+    -fx-background-color: -text-secondary;
+    -fx-shape: "M 0 0 L 3.5 3.5 L 7 0 Z";
+    -fx-scale-shape: false;
+    -fx-padding: 2;
+}
+.ai-model-pill:hover .arrow {
+    -fx-background-color: -text-primary;
+}
+.ai-composer {
+    -fx-background-color: -bg-editor;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 6 8 6 8;
+}
+.ai-composer:focus-within {
+    -fx-border-color: -accent-color;
+}
+.ai-composer-bar {
+    -fx-padding: 4 0 0 0;
+}
+.ai-attach-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 4 5 4 5;
     -fx-background-radius: 4;
-    -fx-font-size: 12px;
+}
+.ai-attach-btn:hover {
+    -fx-background-color: -bg-hover;
+}
+.ai-attachment-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0 0 4 0;
+}
+.ai-attachment-scroll .viewport {
+    -fx-background-color: transparent;
+}
+.ai-attachment-chip {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 2 6 2 6;
+}
+.ai-attachment-chip:hover {
+    -fx-background-color: -bg-hover;
+}
+.ai-attachment-chip-label {
+    -fx-text-fill: -text-primary;
+    -fx-font-size: 11px;
+}
+.ai-attachment-remove-btn {
+    -fx-background-color: transparent;
+    -fx-padding: 0 1 0 2;
+    -fx-cursor: hand;
+}
+.ai-attachment-remove-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.15);
+    -fx-background-radius: 2;
+}
+.ai-input-area {
+    -fx-border-color: -border-color transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.ai-send-btn {
+    -fx-background-color: -accent-color;
+    -fx-background-radius: 12;
+    -fx-padding: 4 6 4 6;
+    -fx-cursor: hand;
+    -fx-min-width: 26;
+    -fx-min-height: 26;
+    -fx-max-width: 26;
+    -fx-max-height: 26;
+}
+.ai-send-btn:hover {
+    -fx-background-color: -accent-hover;
+}
+.ai-prompt-input {
+    -fx-background-color: transparent;
+    -fx-text-fill: -text-primary;
+    -fx-prompt-text-fill: -text-secondary;
+    -fx-border-width: 0;
+    -fx-font-size: 12.5px;
+    -fx-padding: 2 4 2 4;
 }
 .ai-prompt-input .content {
-    -fx-background-color: -bg-editor;
+    -fx-background-color: transparent;
 }
 .ai-prompt-input:focused {
-    -fx-border-color: -accent-color;
+    -fx-border-width: 0;
 }
 .ai-prompt-input .prompt-text {
     -fx-fill: -text-secondary;
 }
+
+/* ComboBox general */
 .combo-box {
     -fx-background-color: -bg-editor;
     -fx-border-color: -border-color;
@@ -370,26 +589,46 @@
 .combo-box-popup .list-view {
     -fx-background-color: -bg-secondary;
     -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 0, 4);
+    -fx-padding: 3;
 }
-.combo-box-popup .list-cell:hover {
+.combo-box-popup .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -text-primary;
+    -fx-padding: 5 8 5 8;
+    -fx-font-size: 11.5px;
+    -fx-background-radius: 3;
+}
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: -accent-color;
+    -fx-text-fill: #ffffff;
+}
+.combo-box-popup .list-cell:filled:selected {
     -fx-background-color: -bg-hover;
+    -fx-text-fill: -accent-color;
+    -fx-font-weight: bold;
 }
 
-/* Custom Scrollbars */
+/* ─── Scrollbars — VS Code thin style ─────────────────────────────────────── */
 .scroll-bar:vertical {
     -fx-background-color: transparent;
-    -fx-pref-width: 12;
+    -fx-pref-width: 8;
 }
 .scroll-bar:horizontal {
     -fx-background-color: transparent;
-    -fx-pref-height: 12;
+    -fx-pref-height: 8;
 }
 .scroll-bar .thumb {
-    -fx-background-color: rgba(120, 120, 120, 0.35);
-    -fx-background-radius: 6;
+    -fx-background-color: rgba(120, 120, 120, 0.3);
+    -fx-background-radius: 4;
+    -fx-background-insets: 1;
 }
 .scroll-bar .thumb:hover {
-    -fx-background-color: rgba(120, 120, 120, 0.6);
+    -fx-background-color: rgba(120, 120, 120, 0.55);
 }
 .scroll-bar .track {
     -fx-background-color: transparent;
@@ -399,10 +638,16 @@
     -fx-pref-height: 0;
     -fx-padding: 0;
 }
+.scroll-bar .increment-arrow, .scroll-bar .decrement-arrow {
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+    -fx-shape: "";
+}
 
-/* Integrated Terminal Panel */
+/* ─── Terminal Panel ──────────────────────────────────────────────────────── */
 .terminal-pane {
-    -fx-background-color: #1e1e1e;
+    -fx-background-color: -bg-secondary;
     -fx-border-color: -border-color transparent transparent transparent;
     -fx-border-width: 1 0 0 0;
 }
@@ -410,58 +655,13 @@
     -fx-background-color: -bg-secondary;
     -fx-border-color: transparent transparent -border-color transparent;
     -fx-border-width: 0 0 1 0;
+    -fx-min-height: 35;
+    -fx-max-height: 35;
 }
 .terminal-header-title {
     -fx-text-fill: -text-secondary;
     -fx-font-weight: bold;
     -fx-font-size: 11px;
-}
-.terminal-header-btn {
-    -fx-background-color: transparent;
-    -fx-cursor: hand;
-    -fx-padding: 3 5 3 5;
-    -fx-background-radius: 4;
-}
-.terminal-header-btn:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.12);
-}
-/* VS Code Identical Bottom Panel / Terminal */
-.terminal-pane {
-    -fx-background-color: -bg-secondary;
-    -fx-border-color: -border-color transparent transparent transparent;
-    -fx-border-width: 1 0 0 0;
-}
-.terminal-header {
-    -fx-background-color: -bg-secondary;
-    -fx-border-color: transparent transparent -border-color transparent;
-    -fx-border-width: 0 0 1 0;
-}
-.dock-tab-btn {
-    -fx-text-fill: -text-secondary;
-    -fx-font-size: 11px;
-    -fx-font-weight: bold;
-    -fx-cursor: hand;
-    -fx-padding: 6 8 6 8;
-    -fx-border-color: transparent;
-    -fx-border-width: 0 0 2 0;
-}
-.dock-tab-btn:hover {
-    -fx-text-fill: #ffffff;
-}
-.dock-tab-btn.active {
-    -fx-text-fill: #ffffff;
-    -fx-border-color: transparent transparent -accent-color transparent;
-    -fx-border-width: 0 0 2 0;
-}
-.terminal-session-chip {
-    -fx-background-color: -bg-editor;
-    -fx-text-fill: -text-primary;
-    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
-    -fx-font-size: 11px;
-    -fx-padding: 3 8 3 8;
-    -fx-background-radius: 4px;
-    -fx-border-color: -border-color;
-    -fx-border-radius: 4px;
 }
 .terminal-header-btn {
     -fx-background-color: transparent;
@@ -478,12 +678,43 @@
 .terminal-header-btn:hover .codicon {
     -fx-icon-color: #ffffff;
 }
+.dock-tab-btn {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-padding: 6 8 6 8;
+    -fx-border-color: transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.dock-tab-btn:hover {
+    -fx-text-fill: #ffffff;
+}
+.dock-tab-btn.active {
+    -fx-text-fill: #ffffff;
+    -fx-border-color: transparent transparent -accent-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.terminal-session-chip {
+    -fx-background-color: -bg-editor;
+    -fx-text-fill: -text-primary;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
+    -fx-font-size: 11px;
+    -fx-padding: 3 8 3 8;
+    -fx-background-radius: 4px;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 4px;
+}
+.terminal-session-chip:hover {
+    -fx-background-color: -bg-hover;
+    -fx-cursor: hand;
+}
 .terminal-session-pane {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
 }
 .terminal-output-canvas {
-    -fx-background-color: #181818;
-    -fx-control-inner-background: #181818;
+    -fx-background-color: -bg-terminal;
+    -fx-control-inner-background: -bg-terminal;
     -fx-text-fill: #cccccc;
     -fx-font-family: Menlo, Monaco, "JetBrains Mono", "Fira Code", Consolas, monospace;
     -fx-font-size: 12.5px;
@@ -491,17 +722,13 @@
     -fx-focus-color: transparent;
     -fx-faint-focus-color: transparent;
 }
-.terminal-output-canvas .scroll-pane {
-    -fx-background-color: #181818;
-}
-.terminal-output-canvas .scroll-pane .viewport {
-    -fx-background-color: #181818;
-}
+.terminal-output-canvas .scroll-pane,
+.terminal-output-canvas .scroll-pane .viewport,
 .terminal-output-canvas .scroll-pane .content {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
 }
 .terminal-prompt-row {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
 }
 .terminal-shell-prompt {
     -fx-text-fill: #cccccc;
@@ -524,16 +751,16 @@
     -fx-background-color: transparent;
 }
 .terminal-scroll-pane {
-    -fx-background-color: #181818;
-    -fx-background: #181818;
+    -fx-background-color: -bg-terminal;
+    -fx-background: -bg-terminal;
     -fx-border-width: 0;
     -fx-padding: 0;
 }
 .terminal-scroll-pane > .viewport {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
 }
 .terminal-content-box {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
 }
 .terminal-text-flow {
     -fx-background-color: transparent;
@@ -546,7 +773,7 @@
 
 /* Dock Panel Views (Problems, Output, Debug, Ports) */
 .dock-content-pane {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
 }
 .dock-filter-input {
     -fx-background-color: #252526;
@@ -566,7 +793,7 @@
     -fx-text-fill: -text-secondary;
     -fx-font-size: 11px;
     -fx-cursor: hand;
-    -fx-padding: 3 7 3 7;
+    -fx-padding: 3 6 3 6;
     -fx-background-radius: 3px;
     -fx-border-color: -border-color;
     -fx-border-radius: 3px;
@@ -586,22 +813,18 @@
     -fx-text-fill: -text-primary;
 }
 .dock-output-text-area {
-    -fx-background-color: #181818;
-    -fx-control-inner-background: #181818;
+    -fx-background-color: -bg-terminal;
+    -fx-control-inner-background: -bg-terminal;
     -fx-text-fill: #cccccc;
     -fx-font-family: Menlo, Monaco, "JetBrains Mono", "Fira Code", Consolas, monospace;
     -fx-font-size: 12px;
     -fx-border-width: 0;
 }
-.dock-output-text-area .scroll-pane {
-    -fx-background-color: #181818;
-    -fx-background: #181818;
-}
-.dock-output-text-area .scroll-pane .viewport {
-    -fx-background-color: #181818;
-}
+.dock-output-text-area .scroll-pane,
+.dock-output-text-area .scroll-pane .viewport,
 .dock-output-text-area .scroll-pane .content {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
+    -fx-background: -bg-terminal;
 }
 .problem-row-item {
     -fx-background-color: transparent;
@@ -612,11 +835,11 @@
     -fx-background-color: -bg-hover;
 }
 .terminal-split-pane {
-    -fx-background-color: #181818;
+    -fx-background-color: -bg-terminal;
 }
 .terminal-split-pane > .split-pane-divider {
     -fx-background-color: -border-color;
-    -fx-padding: 0 1 0 1;
+    -fx-padding: 0 0.5 0 0.5;
 }
 .terminal-session-menu {
     -fx-background-color: #252526;
@@ -624,18 +847,11 @@
     -fx-border-width: 1;
     -fx-padding: 4;
 }
-.terminal-session-chip:hover {
-    -fx-background-color: -bg-hover;
-    -fx-cursor: hand;
-}
 
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   VS Code Identical Explorer Workspace Header & Inline Creation
-   ───────────────────────────────────────────────────────────────────────────── */
+/* ─── Explorer Workspace Header ───────────────────────────────────────────── */
 .explorer-workspace-header {
     -fx-background-color: -bg-sidebar;
-    -fx-padding: 4 10 4 10;
+    -fx-padding: 4 8 4 10;
     -fx-border-color: transparent transparent -border-color transparent;
     -fx-border-width: 0 0 1 0;
 }
@@ -644,7 +860,7 @@
 }
 .explorer-workspace-title {
     -fx-font-weight: bold;
-    -fx-font-size: 11.5px;
+    -fx-font-size: 11px;
     -fx-text-fill: -text-primary;
 }
 .explorer-action-btn {
@@ -663,14 +879,14 @@
     -fx-icon-color: #ffffff;
 }
 
-/* Inline Tree Input for New File & Folder (VS Code Blue Active Border) */
+/* Inline Tree Input */
 .inline-tree-input {
     -fx-background-color: #3c3c3c;
     -fx-text-fill: #ffffff;
     -fx-highlight-fill: #094771;
     -fx-highlight-text-fill: #ffffff;
     -fx-border-color: #007acc;
-    -fx-border-width: 1.5px;
+    -fx-border-width: 1px;
     -fx-border-radius: 2px;
     -fx-background-radius: 2px;
     -fx-padding: 1 6 1 6;
@@ -681,9 +897,7 @@
     -fx-border-color: #007acc;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   VS Code Welcome Watermark (When no tabs are open)
-   ───────────────────────────────────────────────────────────────────────────── */
+/* ─── Welcome Watermark ───────────────────────────────────────────────────── */
 .welcome-watermark-pane {
     -fx-background-color: -bg-primary;
 }
@@ -712,10 +926,10 @@
     -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
     -fx-font-size: 11px;
     -fx-font-weight: bold;
-    -fx-padding: 2 6 2 6;
-    -fx-background-radius: 4px;
+    -fx-padding: 1 5 1 5;
+    -fx-background-radius: 3px;
     -fx-border-color: -border-color;
-    -fx-border-radius: 4px;
+    -fx-border-radius: 3px;
     -fx-border-width: 1px;
 }
 .welcome-action-row:hover .shortcut-badge {
@@ -723,26 +937,24 @@
     -fx-border-color: -accent-color;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Command Palette VS Code Floating Modal Styling
-   ───────────────────────────────────────────────────────────────────────────── */
+/* ─── Command Palette ─────────────────────────────────────────────────────── */
 .command-palette-box {
     -fx-background-color: -bg-secondary;
     -fx-border-color: -border-color;
     -fx-border-width: 1;
-    -fx-border-radius: 6;
-    -fx-background-radius: 6;
-    -fx-padding: 8;
-    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.65), 20, 0, 0, 8);
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 6;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 16, 0, 0, 6);
 }
 .command-palette-input {
     -fx-background-color: -bg-editor;
     -fx-text-fill: -text-primary;
-    -fx-font-size: 13.5px;
-    -fx-padding: 7 10 7 10;
+    -fx-font-size: 13px;
+    -fx-padding: 6 8 6 8;
     -fx-border-color: -accent-color;
-    -fx-border-radius: 4;
-    -fx-background-radius: 4;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
 }
 .command-palette-list {
     -fx-background-color: transparent;
@@ -754,7 +966,7 @@
     -fx-background-color: transparent;
     -fx-padding: 3 6 3 6;
     -fx-cursor: hand;
-    -fx-background-radius: 4;
+    -fx-background-radius: 3;
 }
 .command-palette-list .list-cell:filled:hover {
     -fx-background-color: -bg-hover;
@@ -774,9 +986,7 @@
     -fx-icon-color: #ffffff;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────────
-   Find & Replace Bar Codicons & Buttons
-   ───────────────────────────────────────────────────────────────────────────── */
+/* ─── Find & Replace ──────────────────────────────────────────────────────── */
 .find-icon-btn {
     -fx-background-color: transparent;
     -fx-cursor: hand;
@@ -818,7 +1028,7 @@
     -fx-text-fill: -text-primary;
     -fx-cursor: hand;
     -fx-padding: 3 8 3 8;
-    -fx-font-size: 11.5px;
+    -fx-font-size: 11px;
     -fx-background-radius: 3px;
     -fx-border-color: -border-color;
     -fx-border-radius: 3px;
@@ -829,19 +1039,19 @@
     -fx-border-color: -accent-color;
 }
 
-/* Context Menu Styling */
+/* ─── Context Menu ────────────────────────────────────────────────────────── */
 .context-menu, .editor-context-menu {
     -fx-background-color: #252526;
-    -fx-border-color: #3c3c3c;
+    -fx-border-color: #454545;
     -fx-border-width: 1px;
     -fx-border-radius: 4px;
     -fx-background-radius: 4px;
     -fx-padding: 4px 0px 4px 0px;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.4), 12, 0, 0, 4);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 12, 0, 0, 4);
 }
 .context-menu .menu-item, .editor-context-menu .menu-item {
     -fx-background-color: transparent;
-    -fx-padding: 5px 16px 5px 12px;
+    -fx-padding: 4px 20px 4px 10px;
 }
 .context-menu .menu-item .label, .editor-context-menu .menu-item .label {
     -fx-text-fill: #cccccc;

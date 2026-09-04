@@ -4,7 +4,6 @@ import collaboration.core.*;
 import collaboration.network.*;
 import collaboration.security.*;
 import collaboration.sync.*;
-import collaboration.ui.*;
 import java.util.function.Consumer;
 
 /**
@@ -216,7 +215,15 @@ public class CollaborationController {
         return currentSession != null && server != null;
     }
 
-    private String generateSessionId() {
+    public EncryptionManager getEncryptionManager() {
+        return encryptionManager;
+    }
+
+    public OperationalTransform getOtEngine() {
+        return otEngine;
+    }
+
+    public String generateSessionId() {
         return "session_" + System.currentTimeMillis();
     }
 

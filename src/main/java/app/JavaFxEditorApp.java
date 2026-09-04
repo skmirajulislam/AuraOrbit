@@ -43,11 +43,9 @@ public class JavaFxEditorApp extends Application {
 
         // Tab Panes (Primary Left + Split Right)
         TabPane tabPaneLeft = new TabPane();
-        tabPaneLeft.getStyleClass().add("tab-header-area");
         tabPaneLeft.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
 
         TabPane tabPaneRight = new TabPane();
-        tabPaneRight.getStyleClass().add("tab-header-area");
         tabPaneRight.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         tabPaneRight.setVisible(false);
         tabPaneRight.setManaged(false);
@@ -83,8 +81,10 @@ public class JavaFxEditorApp extends Application {
 
         HBox runOverlay = new HBox(runButton);
         runOverlay.setAlignment(Pos.CENTER_RIGHT);
-        runOverlay.setPadding(new Insets(4, 10, 0, 0));
-        runOverlay.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        runOverlay.setPadding(new Insets(0, 8, 0, 0));
+        runOverlay.setMinHeight(35);
+        runOverlay.setPrefHeight(35);
+        runOverlay.setMaxHeight(35);
         runOverlay.setPickOnBounds(false);
         editorCenterStack.getChildren().add(runOverlay);
         StackPane.setAlignment(runOverlay, Pos.TOP_RIGHT);
@@ -94,12 +94,17 @@ public class JavaFxEditorApp extends Application {
         SidebarExplorer sidebarExplorer = new SidebarExplorer();
         AiAssistantPane aiAssistantPane = new AiAssistantPane();
         TerminalPane terminalPane = new TerminalPane();
+        terminalPane.setMinHeight(100);
+        terminalPane.setPrefHeight(220);
         FxStatusBar statusBar = new FxStatusBar(themeService);
 
         // Vertical SplitPane: [Editor Area (top) | Terminal (bottom)]
+        editorCenterStack.setMinHeight(120);
         SplitPane editorTerminalSplitPane = new SplitPane(editorCenterStack);
         editorTerminalSplitPane.setOrientation(Orientation.VERTICAL);
         editorTerminalSplitPane.getStyleClass().add("editor-split-pane");
+        SplitPane.setResizableWithParent(editorCenterStack, true);
+        SplitPane.setResizableWithParent(terminalPane, false);
 
         // Master 3-way Split Pane: [Sidebar | Editor+Terminal Area | AI Copilot]
         SplitPane masterSplitPane = new SplitPane(sidebarExplorer, editorTerminalSplitPane);
@@ -107,6 +112,7 @@ public class JavaFxEditorApp extends Application {
         masterSplitPane.setDividerPositions(0.22);
         SplitPane.setResizableWithParent(sidebarExplorer, false);
         SplitPane.setResizableWithParent(aiAssistantPane, false);
+        SplitPane.setResizableWithParent(editorTerminalSplitPane, true);
 
         // Main Application Border Container
         BorderPane root = new BorderPane();
@@ -137,6 +143,7 @@ public class JavaFxEditorApp extends Application {
     );
 
         controller.setRunButton(runButton);
+        controller.setRunOverlay(runOverlay);
 
         // Scene Setup
         Scene scene = new Scene(rootStackPane, 1200, 780);

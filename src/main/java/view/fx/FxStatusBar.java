@@ -9,7 +9,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import org.kordamp.ikonli.codicons.Codicons;
 import service.ThemeService;
-import view.fx.IconFactory;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -45,8 +44,8 @@ public class FxStatusBar extends HBox {
     public FxStatusBar(ThemeService themeService) {
         getStyleClass().add("status-bar");
         setAlignment(Pos.CENTER_LEFT);
-        setSpacing(4);
-        setPadding(new Insets(2, 8, 2, 8));
+        setSpacing(2);
+        setPadding(new Insets(0, 8, 0, 8));
 
         // 1. Left items: Git Branch + Sync + Problems
         gitBranchLabel = new Label(" " + detectGitBranch());

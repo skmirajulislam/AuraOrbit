@@ -5,6 +5,7 @@ import collaboration.ui.HostWorkspaceDialog;
 import collaboration.ui.JoinWorkspaceDialog;
 import javafx.application.Platform;
 import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
@@ -27,7 +28,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.*;
-import java.util.function.Consumer;
 
 /**
  * Master JavaFX Controller orchestrating multi-tab documents, sidebars,
@@ -55,9 +55,8 @@ public class FxEditorController {
     private ModalOverlayPane modalOverlayPane;
     private CollaborationController collaborationController;
     private boolean applyingRemoteCollaborationChange;
-    private Consumer<Boolean> onRunAvailabilityChanged;
-    private long runAvailabilityRevision;
     private Button runButton;
+    private HBox runOverlay;
 
     private final List<EditorTabController> tabControllers = new ArrayList<>();
     private boolean isSplitEditorActive = false;
@@ -135,6 +134,16 @@ public class FxEditorController {
     public void setRunButton(Button button) {
         this.runButton = button;
         refreshRunAvailability();
+    }
+
+    public void setRunOverlay(HBox runOverlay) {
+        this.runOverlay = runOverlay;
+        if (runOverlay != null) {
+            boolean hasTabs = (tabPaneLeft != null && !tabPaneLeft.getTabs().isEmpty()) ||
+                    (isSplitEditorActive && tabPaneRight != null && !tabPaneRight.getTabs().isEmpty());
+            runOverlay.setVisible(hasTabs);
+            runOverlay.setManaged(hasTabs);
+        }
     }
 
     private void setupTabPanes() {
@@ -220,6 +229,13 @@ public class FxEditorController {
             EditorTabController current = getActiveTabController();
             return current != null ? current.getDocument().getFileName() : "untitled.txt";
         });
+
+        aiAssistantPane.setActiveFilePathSupplier(() -> {
+            EditorTabController current = getActiveTabController();
+            return current != null ? current.getDocument().getFilePath() : null;
+        });
+
+        aiAssistantPane.setWorkspacePathSupplier(() -> sidebarExplorer.getRootPath());
 
         aiAssistantPane.setSelectedCodeSupplier(() -> {
             EditorTabController current = getActiveTabController();
@@ -358,6 +374,7 @@ public class FxEditorController {
             terminalPane.showTerminal();
             if (!editorTerminalSplitPane.getItems().contains(terminalPane)) {
                 editorTerminalSplitPane.getItems().add(terminalPane);
+                SplitPane.setResizableWithParent(terminalPane, false);
                 editorTerminalSplitPane.setDividerPosition(
                         editorTerminalSplitPane.getItems().size() - 2, 0.7);
             }
@@ -376,6 +393,7 @@ public class FxEditorController {
             terminalPane.showTerminal();
             if (!editorTerminalSplitPane.getItems().contains(terminalPane)) {
                 editorTerminalSplitPane.getItems().add(terminalPane);
+                SplitPane.setResizableWithParent(terminalPane, false);
                 editorTerminalSplitPane.setDividerPosition(
                         editorTerminalSplitPane.getItems().size() - 2, 0.7);
             }
@@ -399,6 +417,7 @@ public class FxEditorController {
             aiAssistantPane.setManaged(true);
             if (!masterSplitPane.getItems().contains(aiAssistantPane)) {
                 masterSplitPane.getItems().add(aiAssistantPane);
+                SplitPane.setResizableWithParent(aiAssistantPane, false);
             }
             Platform.runLater(() -> {
                 int divIdx = masterSplitPane.getItems().size() - 2;
@@ -730,6 +749,10 @@ public class FxEditorController {
         if (editorSplitPane != null) {
             editorSplitPane.setVisible(hasTabs);
             editorSplitPane.setManaged(hasTabs);
+        }
+        if (runOverlay != null) {
+            runOverlay.setVisible(hasTabs);
+            runOverlay.setManaged(hasTabs);
         }
 
         EditorTabController current = getActiveTabController();

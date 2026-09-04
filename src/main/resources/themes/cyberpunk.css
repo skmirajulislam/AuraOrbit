@@ -50,14 +50,14 @@
     -fx-background-color: -bg-activity-bar;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
-    -fx-padding: 8 4 8 4;
+    -fx-padding: 4 0 4 0;
 }
 
 .activity-button {
     -fx-background-color: transparent;
     -fx-text-fill: -text-secondary;
     -fx-font-size: 16px;
-    -fx-padding: 8 6 8 6;
+    -fx-padding: 8 10 8 10;
     -fx-cursor: hand;
     -fx-background-radius: 4;
 }
@@ -88,12 +88,12 @@
 .tree-view {
     -fx-background-color: -bg-sidebar;
     -fx-background-insets: 0;
-    -fx-padding: 4 0 0 0;
+    -fx-padding: 2 0 0 0;
 }
 .tree-cell {
     -fx-background-color: -bg-sidebar;
     -fx-text-fill: -text-primary;
-    -fx-padding: 3 6 3 6;
+    -fx-padding: 2 6 2 6;
     -fx-font-size: 13px;
     -fx-cursor: hand;
 }
@@ -113,30 +113,55 @@
 }
 .editor-split-pane > .split-pane-divider {
     -fx-background-color: -border-color;
-    -fx-padding: 0 1 0 1;
+    -fx-padding: 0 0.5 0 0.5;
 }
 
 /* TabPane */
 .tab-pane {
     -fx-background-color: -bg-primary;
+    -fx-tab-min-height: 29;
+    -fx-tab-max-height: 29;
 }
 .tab-pane > .tab-header-area {
     -fx-background-color: -bg-secondary;
-    -fx-padding: 0;
+    -fx-padding: 0 85 0 0;
+    -fx-min-height: 35;
+    -fx-pref-height: 35;
+    -fx-max-height: 35;
+}
+.tab-pane > .tab-header-area > .tab-header-background {
+    -fx-background-color: -bg-secondary;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+}
+.tab-pane > .tab-header-area > .headers-region {
+    -fx-padding: 3 0 0 0;
+    -fx-effect: null;
 }
 .tab-pane > .tab-header-area > .headers-region > .tab {
     -fx-background-color: -bg-tab-inactive;
     -fx-background-insets: 0;
-    -fx-background-radius: 0;
-    -fx-padding: 7 14 7 14;
-    -fx-border-color: transparent -border-color transparent transparent;
-    -fx-border-width: 0 1 0 0;
+    -fx-background-radius: 4 4 0 0;
+    -fx-border-radius: 4 4 0 0;
+    -fx-padding: 4 12 4 12;
+    -fx-border-color: -border-color -border-color transparent -border-color;
+    -fx-border-width: 1 1 0 1;
     -fx-cursor: hand;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:hover {
+    -fx-background-color: derive(-bg-tab-inactive, 10%);
 }
 .tab-pane > .tab-header-area > .headers-region > .tab:selected {
     -fx-background-color: -bg-tab-active;
-    -fx-border-color: -accent-color -border-color transparent transparent;
-    -fx-border-width: 2 1 0 0;
+    -fx-border-color: -accent-color -border-color transparent -border-color;
+    -fx-border-width: 2 1 0 1;
+    -fx-background-radius: 4 4 0 0;
+    -fx-border-radius: 4 4 0 0;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .focus-indicator,
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
 }
 .tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
     -fx-text-fill: -text-secondary;
@@ -187,8 +212,8 @@
     -fx-cursor: hand;
     -fx-padding: 2 4 2 4;
     -fx-background-radius: 4;
-    -fx-min-width: 18px;
-    -fx-min-height: 18px;
+    -fx-min-width: 16px;
+    -fx-min-height: 16px;
 }
 .custom-tab-close-btn .codicon {
     -fx-icon-color: -text-secondary;
@@ -212,8 +237,8 @@
     -fx-background-color: -bg-gutter;
     -fx-text-fill: -text-gutter;
     -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13.5px;
-    -fx-padding: 0 12 0 10;
+    -fx-font-size: 13px;
+    -fx-padding: 0 10 0 8;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
 }
@@ -226,7 +251,7 @@
 }
 .styled-text-area .text {
     -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13.5px;
+    -fx-font-size: 13px;
     -fx-fill: -text-primary;
 }
 
@@ -278,13 +303,13 @@
 .status-bar {
     -fx-background-color: -bg-status-bar;
     -fx-text-fill: -text-status;
-    -fx-padding: 3 10 3 10;
+    -fx-padding: 0 8 0 8;
     -fx-font-size: 12px;
     -fx-font-weight: bold;
 }
 .status-item {
     -fx-text-fill: -text-status;
-    -fx-padding: 2 6 2 6;
+    -fx-padding: 1 5 1 5;
     -fx-cursor: hand;
 }
 .status-item:hover {
@@ -338,21 +363,172 @@
     -fx-background-color: -bg-secondary;
     -fx-border-color: transparent transparent -border-color transparent;
     -fx-border-width: 0 0 1 0;
+    -fx-min-height: 35;
+    -fx-max-height: 35;
 }
-.ai-prompt-input {
-    -fx-background-color: -bg-editor;
+.ai-panel-tab {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 11.5px;
+    -fx-padding: 6 8 6 8;
+}
+.ai-panel-tab.active {
     -fx-text-fill: -text-primary;
-    -fx-prompt-text-fill: -text-secondary;
+    -fx-font-weight: bold;
+}
+.ai-quick-actions {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.ai-action-chip {
+    -fx-background-color: -bg-editor;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-text-fill: -text-primary;
+    -fx-font-size: 11px;
+    -fx-padding: 3 9 3 9;
+    -fx-cursor: hand;
+}
+.ai-action-chip:hover {
+    -fx-background-color: -bg-hover;
+    -fx-border-color: -accent-color;
+}
+.ai-chat-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+.ai-chat-list {
+    -fx-background-color: transparent;
+}
+.ai-context-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: -text-secondary;
+    -fx-padding: 2 4 2 4;
+}
+.ai-model-pill {
+    -fx-background-color: -bg-secondary;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
     -fx-border-color: -border-color;
     -fx-border-radius: 4;
+    -fx-border-width: 1;
+    -fx-padding: 1 4 1 6;
+    -fx-font-size: 11px;
+    -fx-cursor: hand;
+}
+.ai-model-pill:hover {
+    -fx-background-color: -bg-hover;
+    -fx-border-color: -accent-color;
+}
+.ai-model-pill:focused {
+    -fx-border-color: -accent-color;
+}
+.ai-model-pill .list-cell {
+    -fx-text-fill: -text-primary;
+    -fx-font-size: 11px;
+    -fx-background-color: transparent;
+    -fx-padding: 0 4 0 0;
+}
+.ai-model-pill .arrow-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0 2 0 4;
+}
+.ai-model-pill .arrow {
+    -fx-background-color: -text-secondary;
+    -fx-shape: "M 0 0 L 3.5 3.5 L 7 0 Z";
+    -fx-scale-shape: false;
+    -fx-padding: 2;
+}
+.ai-model-pill:hover .arrow {
+    -fx-background-color: -text-primary;
+}
+.ai-composer {
+    -fx-background-color: -bg-editor;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 6 8 6 8;
+}
+.ai-composer:focus-within {
+    -fx-border-color: -accent-color;
+}
+.ai-composer-bar {
+    -fx-padding: 4 0 0 0;
+}
+.ai-attach-btn {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 4 5 4 5;
     -fx-background-radius: 4;
-    -fx-font-size: 12px;
+}
+.ai-attach-btn:hover {
+    -fx-background-color: -bg-hover;
+}
+.ai-attachment-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0 0 4 0;
+}
+.ai-attachment-scroll .viewport {
+    -fx-background-color: transparent;
+}
+.ai-attachment-chip {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 2 6 2 6;
+}
+.ai-attachment-chip:hover {
+    -fx-background-color: -bg-hover;
+}
+.ai-attachment-chip-label {
+    -fx-text-fill: -text-primary;
+    -fx-font-size: 11px;
+}
+.ai-attachment-remove-btn {
+    -fx-background-color: transparent;
+    -fx-padding: 0 1 0 2;
+    -fx-cursor: hand;
+}
+.ai-attachment-remove-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.15);
+    -fx-background-radius: 2;
+}
+.ai-input-area {
+    -fx-border-color: -border-color transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.ai-send-btn {
+    -fx-background-color: -accent-color;
+    -fx-background-radius: 12;
+    -fx-padding: 4 6 4 6;
+    -fx-cursor: hand;
+    -fx-min-width: 26;
+    -fx-min-height: 26;
+    -fx-max-width: 26;
+    -fx-max-height: 26;
+}
+.ai-send-btn:hover {
+    -fx-background-color: -accent-hover;
+}
+.ai-prompt-input {
+    -fx-background-color: transparent;
+    -fx-text-fill: -text-primary;
+    -fx-prompt-text-fill: -text-secondary;
+    -fx-border-width: 0;
+    -fx-font-size: 12.5px;
+    -fx-padding: 2 4 2 4;
 }
 .ai-prompt-input .content {
-    -fx-background-color: -bg-editor;
+    -fx-background-color: transparent;
 }
 .ai-prompt-input:focused {
-    -fx-border-color: -accent-color;
+    -fx-border-width: 0;
 }
 .ai-prompt-input .prompt-text {
     -fx-fill: -text-secondary;
@@ -370,23 +546,42 @@
 .combo-box-popup .list-view {
     -fx-background-color: -bg-secondary;
     -fx-border-color: -border-color;
+    -fx-border-width: 1;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 10, 0, 0, 4);
+    -fx-padding: 3;
 }
-.combo-box-popup .list-cell:hover {
+.combo-box-popup .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -text-primary;
+    -fx-padding: 5 8 5 8;
+    -fx-font-size: 11.5px;
+    -fx-background-radius: 3;
+}
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: -accent-color;
+    -fx-text-fill: #ffffff;
+}
+.combo-box-popup .list-cell:filled:selected {
     -fx-background-color: -bg-hover;
+    -fx-text-fill: -accent-color;
+    -fx-font-weight: bold;
 }
 
 /* Custom Scrollbars */
 .scroll-bar:vertical {
     -fx-background-color: transparent;
-    -fx-pref-width: 12;
+    -fx-pref-width: 8;
 }
 .scroll-bar:horizontal {
     -fx-background-color: transparent;
-    -fx-pref-height: 12;
+    -fx-pref-height: 8;
 }
 .scroll-bar .thumb {
     -fx-background-color: rgba(255, 0, 127, 0.45);
-    -fx-background-radius: 6;
+    -fx-background-radius: 4;
 }
 .scroll-bar .thumb:hover {
     -fx-background-color: rgba(255, 0, 127, 0.85);

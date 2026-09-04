@@ -1,7 +1,7 @@
 package collaboration.security;
 
 import java.security.SecureRandom;
-import java.util.*;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -22,6 +22,10 @@ public class JwtTokenManager {
         this.tokenRegistry = new ConcurrentHashMap<>();
         this.secureRandom = new SecureRandom();
         this.serverSecret = serverSecret;
+    }
+
+    public String getServerSecret() {
+        return serverSecret;
     }
 
     /**
