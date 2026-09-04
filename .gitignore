@@ -44,3 +44,7 @@ Thumbs.db
 .classpath
 *.sublime-project
 *.sublime-workspace
+
+# Backup files
+*.bak
+*.bak.*

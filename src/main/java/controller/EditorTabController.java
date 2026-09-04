@@ -39,9 +39,15 @@ public class EditorTabController {
     private boolean isModified;
     private boolean suppressEvents;
     private Runnable onStateChanged;
+    private Consumer<EditorTabController> onCursorMoved;
+    private Consumer<EditorTabController> onTextChanged;
     private Consumer<EditorTabController> onCloseRequested;
     private Consumer<EditorTabController> onCloseOthersRequested;
     private Runnable onCloseAllRequested;
+
+    private String lineEndings = "LF";
+    private String indentation = "Spaces: 4";
+    private String lastIconName = "";
 
     public EditorTabController(String initialName, FileService fileService) {
         this.fileService = fileService;
@@ -137,12 +143,30 @@ public class EditorTabController {
             String content = fileService.readString(sanitized);
             editorPane.getCodeArea().replaceText(content);
             editorPane.getCodeArea().moveTo(0);
+            updateCachedMetadata(content);
             suppressEvents = false;
         }
 
         initListeners();
         setupContextMenu();
         updateTabTitle();
+    }
+
+    private void updateCachedMetadata(String content) {
+        if (content == null || content.isEmpty()) return;
+        this.lineEndings = content.contains("\r\n") ? "CRLF" : "LF";
+        if (content.contains("\t")) {
+            this.indentation = "Tab Size: 4";
+        } else {
+            String name = document != null ? document.getFileName().toLowerCase() : "";
+            if (name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml") ||
+                name.endsWith(".js") || name.endsWith(".ts") || name.endsWith(".html") ||
+                name.endsWith(".css") || name.endsWith(".xml")) {
+                this.indentation = "Spaces: 2";
+            } else {
+                this.indentation = "Spaces: 4";
+            }
+        }
     }
 
     private void setupContextMenu() {
@@ -171,16 +195,29 @@ public class EditorTabController {
 
     private void initListeners() {
         CodeArea codeArea = editorPane.getCodeArea();
-        codeArea.textProperty().addListener((obs, oldVal, newVal) -> {
+
+        // High-performance event stream: zero full-text string joins on keystrokes
+        codeArea.plainTextChanges().subscribe(change -> {
             if (!suppressEvents) {
-                isModified = true;
-                updateTabTitle();
-                if (onStateChanged != null) onStateChanged.run();
+                if (!isModified) {
+                    isModified = true;
+                    updateTabTitle();
+                }
+                if (onTextChanged != null) {
+                    onTextChanged.accept(this);
+                } else if (onStateChanged != null) {
+                    onStateChanged.run();
+                }
             }
         });
 
+        // Caret position updates: instantaneous cursor tracking
         codeArea.caretPositionProperty().addListener((obs, oldVal, newVal) -> {
-            if (onStateChanged != null) onStateChanged.run();
+            if (onCursorMoved != null) {
+                onCursorMoved.accept(this);
+            } else if (onStateChanged != null) {
+                onStateChanged.run();
+            }
         });
     }
 
@@ -188,11 +225,16 @@ public class EditorTabController {
         suppressEvents = true;
         editorPane.getCodeArea().replaceText(content != null ? content : "");
         editorPane.getCodeArea().moveTo(0);
+        updateCachedMetadata(content);
         suppressEvents = false;
 
         isModified = markModified;
         updateTabTitle();
-        if (onStateChanged != null) onStateChanged.run();
+        if (onTextChanged != null) {
+            onTextChanged.accept(this);
+        } else if (onStateChanged != null) {
+            onStateChanged.run();
+        }
     }
 
     public boolean save(boolean forceSaveAs, File targetFile) {
@@ -205,8 +247,13 @@ public class EditorTabController {
             String text = editorPane.getCodeArea().getText();
             fileService.saveStringAtomically(document.getFilePath(), text, true);
             isModified = false;
+            updateCachedMetadata(text);
             updateTabTitle();
-            if (onStateChanged != null) onStateChanged.run();
+            if (onTextChanged != null) {
+                onTextChanged.accept(this);
+            } else if (onStateChanged != null) {
+                onStateChanged.run();
+            }
             return true;
         } catch (IOException e) {
             System.err.println("Save failed: " + e.getMessage());
@@ -216,12 +263,18 @@ public class EditorTabController {
 
     public void updateTabTitle() {
         String name = (document != null) ? document.getFileName() : "untitled";
-        titleLabel.setText((isModified ? "● " : "") + name);
+        String expectedText = (isModified ? "● " : "") + name;
+        if (!expectedText.equals(titleLabel.getText())) {
+            titleLabel.setText(expectedText);
+        }
 
-        // Update file icon based on latest extension
-        FontIcon newIcon = IconFactory.getFileIcon(name, 13);
-        fileIconNode.setIconCode(newIcon.getIconCode());
-        fileIconNode.setIconColor(newIcon.getIconColor());
+        // Only update file icon if the filename actually changed
+        if (!name.equals(lastIconName)) {
+            lastIconName = name;
+            FontIcon newIcon = IconFactory.getFileIcon(name, 13);
+            fileIconNode.setIconCode(newIcon.getIconCode());
+            fileIconNode.setIconColor(newIcon.getIconColor());
+        }
     }
 
     public Tab getTab() { return tab; }
@@ -229,6 +282,8 @@ public class EditorTabController {
     public Document getDocument() { return document; }
     public boolean isModified() { return isModified; }
     public void setOnStateChanged(Runnable onStateChanged) { this.onStateChanged = onStateChanged; }
+    public void setOnCursorMoved(Consumer<EditorTabController> onCursorMoved) { this.onCursorMoved = onCursorMoved; }
+    public void setOnTextChanged(Consumer<EditorTabController> onTextChanged) { this.onTextChanged = onTextChanged; }
     public void setOnCloseRequested(Consumer<EditorTabController> onCloseRequested) { this.onCloseRequested = onCloseRequested; }
     public void setOnCloseOthersRequested(Consumer<EditorTabController> onCloseOthersRequested) { this.onCloseOthersRequested = onCloseOthersRequested; }
     public void setOnCloseAllRequested(Runnable onCloseAllRequested) { this.onCloseAllRequested = onCloseAllRequested; }
@@ -250,31 +305,22 @@ public class EditorTabController {
     }
 
     public String getLineEndings() {
-        String text = editorPane.getCodeArea().getText();
-        return text.contains("\r\n") ? "CRLF" : "LF";
+        return lineEndings;
     }
 
     public void toggleLineEndings() {
         String text = editorPane.getCodeArea().getText();
         if (text.contains("\r\n")) {
             setContent(text.replace("\r\n", "\n"), true);
+            this.lineEndings = "LF";
         } else {
             setContent(text.replace("\n", "\r\n"), true);
+            this.lineEndings = "CRLF";
         }
     }
 
     public String getIndentation() {
-        String text = editorPane.getCodeArea().getText();
-        if (text.contains("\t")) {
-            return "Tab Size: 4";
-        }
-        String name = document != null ? document.getFileName().toLowerCase() : "";
-        if (name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml") ||
-            name.endsWith(".js") || name.endsWith(".ts") || name.endsWith(".html") ||
-            name.endsWith(".css") || name.endsWith(".xml")) {
-            return "Spaces: 2";
-        }
-        return "Spaces: 4";
+        return indentation;
     }
 
     public String getEncoding() {

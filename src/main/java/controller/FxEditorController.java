@@ -67,6 +67,8 @@ public class FxEditorController {
         return t;
     });
     private ScheduledFuture<?> pendingDiagnosticFuture;
+    private ScheduledFuture<?> pendingMetricsFuture;
+    private ScheduledFuture<?> pendingCollabSnapshotFuture;
 
     public FxEditorController(Stage stage, ThemeService themeService) {
         this.stage = stage;
@@ -638,12 +640,45 @@ public class FxEditorController {
         tabCtrl.setOnCloseRequested(this::closeTab);
         tabCtrl.setOnCloseOthersRequested(this::closeOtherTabs);
         tabCtrl.setOnCloseAllRequested(this::closeAllTabs);
+
+        // Immediate lightweight cursor tracking on the status bar (zero string allocations)
+        tabCtrl.setOnCursorMoved(tc -> {
+            if (tc == getActiveTabController() && statusBar != null) {
+                statusBar.updatePosition(tc.getCurrentLine(), tc.getCurrentColumn());
+            }
+        });
+
+        // Fast typing responsive callback (debounced metrics and diagnostics)
+        tabCtrl.setOnTextChanged(tc -> {
+            scheduleDebouncedActiveTabMetrics();
+            triggerLiveDiagnostics(tc);
+            scheduleDebouncedCollaborationSnapshot(tc);
+        });
+
         tabCtrl.setOnStateChanged(() -> {
             updateActiveTabMetrics();
             triggerLiveDiagnostics(tabCtrl);
-            broadcastDocumentSnapshot(tabCtrl);
-            refreshRunAvailability();
+            scheduleDebouncedCollaborationSnapshot(tabCtrl);
         });
+    }
+
+    private void scheduleDebouncedActiveTabMetrics() {
+        if (pendingMetricsFuture != null && !pendingMetricsFuture.isDone()) {
+            pendingMetricsFuture.cancel(false);
+        }
+        pendingMetricsFuture = diagnosticDebounceExecutor.schedule(() -> {
+            Platform.runLater(this::updateActiveTabMetrics);
+        }, 150, TimeUnit.MILLISECONDS);
+    }
+
+    private void scheduleDebouncedCollaborationSnapshot(EditorTabController tabCtrl) {
+        if (collaborationController == null || !collaborationController.isConnected() || tabCtrl == null) return;
+        if (pendingCollabSnapshotFuture != null && !pendingCollabSnapshotFuture.isDone()) {
+            pendingCollabSnapshotFuture.cancel(false);
+        }
+        pendingCollabSnapshotFuture = diagnosticDebounceExecutor.schedule(() -> {
+            Platform.runLater(() -> broadcastDocumentSnapshot(tabCtrl));
+        }, 300, TimeUnit.MILLISECONDS);
     }
 
     private void triggerLiveDiagnostics(EditorTabController tc) {
@@ -897,13 +932,13 @@ public class FxEditorController {
                 // Check what tool is missing
                 String extension = extensionOf(source.getFileName().toString());
                 missingTool = switch (extension) {
-                    case "java" -> (!isAvailable("javac") ? "javac" : (!isAvailable("java") ? "java" : null));
-                    case "py" -> (!isAvailable("python3") && !isAvailable("python") ? "python3/python" : null);
-                    case "js", "mjs", "cjs" -> (!isAvailable("node") ? "node" : null);
-                    case "sh" -> (!isAvailable("bash") ? "bash" : null);
-                    case "rb" -> (!isAvailable("ruby") ? "ruby" : null);
-                    case "c" -> (!isAvailable("gcc") ? "gcc" : null);
-                    case "cpp", "cc", "cxx" -> (!isAvailable("g++") ? "g++" : null);
+                    case "java" -> (!codeExecutionService.isToolAvailable("javac") ? "javac" : (!codeExecutionService.isToolAvailable("java") ? "java" : null));
+                    case "py" -> (!codeExecutionService.isToolAvailable("python3") && !codeExecutionService.isToolAvailable("python") ? "python3/python" : null);
+                    case "js", "mjs", "cjs" -> (!codeExecutionService.isToolAvailable("node") ? "node" : null);
+                    case "sh" -> (!codeExecutionService.isToolAvailable("bash") ? "bash" : null);
+                    case "rb" -> (!codeExecutionService.isToolAvailable("ruby") ? "ruby" : null);
+                    case "c" -> (!codeExecutionService.isToolAvailable("gcc") ? "gcc" : null);
+                    case "cpp", "cc", "cxx" -> (!codeExecutionService.isToolAvailable("g++") ? "g++" : null);
                     default -> null;
                 };
             }
@@ -933,16 +968,6 @@ public class FxEditorController {
     private String extensionOf(String fileName) {
         int lastDot = fileName.lastIndexOf('.');
         return lastDot > 0 ? fileName.substring(lastDot + 1).toLowerCase(Locale.ROOT) : "";
-    }
-
-    private boolean isAvailable(String command) {
-        try {
-            Process process = new ProcessBuilder(command, "--version").redirectErrorStream(true).start();
-            return process.waitFor(3, TimeUnit.SECONDS) && process.exitValue() == 0;
-        } catch (IOException | InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
     }
 
     public boolean handleSave(boolean forceSaveAs) {

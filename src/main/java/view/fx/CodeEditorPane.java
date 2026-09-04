@@ -68,8 +68,8 @@ public class CodeEditorPane extends StackPane {
     private static final String TYPE_PATTERN = "\\b[A-Z][a-zA-Z0-9_]*\\b";
     private static final String FUNCTION_PATTERN = "\\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s*\\()";
     private static final String ANNOTATION_PATTERN = "@[a-zA-Z_0-9]+";
-    private static final String STRING_PATTERN = "\"\"\"(?:.|[\\n\\r])*?\"\"\"|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'";
-    private static final String COMMENT_PATTERN = "//[^\n]*|/\\*(?:.|[\\n\\r])*?\\*/|#[^\n]*";
+    private static final String STRING_PATTERN = "\"\"\"[\\s\\S]*?\"\"\"|\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'";
+    private static final String COMMENT_PATTERN = "//[^\\r\\n]*|/\\*[\\s\\S]*?\\*/|#[^\\r\\n]*";
     private static final String NUMBER_PATTERN = "\\b0[xX][0-9a-fA-F]+|\\b\\d+(\\.\\d+)?([eE][+-]?\\d+)?[fFdDlL]?\\b";
     private static final String PAREN_PATTERN = "\\(|\\)";
     private static final String BRACE_PATTERN = "\\{|\\}";
@@ -107,12 +107,11 @@ public class CodeEditorPane extends StackPane {
             return t;
         });
 
-        // Async debounced syntax highlighting
-        this.codeArea.multiPlainChanges()
-                .successionEnds(Duration.ofMillis(120))
-                .retainLatestUntilLater(highlightExecutor)
+        // Fast responsive async debounced syntax highlighting
+        this.codeArea.plainTextChanges()
+                .successionEnds(Duration.ofMillis(60))
                 .supplyTask(this::computeHighlightingAsync)
-                .awaitLatest(codeArea.multiPlainChanges())
+                .awaitLatest(codeArea.plainTextChanges())
                 .filterMap(t -> {
                     if (t.isSuccess()) {
                         return Optional.of(t.get());
@@ -249,11 +248,20 @@ public class CodeEditorPane extends StackPane {
                     matcher.group("SEMICOLON") != null ? "semicolon" :
                     null;
 
-            spansBuilder.add(Collections.singleton("plain"), matcher.start() - lastKwEnd);
-            spansBuilder.add(Collections.singleton(styleClass != null ? styleClass : "plain"), matcher.end() - matcher.start());
+            int gap = matcher.start() - lastKwEnd;
+            if (gap > 0) {
+                spansBuilder.add(Collections.singleton("plain"), gap);
+            }
+            int matchLen = matcher.end() - matcher.start();
+            if (matchLen > 0) {
+                spansBuilder.add(Collections.singleton(styleClass != null ? styleClass : "plain"), matchLen);
+            }
             lastKwEnd = matcher.end();
         }
-        spansBuilder.add(Collections.singleton("plain"), text.length() - lastKwEnd);
+        int remaining = text.length() - lastKwEnd;
+        if (remaining > 0) {
+            spansBuilder.add(Collections.singleton("plain"), remaining);
+        }
         return spansBuilder.create();
     }
 

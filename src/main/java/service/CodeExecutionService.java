@@ -6,6 +6,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -137,16 +139,42 @@ public final class CodeExecutionService {
         }
     }
 
-    private boolean isAvailable(String command) {
+    private static final Map<String, Boolean> TOOL_AVAILABILITY_CACHE = new ConcurrentHashMap<>();
+
+    static {
+        // Pre-warm common compilers/interpreters asynchronously on a virtual daemon thread
+        Thread.ofVirtual().start(() -> {
+            for (String tool : List.of("javac", "java", "python3", "python", "node", "bash", "ruby", "gcc", "g++")) {
+                try {
+                    Process process = new ProcessBuilder(tool, "--version").redirectErrorStream(true).start();
+                    boolean ok = process.waitFor(1500, TimeUnit.MILLISECONDS) && process.exitValue() == 0;
+                    TOOL_AVAILABILITY_CACHE.put(tool, ok);
+                } catch (Exception ignored) {
+                    TOOL_AVAILABILITY_CACHE.put(tool, false);
+                }
+            }
+        });
+    }
+
+    public boolean isToolAvailable(String command) {
+        if (command == null || command.isBlank()) return false;
+        return TOOL_AVAILABILITY_CACHE.computeIfAbsent(command, this::checkToolAvailable);
+    }
+
+    private boolean checkToolAvailable(String command) {
         try {
             Process process = new ProcessBuilder(command, "--version").redirectErrorStream(true).start();
-            return process.waitFor(3, TimeUnit.SECONDS) && process.exitValue() == 0;
+            return process.waitFor(2, TimeUnit.SECONDS) && process.exitValue() == 0;
         } catch (IOException exception) {
             return false;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return false;
         }
+    }
+
+    private boolean isAvailable(String command) {
+        return isToolAvailable(command);
     }
 
     private static String extensionOf(String name) {
