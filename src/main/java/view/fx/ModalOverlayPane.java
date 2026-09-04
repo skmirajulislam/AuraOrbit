@@ -338,6 +338,34 @@ public class ModalOverlayPane extends StackPane {
         open();
     }
 
+    public void showTextInput(String title, String prompt, String defaultValue, Consumer<String> onSubmitted) {
+        setupDialog(title, Codicons.EDIT, "#4ea8de");
+
+        Label promptLabel = new Label(prompt);
+        promptLabel.setWrapText(true);
+        promptLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: -text-primary;");
+
+        TextField inputField = new TextField(defaultValue != null ? defaultValue : "");
+        inputField.setStyle("-fx-background-color: -bg-primary; -fx-text-fill: -text-primary; -fx-border-color: -border-color; -fx-border-radius: 4; -fx-padding: 6 10 6 10;");
+
+        inputField.setOnAction(e -> {
+            close();
+            if (onSubmitted != null) onSubmitted.accept(inputField.getText());
+        });
+
+        bodyContainer.getChildren().addAll(promptLabel, inputField);
+
+        Button cancelBtn = createSecondaryButton("Cancel", this::close);
+        Button okBtn = createPrimaryButton("OK", () -> {
+            close();
+            if (onSubmitted != null) onSubmitted.accept(inputField.getText());
+        });
+
+        footerContainer.getChildren().addAll(cancelBtn, okBtn);
+        open();
+        javafx.application.Platform.runLater(inputField::requestFocus);
+    }
+
     public void showCustom(String title, Codicons icon, Node customBody, Node... actionButtons) {
         setupDialog(title, icon, "#4ea8de");
         bodyContainer.getChildren().add(customBody);

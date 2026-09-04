@@ -123,6 +123,8 @@ public class JavaFxEditorApp extends Application {
 
         // Universal In-App Modal Overlay (Replaces OS popups)
         ModalOverlayPane modalOverlayPane = new ModalOverlayPane();
+        sidebarExplorer.setModalOverlayPane(modalOverlayPane);
+        terminalPane.setModalOverlayPane(modalOverlayPane);
         StackPane rootStackPane = new StackPane(root, modalOverlayPane);
 
         // Initialize Controller

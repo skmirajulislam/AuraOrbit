@@ -54,6 +54,11 @@ public class SidebarExplorer extends VBox {
     private Consumer<Path> onWorkspaceChanged;
     private BiConsumer<Path, Path> onFileRenamed;
     private TreeItem<FileItem> renamingTreeItem;
+    private ModalOverlayPane modalOverlayPane;
+
+    public void setModalOverlayPane(ModalOverlayPane modalOverlayPane) {
+        this.modalOverlayPane = modalOverlayPane;
+    }
 
     /**
      * Tree item data model representing files, folders, or in-progress inline creation.
@@ -651,13 +656,7 @@ public class SidebarExplorer extends VBox {
         if (treeItem == null || treeItem.getValue() == null || treeItem.getValue().file == null) return;
         File file = treeItem.getValue().file;
 
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Delete " + (file.isDirectory() ? "Folder" : "File"));
-        alert.setHeaderText("Are you sure you want to delete '" + file.getName() + "'?");
-        alert.setContentText("This action permanently deletes the item from disk.");
-
-        Optional<ButtonType> result = alert.showAndWait();
-        if (result.isPresent() && result.get() == ButtonType.OK) {
+        Runnable doDelete = () -> {
             try {
                 if (file.isDirectory()) {
                     deleteRecursively(file);
@@ -668,10 +667,33 @@ public class SidebarExplorer extends VBox {
                     treeItem.getParent().getChildren().remove(treeItem);
                 }
             } catch (IOException ex) {
-                Alert err = new Alert(Alert.AlertType.ERROR);
-                err.setTitle("Delete Failed");
-                err.setContentText("Could not delete " + file.getName() + ": " + ex.getMessage());
-                err.showAndWait();
+                if (modalOverlayPane != null) {
+                    modalOverlayPane.showError("Delete Failed", "Could not delete " + file.getName() + ": " + ex.getMessage());
+                } else {
+                    Alert err = new Alert(Alert.AlertType.ERROR);
+                    err.setTitle("Delete Failed");
+                    err.setContentText("Could not delete " + file.getName() + ": " + ex.getMessage());
+                    err.showAndWait();
+                }
+            }
+        };
+
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showConfirmation(
+                    "Delete " + (file.isDirectory() ? "Folder" : "File"),
+                    "Are you sure you want to delete '" + file.getName() + "'?\n\nThis action permanently deletes the item from disk.",
+                    "Delete",
+                    doDelete
+            );
+        } else {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Delete " + (file.isDirectory() ? "Folder" : "File"));
+            alert.setHeaderText("Are you sure you want to delete '" + file.getName() + "'?");
+            alert.setContentText("This action permanently deletes the item from disk.");
+
+            Optional<ButtonType> result = alert.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                doDelete.run();
             }
         }
     }

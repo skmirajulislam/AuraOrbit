@@ -163,6 +163,11 @@ public class TerminalPane extends BorderPane {
     private VBox portsTableContainer;
     private VBox portsEmptyState;
     private TextField portFilterField;
+    private ModalOverlayPane modalOverlayPane;
+
+    public void setModalOverlayPane(ModalOverlayPane modalOverlayPane) {
+        this.modalOverlayPane = modalOverlayPane;
+    }
     private Label portCountBadge;
     private boolean portsScannedOnce;
 
@@ -1718,19 +1723,41 @@ public class TerminalPane extends BorderPane {
     }
 
     private void showAddPortDialog() {
-        TextInputDialog dialog = new TextInputDialog("8080");
-        dialog.setTitle("Forward / Add Port");
-        dialog.setHeaderText("Forward or monitor a local TCP port");
-        dialog.setContentText("Port number:");
-        dialog.showAndWait().ifPresent(str -> {
-            try {
-                int p = Integer.parseInt(str.trim());
-                if (p > 0 && p <= 65535) {
-                    userTrackedPorts.add(p);
-                    scanLocalPorts();
-                }
-            } catch (NumberFormatException ignored) {}
-        });
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showTextInput(
+                    "Forward / Add Port",
+                    "Enter local TCP port number to monitor or forward:",
+                    "8080",
+                    str -> {
+                        if (str == null || str.isBlank()) return;
+                        try {
+                            int p = Integer.parseInt(str.trim());
+                            if (p > 0 && p <= 65535) {
+                                userTrackedPorts.add(p);
+                                scanLocalPorts();
+                            } else {
+                                modalOverlayPane.showError("Invalid Port", "Port number must be between 1 and 65535.");
+                            }
+                        } catch (NumberFormatException ignored) {
+                            modalOverlayPane.showError("Invalid Port", "Please enter a valid numeric port.");
+                        }
+                    }
+            );
+        } else {
+            TextInputDialog dialog = new TextInputDialog("8080");
+            dialog.setTitle("Forward / Add Port");
+            dialog.setHeaderText("Forward or monitor a local TCP port");
+            dialog.setContentText("Port number:");
+            dialog.showAndWait().ifPresent(str -> {
+                try {
+                    int p = Integer.parseInt(str.trim());
+                    if (p > 0 && p <= 65535) {
+                        userTrackedPorts.add(p);
+                        scanLocalPorts();
+                    }
+                } catch (NumberFormatException ignored) {}
+            });
+        }
     }
 
     private void openUrlInBrowser(String url) {

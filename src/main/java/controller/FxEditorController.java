@@ -109,6 +109,12 @@ public class FxEditorController {
         this.terminalPane = terminalPane;
         this.editorTerminalSplitPane = editorTerminalSplitPane;
         this.modalOverlayPane = modalOverlayPane;
+        if (sidebarExplorer != null) {
+            sidebarExplorer.setModalOverlayPane(modalOverlayPane);
+        }
+        if (terminalPane != null) {
+            terminalPane.setModalOverlayPane(modalOverlayPane);
+        }
 
         setupTabPanes();
         setupSidebar();
