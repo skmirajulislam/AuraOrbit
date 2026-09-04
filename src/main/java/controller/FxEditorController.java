@@ -907,7 +907,7 @@ public class FxEditorController {
                     showRunMessage(plan.message());
                     return;
                 }
-                terminalPane.executeProgram(plan.steps(), source.getParent(), plan.command());
+                terminalPane.executeProgram(plan.steps(), source.getParent(), plan.command(), plan.cleanupHook());
             });
         }, "runtime-detector");
         detector.setDaemon(true);

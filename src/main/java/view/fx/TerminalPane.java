@@ -539,10 +539,14 @@ public class TerminalPane extends BorderPane {
      * never the wrapper {@code cd ... && java ...} command line.
      */
     public void executeProgram(List<List<String>> steps, Path workingDirectory, String displayCommand) {
+        executeProgram(steps, workingDirectory, displayCommand, null);
+    }
+
+    public void executeProgram(List<List<String>> steps, Path workingDirectory, String displayCommand, Runnable cleanupHook) {
         if (steps == null || steps.isEmpty()) return;
         showTerminal();
         if (activeSession == null) return;
-        activeSession.runForegroundProgram(steps, workingDirectory, displayCommand);
+        activeSession.runForegroundProgram(steps, workingDirectory, displayCommand, cleanupHook);
     }
 
     private String translateForPowerShell(String command) {
@@ -1900,7 +1904,7 @@ public class TerminalPane extends BorderPane {
             });
         }
 
-        void runForegroundProgram(List<List<String>> steps, Path workingDirectory, String displayCommand) {
+        void runForegroundProgram(List<List<String>> steps, Path workingDirectory, String displayCommand, Runnable cleanupHook) {
             if (programRunning) {
                 appendOutputText("[A program is already running. Press Ctrl+C to stop it.]\n");
                 return;
@@ -1932,6 +1936,11 @@ public class TerminalPane extends BorderPane {
                 } finally {
                     closeProgramWriter();
                     foregroundProcess = null;
+                    if (cleanupHook != null) {
+                        try {
+                            cleanupHook.run();
+                        } catch (Exception ignored) {}
+                    }
                     Platform.runLater(() -> {
                         setProgramRunning(false);
                         focusInput();
