@@ -156,7 +156,7 @@ public class CollaborationController {
         }
 
         if (client != null) {
-            client.disconnect();
+            client.shutdown();
             client = null;
         }
 

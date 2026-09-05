@@ -1136,7 +1136,7 @@ public class FxEditorController {
     }
 
     private void disconnectExistingCollaboration() throws Exception {
-        if (collaborationController != null && collaborationController.isConnected()) {
+        if (collaborationController != null) {
             collaborationController.disconnect();
         }
     }
