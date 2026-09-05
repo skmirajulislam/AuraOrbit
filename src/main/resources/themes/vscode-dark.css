@@ -157,6 +157,7 @@
 }
 .tab-pane > .tab-header-area > .headers-region > .tab:hover {
     -fx-background-color: derive(-bg-tab-inactive, 10%);
+}
 .tab-pane > .tab-header-area > .headers-region > .tab:selected {
     -fx-background-color: -accent-color, -bg-tab-active;
     -fx-background-insets: 0, 2 0 0 0;
