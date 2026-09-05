@@ -2,23 +2,34 @@ package view.fx;
 
 import javafx.application.Platform;
 import javafx.concurrent.Task;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.input.KeyCode;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 import service.CodeFormatterService;
+import service.GitGutterService;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -32,8 +43,12 @@ public class CodeEditorPane extends StackPane {
 
     private final CodeArea codeArea;
     private final FindReplaceBar findReplaceBar;
+    private final BreadcrumbBar breadcrumbBar;
+    private final MinimapPane minimapPane;
+    private final Map<Integer, GitGutterService.GutterType> gitDiffMap = new ConcurrentHashMap<>();
     private final ExecutorService highlightExecutor;
     private String fileType = "java";
+    private Path currentFilePath;
 
     // 1. Control flow keywords (purple/magenta in Dark+, red in Light)
     private static final String[] CONTROL_KEYWORDS = new String[] {
@@ -98,9 +113,15 @@ public class CodeEditorPane extends StackPane {
         this.codeArea.getStyleClass().add("code-area");
         this.codeArea.getStyleClass().add("vscode-code-editor");
         this.codeArea.setWrapText(false);
-        this.codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+        this.codeArea.setParagraphGraphicFactory(this::createGutterGraphic);
         this.codeArea.setMaxWidth(Double.MAX_VALUE);
         this.codeArea.setMaxHeight(Double.MAX_VALUE);
+
+        this.breadcrumbBar = new BreadcrumbBar();
+        this.breadcrumbBar.setOnNavigateToLine(this::navigateToLineAndHighlight);
+
+        this.minimapPane = new MinimapPane(codeArea);
+
         this.highlightExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "syntax-highlight-thread");
             t.setDaemon(true);
@@ -143,6 +164,7 @@ public class CodeEditorPane extends StackPane {
             }
             if (newParagraph != null && newParagraph >= 0 && newParagraph < codeArea.getParagraphs().size()) {
                 codeArea.setParagraphStyle(newParagraph, Collections.singletonList("active-line-highlight"));
+                breadcrumbBar.updateActiveCaretLine(newParagraph + 1);
             }
         });
 
@@ -150,8 +172,16 @@ public class CodeEditorPane extends StackPane {
         scrollPane.getStyleClass().add("code-scroll-pane");
         scrollPane.setMaxWidth(Double.MAX_VALUE);
         scrollPane.setMaxHeight(Double.MAX_VALUE);
+        HBox.setHgrow(scrollPane, Priority.ALWAYS);
 
-        getChildren().addAll(scrollPane, findReplaceBar);
+        HBox centerBox = new HBox(0, scrollPane, minimapPane);
+        centerBox.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        VBox.setVgrow(centerBox, Priority.ALWAYS);
+
+        VBox layout = new VBox(0, breadcrumbBar, centerBox);
+        layout.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        getChildren().addAll(layout, findReplaceBar);
         setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
         setMinSize(0, 0);
     }
@@ -219,6 +249,7 @@ public class CodeEditorPane extends StackPane {
 
     private void applyHighlighting(StyleSpans<Collection<String>> highlighting) {
         codeArea.setStyleSpans(0, highlighting);
+        minimapPane.renderMinimap();
     }
 
     private StyleSpans<Collection<String>> computeHighlighting(String text) {
@@ -404,6 +435,70 @@ public class CodeEditorPane extends StackPane {
             codeArea.selectRange(startPos, startPos + len);
             codeArea.requestFocus();
         }
+    }
+
+    private Node createGutterGraphic(int paragraphIndex) {
+        int line1Indexed = paragraphIndex + 1;
+        HBox gutter = new HBox(4);
+        gutter.setAlignment(Pos.CENTER_RIGHT);
+        gutter.setPadding(new Insets(0, 4, 0, 8));
+
+        Label lineNum = new Label(String.valueOf(line1Indexed));
+        lineNum.getStyleClass().add("lineno");
+
+        Region gitIndicator = new Region();
+        gitIndicator.setPrefWidth(3);
+        gitIndicator.setMinWidth(3);
+        gitIndicator.setMaxWidth(3);
+        VBox.setVgrow(gitIndicator, Priority.ALWAYS);
+
+        GitGutterService.GutterType state = gitDiffMap.getOrDefault(line1Indexed, GitGutterService.GutterType.NONE);
+        switch (state) {
+            case ADDED -> gitIndicator.setStyle("-fx-background-color: #2ea043;");
+            case MODIFIED -> gitIndicator.setStyle("-fx-background-color: #007acc;");
+            case DELETED -> gitIndicator.setStyle("-fx-background-color: #f85149;");
+            case NONE -> gitIndicator.setStyle("-fx-background-color: transparent;");
+        }
+
+        gutter.getChildren().addAll(lineNum, gitIndicator);
+        return gutter;
+    }
+
+    public void refreshGitGutter(Path file) {
+        if (file == null) return;
+        this.currentFilePath = file;
+        GitGutterService.computeDiffAsync(file, diff -> {
+            gitDiffMap.clear();
+            gitDiffMap.putAll(diff);
+            Platform.runLater(() -> {
+                codeArea.setParagraphGraphicFactory(this::createGutterGraphic);
+            });
+        });
+    }
+
+    public void updateBreadcrumbs(Path filePath, String fileType, String content) {
+        this.currentFilePath = filePath;
+        breadcrumbBar.updateFilePath(filePath, fileType);
+        breadcrumbBar.indexSymbols(content, fileType);
+        refreshGitGutter(filePath);
+    }
+
+    public void updateCaretLine(int line1Indexed) {
+        breadcrumbBar.updateActiveCaretLine(line1Indexed);
+    }
+
+    public void toggleMinimap() {
+        boolean visible = !minimapPane.isVisible();
+        minimapPane.setVisible(visible);
+        minimapPane.setManaged(visible);
+    }
+
+    public MinimapPane getMinimapPane() {
+        return minimapPane;
+    }
+
+    public BreadcrumbBar getBreadcrumbBar() {
+        return breadcrumbBar;
     }
 
     public void dispose() {

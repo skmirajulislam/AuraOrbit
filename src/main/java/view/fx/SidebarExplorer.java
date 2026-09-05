@@ -841,6 +841,10 @@ public class SidebarExplorer extends VBox {
         }
     }
 
+    public Path getCurrentWorkspacePath() {
+        return currentWorkspacePath;
+    }
+
     public void promptOpenFolder() {
         if (onOpenFolderRequested != null) {
             onOpenFolderRequested.run();

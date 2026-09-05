@@ -22,6 +22,11 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import service.GitGutterService;
+import service.ScriptPluginService;
+import view.fx.BreadcrumbBar;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Automated test suite verifying buffer operations, undo/redo consistency,
@@ -54,6 +59,9 @@ public class EditorTestSuite {
             testProgramArgumentParsing();
             testFileIcons();
             testPolicyAgreementService();
+            testGitGutterDiffEngine();
+            testScriptPluginDiscovery();
+            testBreadcrumbSymbolIndexing();
 
             System.out.println("\n-------------------------------------------------");
             System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -649,5 +657,70 @@ public class EditorTestSuite {
         } catch (Exception e) {
             assertTrue(false, "Policy agreement error: " + e.getMessage());
         }
+    }
+
+    private static void testGitGutterDiffEngine() {
+        System.out.println("\n[17] Testing Git Gutter Diff Engine...");
+        Map<Integer, GitGutterService.GutterType> diffMap = new HashMap<>();
+
+        // Test addition hunk
+        GitGutterService.parseHunkHeader("@@ -10,0 +11,3 @@", diffMap);
+        assertEquals(GitGutterService.GutterType.ADDED, diffMap.get(11), "Line 11 is ADDED");
+        assertEquals(GitGutterService.GutterType.ADDED, diffMap.get(12), "Line 12 is ADDED");
+        assertEquals(GitGutterService.GutterType.ADDED, diffMap.get(13), "Line 13 is ADDED");
+
+        // Test modification hunk
+        diffMap.clear();
+        GitGutterService.parseHunkHeader("@@ -20,2 +20,2 @@", diffMap);
+        assertEquals(GitGutterService.GutterType.MODIFIED, diffMap.get(20), "Line 20 is MODIFIED");
+        assertEquals(GitGutterService.GutterType.MODIFIED, diffMap.get(21), "Line 21 is MODIFIED");
+
+        // Test deletion hunk
+        diffMap.clear();
+        GitGutterService.parseHunkHeader("@@ -30,1 +29,0 @@", diffMap);
+        assertEquals(GitGutterService.GutterType.DELETED, diffMap.get(29), "Line 29 is DELETED");
+    }
+
+    private static void testScriptPluginDiscovery() {
+        System.out.println("\n[18] Testing Automation Script Plugin Service...");
+        var scripts = ScriptPluginService.discoverScripts(Paths.get("."));
+        assertTrue(scripts != null, "Script discovery returns a non-null list");
+    }
+
+    private static void testBreadcrumbSymbolIndexing() {
+        System.out.println("\n[19] Testing Breadcrumb Symbol Indexer...");
+        BreadcrumbBar bar = new BreadcrumbBar();
+
+        String javaCode = """
+                package com.test;
+                public class Calculator {
+                    public int add(int a, int b) {
+                        return a + b;
+                    }
+                    private void reset() {
+                    }
+                }
+                """;
+        bar.indexSymbols(javaCode, "java");
+        bar.updateActiveCaretLine(3);
+        assertTrue(bar.getChildren().size() >= 2, "Breadcrumb bar contains path and symbol picker");
+
+        String pyCode = """
+                class User:
+                    def get_name(self):
+                        return "test"
+                """;
+        bar.indexSymbols(pyCode, "py");
+        bar.updateActiveCaretLine(2);
+        assertTrue(bar.getChildren().size() >= 2, "Python symbols indexed in breadcrumbs");
+
+        String mdText = """
+                # Introduction
+                Some text
+                ## Features
+                """;
+        bar.indexSymbols(mdText, "md");
+        bar.updateActiveCaretLine(3);
+        assertTrue(bar.getChildren().size() >= 2, "Markdown headings indexed in breadcrumbs");
     }
 }

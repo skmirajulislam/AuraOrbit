@@ -213,6 +213,7 @@ public class EditorTabController {
 
         // Caret position updates: instantaneous cursor tracking
         codeArea.caretPositionProperty().addListener((obs, oldVal, newVal) -> {
+            editorPane.updateCaretLine(codeArea.getCurrentParagraph() + 1);
             if (onCursorMoved != null) {
                 onCursorMoved.accept(this);
             } else if (onStateChanged != null) {
@@ -230,6 +231,8 @@ public class EditorTabController {
 
         isModified = markModified;
         updateTabTitle();
+        String ft = getFileExtension();
+        editorPane.updateBreadcrumbs(document.getFilePath(), ft, content);
         if (onTextChanged != null) {
             onTextChanged.accept(this);
         } else if (onStateChanged != null) {
@@ -249,6 +252,9 @@ public class EditorTabController {
             isModified = false;
             updateCachedMetadata(text);
             updateTabTitle();
+            String ft = getFileExtension();
+            editorPane.updateBreadcrumbs(document.getFilePath(), ft, text);
+            editorPane.refreshGitGutter(document.getFilePath());
             if (onTextChanged != null) {
                 onTextChanged.accept(this);
             } else if (onStateChanged != null) {
@@ -259,6 +265,13 @@ public class EditorTabController {
             System.err.println("Save failed: " + e.getMessage());
             return false;
         }
+    }
+
+    public String getFileExtension() {
+        if (document == null || document.getFileName() == null) return "";
+        String name = document.getFileName();
+        int dot = name.lastIndexOf('.');
+        return (dot != -1 && dot < name.length() - 1) ? name.substring(dot + 1).toLowerCase() : "";
     }
 
     public void updateTabTitle() {

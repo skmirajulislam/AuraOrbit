@@ -12,6 +12,7 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import service.FileService;
 import service.CodeExecutionService;
+import service.ScriptPluginService;
 import service.ThemeService;
 import template.Template;
 import view.fx.*;
@@ -548,6 +549,32 @@ public class FxEditorController {
         commandPalette.registerCommand("Collaboration: Host Workspace...", "", this::hostCollaborationWorkspace);
         commandPalette.registerCommand("Collaboration: Join Workspace...", "", this::joinCollaborationWorkspace);
         commandPalette.registerCommand("Collaboration: Disconnect", "", this::disconnectCollaborationWorkspace);
+        commandPalette.registerCommand("View: Toggle Minimap", "Alt+M", () -> {
+            EditorTabController current = getActiveTabController();
+            if (current != null) {
+                current.getEditorPane().toggleMinimap();
+            }
+        });
+        commandPalette.registerCommand("Scripts: Run Automation Script...", "", () -> {
+            Path ws = sidebarExplorer.getCurrentWorkspacePath() != null ? sidebarExplorer.getCurrentWorkspacePath() : Paths.get(".");
+            var scripts = ScriptPluginService.discoverScripts(ws);
+            if (scripts.isEmpty()) {
+                if (modalOverlayPane != null) {
+                    modalOverlayPane.showInformation("Automation Scripts",
+                            "No custom scripts found. Place .sh, .py, or .js scripts in ~/.auraorbit/scripts/ or .auraorbit/scripts/ in your workspace.");
+                }
+                return;
+            }
+            for (var s : scripts) {
+                terminalPane.logOutput("Tasks & Maven", "Executing script: " + s.name() + " (" + s.interpreter() + ")");
+                EditorTabController current = getActiveTabController();
+                Path activeFile = (current != null && current.getDocument().isPersisted()) ? current.getDocument().getFilePath() : null;
+                ScriptPluginService.executeScriptAsync(s, activeFile, ws,
+                        line -> terminalPane.logOutput("Tasks & Maven", line),
+                        code -> terminalPane.logOutput("Tasks & Maven", "[Process exited with code " + code + "]")
+                );
+            }
+        });
         commandPalette.registerCommand("Help: About AuraOrbit", "", this::showAboutDialog);
 
         for (ThemeService.Theme theme : ThemeService.Theme.values()) {
