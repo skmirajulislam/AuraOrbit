@@ -39,6 +39,12 @@
             <artifactId>ikonli-codicons-pack</artifactId>
             <version>12.3.1</version>
         </dependency>
+        <!-- Ikonli Devicons Pack for genuine programming language logos -->
+        <dependency>
+            <groupId>org.kordamp.ikonli</groupId>
+            <artifactId>ikonli-devicons-pack</artifactId>
+            <version>12.3.1</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

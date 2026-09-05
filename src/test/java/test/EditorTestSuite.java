@@ -9,8 +9,10 @@ import template.JsonTemplate;
 import template.MarkdownTemplate;
 import template.TemplateFactory;
 import view.fx.TerminalPane;
+import view.fx.IconFactory;
 import service.CodeDiagnosticsService;
 import org.kordamp.ikonli.codicons.Codicons;
+import org.kordamp.ikonli.devicons.Devicons;
 import javafx.application.Platform;
 
 import java.io.IOException;
@@ -49,6 +51,7 @@ public class EditorTestSuite {
         testCodeFormatterService();
         testAiServiceConfig();
         testProgramArgumentParsing();
+        testFileIcons();
 
         System.out.println("\n-------------------------------------------------");
         System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -578,5 +581,39 @@ public class EditorTestSuite {
         assertEquals(List.of(), service.CodeExecutionService.parseProgramArguments("  "), "Empty args parse to none");
         assertEquals(List.of("10", "20", "hello"), service.CodeExecutionService.parseProgramArguments("10 20 hello"), "Whitespace-separated args");
         assertEquals(List.of("hello world", "x"), service.CodeExecutionService.parseProgramArguments("\"hello world\" x"), "Quoted args keep spaces");
+    }
+
+    private static void testFileIcons() {
+        System.out.println("\n[15] Testing VS Code File Icons Engine...");
+        assertEquals(Devicons.GIT, IconFactory.getFileIcon(".gitignore", 14).getIconCode(), ".gitignore maps to Git devicon");
+        assertEquals(Codicons.VERIFIED, IconFactory.getFileIcon("CODE_OF_CONDUCT.md", 14).getIconCode(), "CODE_OF_CONDUCT.md maps to Verified codicon");
+        assertEquals(Codicons.LAW, IconFactory.getFileIcon("LICENSE", 14).getIconCode(), "LICENSE maps to Law codicon");
+        assertEquals(Codicons.SHIELD, IconFactory.getFileIcon("SECURITY.md", 14).getIconCode(), "SECURITY.md maps to Shield codicon");
+        assertEquals(Codicons.TOOLS, IconFactory.getFileIcon("pom.xml", 14).getIconCode(), "pom.xml maps to Tools codicon");
+        assertEquals(Devicons.NPM, IconFactory.getFileIcon("package.json", 14).getIconCode(), "package.json maps to NPM devicon");
+        assertEquals(Devicons.DOCKER, IconFactory.getFileIcon("Dockerfile", 14).getIconCode(), "Dockerfile maps to Docker devicon");
+        assertEquals(Devicons.PYTHON, IconFactory.getFileIcon("requirements.txt", 14).getIconCode(), "requirements.txt maps to Python devicon");
+
+        assertEquals(Devicons.JAVA, IconFactory.getFileIcon("Main.java", 14).getIconCode(), ".java maps to Java devicon");
+        assertEquals(Devicons.PYTHON, IconFactory.getFileIcon("script.py", 14).getIconCode(), ".py maps to Python devicon");
+        assertEquals(Codicons.FILE_BINARY, IconFactory.getFileIcon("Main.class", 14).getIconCode(), ".class maps to File Binary codicon");
+        assertEquals(Devicons.JAVASCRIPT_BADGE, IconFactory.getFileIcon("app.js", 14).getIconCode(), ".js maps to JS Badge devicon");
+        assertEquals(Codicons.FILE_CODE, IconFactory.getFileIcon("index.ts", 14).getIconCode(), ".ts maps to File Code codicon");
+        assertEquals(Devicons.REACT, IconFactory.getFileIcon("Component.jsx", 14).getIconCode(), ".jsx maps to React devicon");
+        assertEquals(Devicons.HTML5, IconFactory.getFileIcon("index.html", 14).getIconCode(), ".html maps to HTML5 devicon");
+        assertEquals(Devicons.CSS3, IconFactory.getFileIcon("style.css", 14).getIconCode(), ".css maps to CSS3 devicon");
+        assertEquals(Codicons.JSON, IconFactory.getFileIcon("config.json", 14).getIconCode(), ".json maps to JSON codicon");
+        assertEquals(Codicons.MARKDOWN, IconFactory.getFileIcon("notes.md", 14).getIconCode(), ".md maps to Markdown codicon");
+        assertEquals(Codicons.TERMINAL, IconFactory.getFileIcon("deploy.sh", 14).getIconCode(), ".sh maps to Terminal codicon");
+        assertEquals(Devicons.RUST, IconFactory.getFileIcon("main.rs", 14).getIconCode(), ".rs maps to Rust devicon");
+        assertEquals(Devicons.GO, IconFactory.getFileIcon("server.go", 14).getIconCode(), ".go maps to Go devicon");
+
+        // Verify folder icons render as standard codicons
+        assertEquals(Codicons.FOLDER, IconFactory.getFolderIcon(false, 14).getIconCode(), "closed folder maps to Folder codicon");
+        assertEquals(Codicons.FOLDER_OPENED, IconFactory.getFolderIcon(true, 14).getIconCode(), "opened folder maps to Folder Opened codicon");
+
+        // Verify theme compatibility: icons have .codicon style class and no hardcoded inline style
+        assertTrue(IconFactory.getFileIcon("Main.java", 14).getStyleClass().contains("codicon"), "File icon has .codicon class for theme integration");
+        assertTrue(!IconFactory.getFileIcon("Main.java", 14).getStyle().contains("-fx-icon-color"), "File icon has no hardcoded color override");
     }
 }
