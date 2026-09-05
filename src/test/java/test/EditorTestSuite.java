@@ -37,33 +37,35 @@ public class EditorTestSuite {
         System.out.println("   RUNNING FILE EDITOR AUTOMATED TEST SUITE      ");
         System.out.println("=================================================");
 
-        testTextBufferOperations();
-        testCommandManagerUndoRedo();
-        testSecurityValidator();
-        testFileServiceAtomicSaveAndLoad();
-        testTemplateEngine();
-        testConcurrencyAndThreadSafety();
-        testMultiLineUndoRedoAndEdgeCases();
-        testStringAtomicSaveAndLoad();
-        testLineEndingsAndIndentationLogic();
-        testTerminalAndDockFeatures();
-        testCodeDiagnosticsEngine();
-        testCodeFormatterService();
-        testAiServiceConfig();
-        testProgramArgumentParsing();
-        testFileIcons();
-        testPolicyAgreementService();
+        try {
+            testTextBufferOperations();
+            testCommandManagerUndoRedo();
+            testSecurityValidator();
+            testFileServiceAtomicSaveAndLoad();
+            testTemplateEngine();
+            testConcurrencyAndThreadSafety();
+            testMultiLineUndoRedoAndEdgeCases();
+            testStringAtomicSaveAndLoad();
+            testLineEndingsAndIndentationLogic();
+            testTerminalAndDockFeatures();
+            testCodeDiagnosticsEngine();
+            testCodeFormatterService();
+            testAiServiceConfig();
+            testProgramArgumentParsing();
+            testFileIcons();
+            testPolicyAgreementService();
 
-        System.out.println("\n-------------------------------------------------");
-        System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
-        System.out.println("-------------------------------------------------");
-
-        if (testsFailed > 0) {
-            Platform.exit();
-            System.exit(1);
-        } else {
-            Platform.exit();
-            System.exit(0);
+            System.out.println("\n-------------------------------------------------");
+            System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
+            System.out.println("-------------------------------------------------");
+        } catch (Throwable t) {
+            System.err.println("Unexpected test harness exception: " + t.getMessage());
+            testsFailed++;
+        } finally {
+            try {
+                Platform.exit();
+            } catch (Throwable ignored) {}
+            System.exit(testsFailed > 0 ? 1 : 0);
         }
     }
 
