@@ -140,7 +140,7 @@ jobs:
       - name: Install Linux Packaging Utilities
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot dpkg-dev libasound2 libgl1 libgtk-3-0
+          sudo apt-get install -y fakeroot
 
       - name: Build Fat JAR
         run: mvn clean package -DskipTests
