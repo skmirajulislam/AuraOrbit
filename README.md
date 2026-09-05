@@ -303,7 +303,7 @@ RESULTS: 124 PASSED | 0 FAILED (100% Reliability)
 
 ## 🤝 Contributing & Code of Conduct
 
-We welcome contributions! Please review our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECURITY.md) before submitting pull requests.
+We welcome contributions! Please review our [Contributing Guidelines](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [Security Policy](SECURITY.md) before submitting pull requests.
 
 1. Fork the Project.
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`).
