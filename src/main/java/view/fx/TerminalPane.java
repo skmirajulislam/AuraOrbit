@@ -1919,20 +1919,23 @@ public class TerminalPane extends BorderPane {
 
             ioExecutor.submit(() -> {
                 int lastExit = 0;
+                boolean[] endsWithNewline = new boolean[]{true};
                 try {
                     for (int i = 0; i < steps.size(); i++) {
                         List<String> step = steps.get(i);
                         if (step == null || step.isEmpty()) continue;
                         boolean interactive = i == steps.size() - 1;
-                        lastExit = runForegroundStep(step, dir, interactive);
+                        lastExit = runForegroundStep(step, dir, interactive, endsWithNewline);
                         if (lastExit != 0) {
                             break;
                         }
                     }
                     final int exit = lastExit;
-                    Platform.runLater(() -> appendOutputText("[Process exited with code " + exit + "]\n"));
+                    final boolean needsNewline = !endsWithNewline[0];
+                    Platform.runLater(() -> appendOutputText((needsNewline ? "\n" : "") + "[Process exited with code " + exit + "]\n"));
                 } catch (Exception e) {
-                    Platform.runLater(() -> appendOutputText("[Failed to run program: " + e.getMessage() + "]\n"));
+                    final boolean needsNewline = !endsWithNewline[0];
+                    Platform.runLater(() -> appendOutputText((needsNewline ? "\n" : "") + "[Failed to run program: " + e.getMessage() + "]\n"));
                 } finally {
                     closeProgramWriter();
                     foregroundProcess = null;
@@ -1949,7 +1952,7 @@ public class TerminalPane extends BorderPane {
             });
         }
 
-        private int runForegroundStep(List<String> argv, File dir, boolean interactive) throws IOException, InterruptedException {
+        private int runForegroundStep(List<String> argv, File dir, boolean interactive, boolean[] endsWithNewline) throws IOException, InterruptedException {
             ProcessBuilder pb = new ProcessBuilder(argv);
             if (dir != null && dir.isDirectory()) {
                 pb.directory(dir);
@@ -1976,6 +1979,9 @@ public class TerminalPane extends BorderPane {
                     String cleaned = stripAnsi(new String(buf, 0, n));
                     if (!cleaned.isEmpty()) {
                         final String textChunk = cleaned;
+                        if (endsWithNewline != null) {
+                            endsWithNewline[0] = textChunk.endsWith("\n") || textChunk.endsWith("\r");
+                        }
                         Platform.runLater(() -> appendOutputText(textChunk));
                     }
                 }
