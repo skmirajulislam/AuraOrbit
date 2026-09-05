@@ -18,10 +18,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -60,7 +60,7 @@ jobs:
             --java-options "--enable-native-access=ALL-UNNAMED,javafx.graphics"
 
       - name: Upload Windows Installer Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AuraOrbit-Windows-x64-Installer
           path: dist/*
@@ -75,10 +75,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -113,7 +113,7 @@ jobs:
             --java-options "--enable-native-access=ALL-UNNAMED,javafx.graphics"
 
       - name: Upload macOS DMG Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AuraOrbit-macOS-DMG
           path: dist/*.dmg
@@ -128,10 +128,10 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '21'
           distribution: 'temurin'
@@ -172,7 +172,7 @@ jobs:
             --java-options "--enable-native-access=ALL-UNNAMED,javafx.graphics"
 
       - name: Upload Linux DEB Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AuraOrbit-Linux-DEB
           path: dist/*.deb
