@@ -1,4 +1,8 @@
-# Contributing to AuraOrbit 🛸
+<p align="center">
+  <img src="assets/logo.png" alt="AuraOrbit Logo" width="220">
+</p>
+
+<h1 align="center">Contributing to AuraOrbit</h1>
 
 Thank you for your interest in contributing to **AuraOrbit**! To ensure that AuraOrbit maintains its industrial-grade stability, predictable memory/CPU footprints, zero-regression guarantees, and clean architectural boundaries, all contributors must strictly adhere to the guidelines set forth in this document.
 
@@ -7,7 +11,7 @@ Thank you for your interest in contributing to **AuraOrbit**! To ensure that Aur
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 - [1. Code of Conduct](#1-code-of-conduct)
 - [2. Architectural Invariants & Core Principles](#2-architectural-invariants--core-principles)
 - [3. Zero-Tolerance Quality Standards](#3-zero-tolerance-quality-standards)
@@ -178,4 +182,4 @@ Before submitting your PR, verify each item:
 - [ ] Commit history follows Conventional Commits.
 - [ ] The PR branch is rebased cleanly on latest `upstream/master`.
 
-Thank you for helping make **AuraOrbit** the most robust, high-performance desktop code studio! 🚀
+Thank you for helping make **AuraOrbit** the most robust, high-performance desktop code studio!

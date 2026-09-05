@@ -1,30 +1,42 @@
-# AuraOrbit 🛸
-### *Next-Gen Modern Desktop AI Code Studio & IDE*
+<p align="center">
+  <img src="assets/logo.png" alt="AuraOrbit Logo" width="280">
+</p>
 
-[![Java 21](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
-[![JavaFX 21](https://img.shields.io/badge/JavaFX-21.0.4-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://openjfx.io/)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=github-actions&logoColor=white)]()
-[![Tests](https://img.shields.io/badge/Tests-124%2F124%20Passing-success?style=for-the-badge&logo=junit5&logoColor=white)]()
-[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=open-source-initiative&logoColor=white)](LICENSE)
+<h1 align="center">AuraOrbit</h1>
+
+<p align="center">
+  <em>Next-Gen Modern Desktop AI Code Studio &amp; IDE</em>
+</p>
+
+<p align="center">
+  <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java 21"></a>
+  <a href="https://openjfx.io/"><img src="https://img.shields.io/badge/JavaFX-21.0.4-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="JavaFX 21"></a>
+  <img src="https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=github-actions&logoColor=white" alt="Build Status">
+  <img src="https://img.shields.io/badge/Tests-124%2F124%20Passing-success?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=open-source-initiative&logoColor=white" alt="License"></a>
+</p>
+
+---
 
 **AuraOrbit** is an industrial-grade, cross-platform code studio designed for high-performance software engineering. Built from the ground up on modern **Java 21** and **JavaFX 21**, AuraOrbit combines the lightweight speed of native desktop software with the developer experience of modern editors like VS Code—featuring virtualized code rendering, an asynchronous multi-language diagnostics engine, dual-pane split editing, native shell terminals, real-time cryptographic peer collaboration, and native multi-LLM AI orchestration.
 
 ---
 
-## 📑 Table of Contents
-- [Architecture & Layered Infrastructure](#-architecture--layered-infrastructure)
-- [Key Features](#-key-features)
-- [Project Metrics & Directory Structure](#-project-metrics--directory-structure)
-- [Engineering Highlights & Performance Strategies](#-engineering-highlights--performance-strategies)
-- [Security & Resilience Model](#-security--resilience-model)
-- [Prerequisites & Getting Started](#-prerequisites--getting-started)
-- [Keyboard Shortcuts](#-keyboard-shortcuts)
-- [Automated Test Suite](#-automated-test-suite)
-- [Contributing & Code of Conduct](#-contributing--code-of-conduct)
+## Table of Contents
+- [Architecture & Layered Infrastructure](#architecture--layered-infrastructure)
+- [Key Features](#key-features)
+- [Project Metrics & Directory Structure](#project-metrics--directory-structure)
+- [Engineering Highlights & Performance Strategies](#engineering-highlights--performance-strategies)
+- [Security & Resilience Model](#security--resilience-model)
+- [Prerequisites & Getting Started](#prerequisites--getting-started)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Automated Test Suite](#automated-test-suite)
+- [Contributing & Code of Conduct](#contributing--code-of-conduct)
+- [License](#license)
 
 ---
 
-## 🏛 Architecture & Layered Infrastructure
+## Architecture & Layered Infrastructure
 
 AuraOrbit is strictly partitioned into clean architectural layers, avoiding tight coupling between UI components and backend business logic.
 
@@ -102,7 +114,7 @@ AuraOrbit is strictly partitioned into clean architectural layers, avoiding tigh
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 ### 1. Dual-Pane Split Editor (`Cmd+\` / `Ctrl+\`)
 - Work across two documents simultaneously in a 50/50 split layout.
@@ -130,14 +142,17 @@ AuraOrbit is strictly partitioned into clean architectural layers, avoiding tigh
 
 ---
 
-## 📊 Project Metrics & Directory Structure
+## Project Metrics & Directory Structure
 
 ```
 AuraOrbit/
 ├── pom.xml                                # Maven build definition (Java 21, JavaFX 21, RichTextFX, Ikonli)
 ├── CODE_OF_CONDUCT.md                    # Contributor covenant code of conduct
+├── CONTRIBUTING.md                       # Strict contribution guidelines & quality gates
 ├── LICENSE                               # MIT License
 ├── SECURITY.md                           # Security reporting policy
+├── assets/
+│   └── logo.png                          # Official AuraOrbit logo asset
 ├── src/
 │   ├── main/
 │   │   ├── java/
@@ -176,7 +191,7 @@ AuraOrbit/
 
 ---
 
-## ⚡ Engineering Highlights & Performance Strategies
+## Engineering Highlights & Performance Strategies
 
 ### 1. Zero-DOM-Thrashing Virtualization
 Standard text components instantiate nodes for every line of text. AuraOrbit's integration with **RichTextFX** renders only the lines visible within the viewport scroll boundaries. Opening a 100,000-line log or source file executes with constant memory usage and instantaneous 60 FPS scrolling.
@@ -198,7 +213,7 @@ To prevent zombie processes or thread leaks:
 
 ---
 
-## 🔒 Security & Resilience Model
+## Security & Resilience Model
 
 1. **Path Traversal & Device Sanitization**:
    All file paths pass through `FileSecurityValidator`. Attempted directory traversal (`../../etc/passwd`), null-byte injections (`file.txt\0.exe`), Windows device names (`CON`, `PRN`), or NTFS Alternate Data Streams are rejected immediately.
@@ -211,7 +226,7 @@ To prevent zombie processes or thread leaks:
 
 ---
 
-## 🛠 Prerequisites & Getting Started
+## Prerequisites & Getting Started
 
 ### Prerequisites
 - **JDK 21** or later (Temurin, Oracle, or OpenJDK).
@@ -243,7 +258,7 @@ java -jar target/aura-orbit-2.0.0.jar
 
 ---
 
-## ⌨ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut (macOS) | Shortcut (Win / Linux) | Action |
 | :--- | :--- | :--- |
@@ -264,7 +279,7 @@ java -jar target/aura-orbit-2.0.0.jar
 
 ---
 
-## 🧪 Automated Test Suite
+## Automated Test Suite
 
 AuraOrbit includes a comprehensive, multi-phase automated test harness covering all functional and non-functional requirements.
 
@@ -301,7 +316,7 @@ RESULTS: 124 PASSED | 0 FAILED (100% Reliability)
 
 ---
 
-## 🤝 Contributing & Code of Conduct
+## Contributing & Code of Conduct
 
 We welcome contributions! Please review our [Contributing Guidelines](CONTRIBUTING.md), [Code of Conduct](CODE_OF_CONDUCT.md), and [Security Policy](SECURITY.md) before submitting pull requests.
 
@@ -313,6 +328,6 @@ We welcome contributions! Please review our [Contributing Guidelines](CONTRIBUTI
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
