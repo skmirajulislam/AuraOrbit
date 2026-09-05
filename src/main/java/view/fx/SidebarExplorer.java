@@ -187,9 +187,7 @@ public class SidebarExplorer extends VBox {
         newFolderBtn.setOnAction(e -> startInlineCreation(true));
 
         Button refreshBtn = createActionButton(Codicons.REFRESH, "Refresh Explorer");
-        refreshBtn.setOnAction(e -> {
-            if (currentWorkspacePath != null) setWorkspacePath(currentWorkspacePath);
-        });
+        refreshBtn.setOnAction(e -> refreshWorkspace());
 
         Button collapseAllBtn = createActionButton(Codicons.COLLAPSE_ALL, "Collapse Folders in Explorer");
         collapseAllBtn.setOnAction(e -> collapseAll());
@@ -858,6 +856,53 @@ public class SidebarExplorer extends VBox {
         }
     }
 
+    public void refreshPath(Path targetPath) {
+        if (targetPath == null) return;
+        Platform.runLater(() -> {
+            if (fileTreeView == null || fileTreeView.getRoot() == null) return;
+            Path normalized = targetPath.toAbsolutePath().normalize();
+            TreeItem<FileItem> item = findLoadedTreeItem(fileTreeView.getRoot(), normalized);
+            if (item instanceof LazyTreeItem lazy) {
+                lazy.refresh();
+            }
+        });
+    }
+
+    public void refreshWorkspace() {
+        Platform.runLater(() -> {
+            if (fileTreeView == null || fileTreeView.getRoot() == null) return;
+            refreshLoadedItem(fileTreeView.getRoot());
+        });
+    }
+
+    private void refreshLoadedItem(TreeItem<FileItem> item) {
+        if (item == null) return;
+        if (item instanceof LazyTreeItem lazy && lazy.isLoaded()) {
+            lazy.refresh();
+            for (TreeItem<FileItem> child : item.getChildren()) {
+                refreshLoadedItem(child);
+            }
+        }
+    }
+
+    private TreeItem<FileItem> findLoadedTreeItem(TreeItem<FileItem> current, Path targetPath) {
+        if (current == null || current.getValue() == null || current.getValue().file == null) {
+            return null;
+        }
+        Path currentPath = current.getValue().file.toPath().toAbsolutePath().normalize();
+        if (currentPath.equals(targetPath)) {
+            return current;
+        }
+        if (current instanceof LazyTreeItem lazy && !lazy.isLoaded()) {
+            return null;
+        }
+        for (TreeItem<FileItem> child : current.getChildren()) {
+            TreeItem<FileItem> found = findLoadedTreeItem(child, targetPath);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     public void setOnOpenFolderRequested(Runnable onOpenFolderRequested) {
         this.onOpenFolderRequested = onOpenFolderRequested;
     }
@@ -874,6 +919,40 @@ public class SidebarExplorer extends VBox {
 
         public LazyTreeItem(FileItem item) {
             super(item);
+        }
+
+        public boolean isLoaded() {
+            return !isFirstChildren;
+        }
+
+        public void refresh() {
+            if (isFirstChildren) {
+                return;
+            }
+            File dir = getValue() != null ? getValue().file : null;
+            if (dir == null || !dir.isDirectory()) return;
+
+            ObservableList<TreeItem<FileItem>> newChildren = buildChildren(this);
+            Map<String, TreeItem<FileItem>> existingMap = new java.util.HashMap<>();
+            for (TreeItem<FileItem> oldChild : super.getChildren()) {
+                if (oldChild.getValue() != null && oldChild.getValue().file != null) {
+                    existingMap.put(oldChild.getValue().file.getAbsolutePath(), oldChild);
+                }
+            }
+
+            ObservableList<TreeItem<FileItem>> merged = FXCollections.observableArrayList();
+            for (TreeItem<FileItem> newItem : newChildren) {
+                if (newItem.getValue() != null && newItem.getValue().file != null) {
+                    String pathKey = newItem.getValue().file.getAbsolutePath();
+                    TreeItem<FileItem> oldItem = existingMap.get(pathKey);
+                    if (oldItem != null) {
+                        merged.add(oldItem);
+                    } else {
+                        merged.add(newItem);
+                    }
+                }
+            }
+            super.getChildren().setAll(merged);
         }
 
         @Override

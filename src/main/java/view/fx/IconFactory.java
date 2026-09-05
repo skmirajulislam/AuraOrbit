@@ -29,6 +29,8 @@ public class IconFactory {
         String lower = fileName.toLowerCase();
         if (lower.endsWith(".java")) {
             return getIcon(Codicons.FILE_CODE, size, "#e76f51");
+        } else if (lower.endsWith(".class")) {
+            return getIcon(Codicons.FILE_BINARY, size, "#e76f51");
         } else if (lower.endsWith(".json")) {
             return getIcon(Codicons.JSON, size, "#f4a261");
         } else if (lower.endsWith(".md")) {

@@ -31,6 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -543,10 +544,14 @@ public class TerminalPane extends BorderPane {
     }
 
     public void executeProgram(List<List<String>> steps, Path workingDirectory, String displayCommand, Runnable cleanupHook) {
+        executeProgram(steps, workingDirectory, displayCommand, cleanupHook, null);
+    }
+
+    public void executeProgram(List<List<String>> steps, Path workingDirectory, String displayCommand, Runnable cleanupHook, Consumer<Path> onStepCompleted) {
         if (steps == null || steps.isEmpty()) return;
         showTerminal();
         if (activeSession == null) return;
-        activeSession.runForegroundProgram(steps, workingDirectory, displayCommand, cleanupHook);
+        activeSession.runForegroundProgram(steps, workingDirectory, displayCommand, cleanupHook, onStepCompleted);
     }
 
     private String translateForPowerShell(String command) {
@@ -1904,7 +1909,7 @@ public class TerminalPane extends BorderPane {
             });
         }
 
-        void runForegroundProgram(List<List<String>> steps, Path workingDirectory, String displayCommand, Runnable cleanupHook) {
+        void runForegroundProgram(List<List<String>> steps, Path workingDirectory, String displayCommand, Runnable cleanupHook, Consumer<Path> onStepCompleted) {
             if (programRunning) {
                 appendOutputText("[A program is already running. Press Ctrl+C to stop it.]\n");
                 return;
@@ -1929,6 +1934,11 @@ public class TerminalPane extends BorderPane {
                         if (lastExit != 0) {
                             break;
                         }
+                        if (onStepCompleted != null && dir != null) {
+                            try {
+                                onStepCompleted.accept(dir.toPath());
+                            } catch (Exception ignored) {}
+                        }
                     }
                     final int exit = lastExit;
                     final boolean needsNewline = !endsWithNewline[0];
@@ -1942,6 +1952,11 @@ public class TerminalPane extends BorderPane {
                     if (cleanupHook != null) {
                         try {
                             cleanupHook.run();
+                        } catch (Exception ignored) {}
+                    }
+                    if (onStepCompleted != null && dir != null) {
+                        try {
+                            onStepCompleted.accept(dir.toPath());
                         } catch (Exception ignored) {}
                     }
                     Platform.runLater(() -> {
