@@ -2296,12 +2296,12 @@ public class TerminalPane extends BorderPane {
         }
     }
 
+    private static final java.util.regex.Pattern ANSI_PATTERN = java.util.regex.Pattern.compile(
+            "\\x1B(?:\\[[0-9;]*[a-zA-Z]|\\][^\u0007]*\u0007|\\(B|=|\\>|\\[\\?[0-9;]*[a-zA-Z])"
+    );
+
     private static String stripAnsi(String text) {
-        return text.replaceAll("\\x1B\\[[0-9;]*[a-zA-Z]", "")
-                   .replaceAll("\\x1B\\][^\u0007]*\u0007", "")
-                   .replaceAll("\\x1B\\(B", "")
-                   .replaceAll("\\x1B=", "")
-                   .replaceAll("\\x1B>", "")
-                   .replaceAll("\\x1B\\[\\?[0-9;]*[a-zA-Z]", "");
+        if (text == null || text.isEmpty()) return "";
+        return ANSI_PATTERN.matcher(text).replaceAll("");
     }
 }

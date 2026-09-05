@@ -7,12 +7,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * Thread-safe, high-concurrency line buffer.
  * Uses ReentrantReadWriteLock for concurrent reads and zero-CPU O(1) running statistics.
  */
 public class TextBuffer {
+    private static final Pattern LINE_SPLIT = Pattern.compile("\\R");
+
     private final List<String> lines;
     private final ReentrantReadWriteLock rwLock;
     private final ReentrantReadWriteLock.ReadLock readLock;
@@ -82,7 +85,7 @@ public class TextBuffer {
 
     public void insertLine(int lineNumber, String content) {
         String safeContent = (content != null) ? content : "";
-        String[] split = safeContent.split("\\R", -1);
+        String[] split = LINE_SPLIT.split(safeContent, -1);
         writeLock.lock();
         try {
             if (lineNumber < 1 || lineNumber > lines.size() + 1) {
@@ -104,7 +107,7 @@ public class TextBuffer {
 
     public void appendLine(String content) {
         String safeContent = (content != null) ? content : "";
-        String[] split = safeContent.split("\\R", -1);
+        String[] split = LINE_SPLIT.split(safeContent, -1);
         writeLock.lock();
         try {
             for (String sub : split) {
@@ -135,7 +138,7 @@ public class TextBuffer {
     public String replaceLine(int lineNumber, String newContent) {
         String safeContent = (newContent != null) ? newContent : "";
         // If replacement contains newlines, replace first line and insert subsequent
-        String[] split = safeContent.split("\\R", -1);
+        String[] split = LINE_SPLIT.split(safeContent, -1);
         writeLock.lock();
         try {
             validateLineNumber(lineNumber);

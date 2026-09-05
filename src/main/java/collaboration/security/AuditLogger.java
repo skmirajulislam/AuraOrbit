@@ -37,7 +37,7 @@ public class AuditLogger {
     /**
      * Log an event.
      */
-    public void log(String userId, String sessionId, EventType eventType, String details) {
+    public synchronized void log(String userId, String sessionId, EventType eventType, String details) {
         AuditEntry entry = new AuditEntry(
                 System.currentTimeMillis(),
                 userId,
@@ -62,20 +62,18 @@ public class AuditLogger {
     /**
      * Get audit entries for a user.
      */
-    public List<AuditEntry> getUserAuditTrail(String userId) {
+    public synchronized List<AuditEntry> getUserAuditTrail(String userId) {
         return new ArrayList<>(userAuditIndex.getOrDefault(userId, new ArrayList<>()));
     }
 
     /**
      * Get audit entries for a session.
      */
-    public List<AuditEntry> getSessionAuditTrail(String sessionId) {
+    public synchronized List<AuditEntry> getSessionAuditTrail(String sessionId) {
         List<AuditEntry> result = new ArrayList<>();
-        synchronized (auditLog) {
-            for (AuditEntry entry : auditLog) {
-                if (entry.sessionId.equals(sessionId)) {
-                    result.add(entry);
-                }
+        for (AuditEntry entry : auditLog) {
+            if (entry.sessionId.equals(sessionId)) {
+                result.add(entry);
             }
         }
         return result;
@@ -84,7 +82,7 @@ public class AuditLogger {
     /**
      * Get security violations.
      */
-    public List<AuditEntry> getSecurityViolations(String userId) {
+    public synchronized List<AuditEntry> getSecurityViolations(String userId) {
         List<AuditEntry> result = new ArrayList<>();
         List<AuditEntry> userLog = userAuditIndex.get(userId);
         if (userLog != null) {
@@ -102,19 +100,17 @@ public class AuditLogger {
     /**
      * Get recent events.
      */
-    public List<AuditEntry> getRecentEvents(int count) {
+    public synchronized List<AuditEntry> getRecentEvents(int count) {
         List<AuditEntry> recent = new ArrayList<>();
-        synchronized (auditLog) {
-            int start = Math.max(0, auditLog.size() - count);
-            recent.addAll(auditLog.subList(start, auditLog.size()));
-        }
+        int start = Math.max(0, auditLog.size() - count);
+        recent.addAll(auditLog.subList(start, auditLog.size()));
         return recent;
     }
 
     /**
      * Export audit log as CSV.
      */
-    public String exportAsCsv() {
+    public synchronized String exportAsCsv() {
         StringBuilder csv = new StringBuilder();
         csv.append("Timestamp,User ID,Session ID,Event Type,Details\n");
 

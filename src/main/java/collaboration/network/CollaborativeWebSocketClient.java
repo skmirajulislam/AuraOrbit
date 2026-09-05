@@ -99,7 +99,7 @@ public class CollaborativeWebSocketClient {
     /**
      * Send a message to the server.
      */
-    public boolean sendMessage(String message) {
+    public synchronized boolean sendMessage(String message) {
         if (!connected.get()) {
             System.err.println("⚠️ Not connected");
             return false;

@@ -101,7 +101,7 @@ public class RateLimiter {
             this.consecutiveViolations = new AtomicInteger(0);
         }
 
-        boolean tryConsume() {
+        synchronized boolean tryConsume() {
             refillTokens();
             if (availableTokens >= 1.0) {
                 availableTokens -= 1.0;
@@ -113,17 +113,17 @@ public class RateLimiter {
             }
         }
 
-        boolean canConsume() {
+        synchronized boolean canConsume() {
             refillTokens();
             return availableTokens >= 1.0;
         }
 
-        int getAvailableTokens() {
+        synchronized int getAvailableTokens() {
             refillTokens();
             return (int) Math.floor(availableTokens);
         }
 
-        private void refillTokens() {
+        private synchronized void refillTokens() {
             long now = System.currentTimeMillis();
             long timePassed = now - lastRefillTime;
             double tokensToAdd = (timePassed / 1000.0) * tokensPerSecond;
