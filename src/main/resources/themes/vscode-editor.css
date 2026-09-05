@@ -117,10 +117,30 @@
 
 .tab-pane > .tab-header-area {
     -fx-background-color: -bg-secondary;
-    -fx-padding: 0 85 0 0;
+    -fx-padding: 0 185 0 0;
     -fx-min-height: 35;
     -fx-pref-height: 35;
     -fx-max-height: 35;
+}
+
+.tab-pane > .tab-header-area > .control-buttons-tab {
+    -fx-background-color: transparent;
+    -fx-padding: 2 4 2 4;
+}
+
+.tab-pane > .tab-header-area > .control-buttons-tab > .tab-down-button {
+    -fx-background-color: transparent;
+    -fx-padding: 4;
+    -fx-cursor: hand;
+}
+
+.tab-pane > .tab-header-area > .control-buttons-tab > .tab-down-button:hover {
+    -fx-background-color: -bg-hover;
+    -fx-background-radius: 3;
+}
+
+.tab-pane > .tab-header-area > .control-buttons-tab > .tab-down-button > .arrow {
+    -fx-background-color: -text-secondary;
 }
 
 .tab-pane > .tab-header-area > .tab-header-background {
