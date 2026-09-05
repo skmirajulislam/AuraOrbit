@@ -1,0 +1,179 @@
+name: Build Cross-Platform Native Executables
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. WINDOWS: Build Native .EXE / .MSI Installer with embedded EULA & Icon
+  # ─────────────────────────────────────────────────────────────────────────
+  build-windows:
+    name: Windows Installer (EXE)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build Fat JAR
+        run: mvn clean package -DskipTests
+
+      - name: Stage Fat JAR for jpackage
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build_input
+          Copy-Item -Path target/aura-orbit-2.0.0.jar -Destination build_input/
+          New-Item -ItemType Directory -Force -Path dist
+
+      - name: Package Native Windows Executable Installer
+        shell: pwsh
+        run: |
+          jpackage `
+            --input build_input `
+            --main-jar aura-orbit-2.0.0.jar `
+            --main-class Main `
+            --name "AuraOrbit" `
+            --app-version "2.0.0" `
+            --vendor "Sk Mirajul Islam" `
+            --copyright "Copyright (c) 2026 Sk Mirajul Islam. All Rights Reserved." `
+            --description "AuraOrbit - Next-Gen Modern Desktop AI Code Studio & IDE" `
+            --license-file EULA.txt `
+            --icon assets/AuraOrbit.ico `
+            --win-shortcut `
+            --win-menu `
+            --win-dir-chooser `
+            --dest dist `
+            --java-options "-Dprism.marlin.offheap=false" `
+            --java-options "-Dprism.verbose=false" `
+            --java-options "--enable-native-access=ALL-UNNAMED,javafx.graphics"
+
+      - name: Upload Windows Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AuraOrbit-Windows-x64-Installer
+          path: dist/*
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. MACOS: Build Native .DMG Disk Image with embedded EULA & Retina Icon
+  # ─────────────────────────────────────────────────────────────────────────
+  build-macos:
+    name: macOS Installer (DMG)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build Fat JAR
+        run: mvn clean package -DskipTests
+
+      - name: Stage Fat JAR for jpackage
+        run: |
+          mkdir -p build_input dist
+          cp target/aura-orbit-2.0.0.jar build_input/
+
+      - name: Package Native macOS DMG
+        run: |
+          jpackage \
+            --input build_input \
+            --main-jar aura-orbit-2.0.0.jar \
+            --main-class Main \
+            --name "AuraOrbit" \
+            --app-version "2.0.0" \
+            --vendor "Sk Mirajul Islam" \
+            --copyright "Copyright (c) 2026 Sk Mirajul Islam. All Rights Reserved." \
+            --description "AuraOrbit - Next-Gen Modern Desktop AI Code Studio & IDE" \
+            --license-file EULA.txt \
+            --icon assets/AuraOrbit.icns \
+            --mac-package-name "AuraOrbit" \
+            --type dmg \
+            --dest dist \
+            --java-options "-Dprism.marlin.offheap=false" \
+            --java-options "-Dprism.verbose=false" \
+            --java-options "--enable-native-access=ALL-UNNAMED,javafx.graphics"
+
+      - name: Upload macOS DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AuraOrbit-macOS-DMG
+          path: dist/*.dmg
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. LINUX: Build Native .DEB Package with desktop shortcuts & icon
+  # ─────────────────────────────────────────────────────────────────────────
+  build-linux:
+    name: Linux Package (DEB)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Install Linux Packaging Utilities
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg-dev libasound2 libgl1 libgtk-3-0
+
+      - name: Build Fat JAR
+        run: mvn clean package -DskipTests
+
+      - name: Stage Fat JAR for jpackage
+        run: |
+          mkdir -p build_input dist
+          cp target/aura-orbit-2.0.0.jar build_input/
+
+      - name: Package Native Linux DEB
+        run: |
+          jpackage \
+            --input build_input \
+            --main-jar aura-orbit-2.0.0.jar \
+            --main-class Main \
+            --name "aura-orbit" \
+            --app-version "2.0.0" \
+            --vendor "Sk Mirajul Islam" \
+            --copyright "Copyright (c) 2026 Sk Mirajul Islam. All Rights Reserved." \
+            --description "AuraOrbit - Next-Gen Modern Desktop AI Code Studio & IDE" \
+            --license-file EULA.txt \
+            --icon assets/AuraOrbit.png \
+            --linux-shortcut \
+            --linux-menu-group "Development" \
+            --type deb \
+            --dest dist \
+            --java-options "-Dprism.marlin.offheap=false" \
+            --java-options "-Dprism.verbose=false" \
+            --java-options "--enable-native-access=ALL-UNNAMED,javafx.graphics"
+
+      - name: Upload Linux DEB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AuraOrbit-Linux-DEB
+          path: dist/*.deb
+          retention-days: 30

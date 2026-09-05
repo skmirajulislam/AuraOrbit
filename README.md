@@ -10,7 +10,7 @@
   <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java 21"></a>
   <a href="https://openjfx.io/"><img src="https://img.shields.io/badge/JavaFX-21.0.4-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="JavaFX 21"></a>
   <img src="https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge&logo=github-actions&logoColor=white" alt="Build Status">
-  <img src="https://img.shields.io/badge/Tests-124%2F124%20Passing-success?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-129%2F129%20Passing-success?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=open-source-initiative&logoColor=white" alt="License"></a>
 </p>
 
@@ -183,8 +183,8 @@ AuraOrbit/
 | **Java Platform** | OpenJDK 21 (LTS) |
 | **GUI Framework** | JavaFX 21.0.4 + RichTextFX 0.11.4 |
 | **Icon Libraries** | Kordamp Ikonli (Codicons & Devicons packs) |
-| **Total Source Files** | 52 Production Classes + 1 Comprehensive Test Suite |
-| **Automated Unit Tests** | **124 Tests (100% Pass Rate, 0 Failures)** |
+| **Total Source Files** | 53 Production Classes + 1 Comprehensive Test Suite |
+| **Automated Unit Tests** | **129 Tests (100% Pass Rate, 0 Failures)** |
 | **Compiler Hygiene** | Zero compiler warnings (`-Xlint:unused` compliant) |
 
 ---
@@ -307,8 +307,9 @@ java -cp target/classes:target/test-classes:$(mvn dependency:build-classpath | g
 [13] Testing Multi-LLM AI Service & Persistent Config ...... [ 7/ 7 PASS]
 [14] Testing Program Argument Parsing for Run .............. [ 3/ 3 PASS]
 [15] Testing VS Code File Icons Engine & Theme Classes ..... [25/25 PASS]
+[16] Testing Policy Agreement & Attribution Security ...... [ 5/ 5 PASS]
 -------------------------------------------------
-RESULTS: 124 PASSED | 0 FAILED (100% Reliability)
+RESULTS: 129 PASSED | 0 FAILED (100% Reliability)
 -------------------------------------------------
 ```
 

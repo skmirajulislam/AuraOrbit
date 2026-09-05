@@ -180,8 +180,27 @@ public class JavaFxEditorApp extends Application {
         });
 
         primaryStage.setTitle("AuraOrbit");
+        try (var stream = getClass().getResourceAsStream("/icons/app-icon.png")) {
+            if (stream != null) {
+                primaryStage.getIcons().add(new javafx.scene.image.Image(stream));
+            }
+        } catch (Exception ignored) {}
+
         primaryStage.setScene(scene);
         primaryStage.show();
+
+        // First-Run EULA & Software Resource Usage Policy
+        if (!service.PolicyAgreementService.isPolicyAccepted()) {
+            modalOverlayPane.showAgreementModal(
+                    service.PolicyAgreementService.getPolicyTitle(),
+                    service.PolicyAgreementService.getPolicySummary(),
+                    service.PolicyAgreementService::recordPolicyAcceptance,
+                    () -> {
+                        Platform.exit();
+                        System.exit(0);
+                    }
+            );
+        }
 
         // Auto-synchronize file explorer whenever the AuraOrbit window regains focus
         primaryStage.focusedProperty().addListener((obs, wasFocused, isFocused) -> {

@@ -1,0 +1,116 @@
+================================================================================
+AURAORBIT SOFTWARE END USER LICENSE AGREEMENT & RESOURCE USAGE POLICY
+================================================================================
+
+Version: 2.0.0
+Author & Copyright Owner: Sk Mirajul Islam
+Contact & Verification: https://github.com/skmirajulislam/AuraOrbit
+
+IMPORTANT: PLEASE READ THIS END USER LICENSE AGREEMENT ("EULA" OR "AGREEMENT")
+CAREFULLY BEFORE INSTALLING, ACCESSING, COPYING, OR USING AURAORBIT ("SOFTWARE").
+BY CLICKING "I AGREE", INSTALLING, OR USING THE SOFTWARE, YOU AGREE TO BE LEGALLY
+BOUND BY ALL TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE TO
+THESE TERMS, DO NOT INSTALL, ACCESS, OR USE THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+1. OWNERSHIP, AUTHORSHIP & INTELLECTUAL PROPERTY
+--------------------------------------------------------------------------------
+The Software, including its source code, compiled binaries, user interfaces,
+brand identity, architecture, design system, algorithms, and documentation, is
+the proprietary intellectual property developed exclusively by SK MIRAJUL ISLAM
+("Developer"). The Software is protected under international copyright treaties,
+trademark laws, and applicable intellectual property conventions.
+
+All rights, titles, and interests not expressly granted to you in this Agreement
+are strictly and exclusively reserved by Sk Mirajul Islam.
+
+--------------------------------------------------------------------------------
+2. ANTI-ATTACK, INTEGRITY PROTECTION & TAMPER PROHIBITION
+--------------------------------------------------------------------------------
+To protect the security of users, the integrity of the computing platform, and
+the intellectual property of the Developer:
+
+a. No Reverse Engineering or Modification:
+   You shall NOT decompile, disassemble, reverse engineer, decrypt, modify,
+   create derivative works, or crack any portion of the Software binaries,
+   runtime hooks, or configuration nodes.
+
+b. Tamper Resistance & Attribution Integrity:
+   You shall NOT remove, obscure, or alter any authorship notices, copyright
+   notices, developer attribution credits ("Developed by Sk Mirajul Islam"),
+   version tokens, or digital signatures embedded within the Software or its
+   accompanying files.
+
+c. Anti-Attack & Payload Restrictions:
+   You shall NOT inject malicious scripts, trojans, binary patches, or exploit
+   payloads into the Software. Any unauthorized modification or distribution
+   intended to bypass user agreement prompts, rate limiters, security guards,
+   or licensing verifications is strictly prohibited and constitutes an unlawful
+   breach of this Agreement.
+
+--------------------------------------------------------------------------------
+3. SOFTWARE RESOURCE USAGE POLICY
+--------------------------------------------------------------------------------
+AuraOrbit operates on host machine resources in accordance with the following
+transparent policies:
+
+a. CPU & Process Execution Policy:
+   - AuraOrbit provides local code execution and terminal emulation features.
+   - When you trigger "Run Active File" or execute commands in the Terminal,
+     the Software invokes local operating system compilers (e.g., javac, gcc),
+     interpreters (e.g., python, node), and shell processes (bash, zsh, powershell).
+   - CPU scheduling is throttled via asynchronous virtual and daemon worker
+     threads. Real-time linter diagnostics run on a 500ms sliding-window debounce
+     to prevent CPU thrashing.
+   - Process termination hooks guarantee that closed terminal instances and
+     background compiler runs are cleanly terminated without leaving zombie or
+     orphaned processes.
+
+b. Memory & Storage Policy:
+   - AuraOrbit employs virtualized viewport rendering (RichTextFX). Only visible
+     lines of text allocate scene-graph nodes, maintaining constant O(1) RAM
+     utilization even with massive files.
+   - File saves are executed atomically using temporary file staging (.tmp)
+     followed by atomic replacement and safety-net backup (.bak) creation to
+     prevent data loss during sudden hardware or operating system interruption.
+
+c. Network & Peer-to-Peer Collaboration Policy:
+   - AuraOrbit contains an optional local and network collaboration engine.
+   - All collaborative sessions require user initiation, cryptographic token
+     validation (HMAC-SHA256), and rate-limited operation processing.
+   - AuraOrbit DOES NOT collect, transmit, or monetize any personal telemetry,
+     source code, or keystrokes to any unauthorized central servers.
+
+d. AI Services & API Key Storage:
+   - Integrated AI features (OpenAI, Google Gemini, xAI Grok, Local Ollama)
+     operate strictly on an opt-in basis.
+   - API keys provided by the user are stored locally in the operating system's
+     secure preferences subsystem and are transmitted exclusively over encrypted
+     HTTPS connections directly to the respective API provider.
+
+--------------------------------------------------------------------------------
+4. PERMITTED USE & RESTRICTIONS
+--------------------------------------------------------------------------------
+a. You are granted a revocable, non-exclusive, non-transferable license to install
+   and use the Software for personal, academic, or commercial software development
+   purposes in accordance with this Agreement.
+b. You may not rent, lease, sub-license, sell, or repackage the Software under
+   another name without explicit written authorization from Sk Mirajul Islam.
+
+--------------------------------------------------------------------------------
+5. DISCLAIMER OF WARRANTIES & LIMITATION OF LIABILITY
+--------------------------------------------------------------------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL SK MIRAJUL ISLAM
+BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+6. ACCEPTANCE OF TERMS
+--------------------------------------------------------------------------------
+By checking "I Agree", clicking "Accept", or proceeding with installation and
+launch, you confirm that you have read, understood, and agreed to be legally
+bound by this Agreement and the Resource Usage Policy crafted by Sk Mirajul Islam.
+================================================================================

@@ -436,4 +436,44 @@ public class ModalOverlayPane extends StackPane {
         });
         return btn;
     }
+
+    public void showAgreementModal(String title, String summary, Runnable onAccepted, Runnable onDeclined) {
+        setupDialog(title, Codicons.SHIELD, "#3794ff");
+        closeButton.setVisible(false);
+        backdrop.setOnMouseClicked(null);
+
+        VBox contentBox = new VBox(10);
+
+        Label authorBadge = new Label("Developed by Sk Mirajul Islam • Official End User License & Usage Agreement");
+        authorBadge.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: -accent-color; -fx-padding: 4 8 4 8; -fx-background-color: rgba(55, 148, 255, 0.12); -fx-background-radius: 4;");
+
+        TextArea termsArea = new TextArea(summary);
+        termsArea.setEditable(false);
+        termsArea.setWrapText(true);
+        termsArea.setPrefRowCount(14);
+        termsArea.setStyle("-fx-font-family: monospace; -fx-font-size: 11px; -fx-text-fill: -text-primary; -fx-control-inner-background: -bg-primary;");
+
+        Label noticeLabel = new Label("By clicking 'Accept & Continue', you agree to be bound by the Terms of Policy and confirm you will not modify, tamper with, or attack this software.");
+        noticeLabel.setWrapText(true);
+        noticeLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: -text-secondary;");
+
+        contentBox.getChildren().addAll(authorBadge, termsArea, noticeLabel);
+        bodyContainer.getChildren().add(contentBox);
+
+        Button declineBtn = createSecondaryButton("Decline & Exit", () -> {
+            close();
+            if (onDeclined != null) onDeclined.run();
+        });
+
+        Button acceptBtn = createPrimaryButton("Accept & Continue", () -> {
+            close();
+            closeButton.setVisible(true);
+            backdrop.setOnMouseClicked(e -> close());
+            if (onAccepted != null) onAccepted.run();
+        });
+
+        footerContainer.getChildren().addAll(declineBtn, acceptBtn);
+        open();
+    }
 }
+

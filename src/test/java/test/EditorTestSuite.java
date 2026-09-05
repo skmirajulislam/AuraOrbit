@@ -52,6 +52,7 @@ public class EditorTestSuite {
         testAiServiceConfig();
         testProgramArgumentParsing();
         testFileIcons();
+        testPolicyAgreementService();
 
         System.out.println("\n-------------------------------------------------");
         System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -615,5 +616,24 @@ public class EditorTestSuite {
         // Verify theme compatibility: icons have .codicon style class and no hardcoded inline style
         assertTrue(IconFactory.getFileIcon("Main.java", 14).getStyleClass().contains("codicon"), "File icon has .codicon class for theme integration");
         assertTrue(!IconFactory.getFileIcon("Main.java", 14).getStyle().contains("-fx-icon-color"), "File icon has no hardcoded color override");
+    }
+
+    private static void testPolicyAgreementService() {
+        System.out.println("\n[16] Testing Policy Agreement & Attribution Security...");
+        try {
+            assertTrue(service.PolicyAgreementService.DEVELOPER_ATTRIBUTION.contains("Sk Mirajul Islam"),
+                    "Attribution correctly credits Sk Mirajul Islam");
+            assertTrue("2.0.0".equals(service.PolicyAgreementService.CURRENT_POLICY_VERSION),
+                    "Policy version is 2.0.0");
+            assertTrue(service.PolicyAgreementService.getPolicySummary().contains("AuraOrbit"),
+                    "Policy summary contains AuraOrbit");
+            assertTrue(service.PolicyAgreementService.getPolicySummary().contains("Sk Mirajul Islam"),
+                    "Policy summary explicitly protects Sk Mirajul Islam authorship");
+            service.PolicyAgreementService.recordPolicyAcceptance();
+            assertTrue(service.PolicyAgreementService.isPolicyAccepted(),
+                    "Policy cryptographically verified accepted after recording");
+        } catch (Exception e) {
+            assertTrue(false, "Policy agreement error: " + e.getMessage());
+        }
     }
 }
