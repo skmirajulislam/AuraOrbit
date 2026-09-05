@@ -245,7 +245,7 @@ public class EditorTabController {
 
         try {
             String text = editorPane.getCodeArea().getText();
-            fileService.saveStringAtomically(document.getFilePath(), text, true);
+            fileService.saveStringAtomically(document.getFilePath(), text, false);
             isModified = false;
             updateCachedMetadata(text);
             updateTabTitle();

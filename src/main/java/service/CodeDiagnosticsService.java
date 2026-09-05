@@ -412,50 +412,61 @@ public class CodeDiagnosticsService {
             StandardJavaFileManager fm = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8);
             Iterable<? extends JavaFileObject> units = fm.getJavaFileObjectsFromPaths(javaFiles);
 
-            Path tempClasses = Files.createTempDirectory("auraorbit_diag");
-            tempClasses.toFile().deleteOnExit();
+            Path tempClasses = null;
+            try {
+                tempClasses = Files.createTempDirectory("auraorbit_diag");
+                tempClasses.toFile().deleteOnExit();
 
-            String cp = System.getProperty("java.class.path");
-            List<String> options = Arrays.asList(
-                    "-proc:none",
-                    "-Xlint:all",
-                    "-classpath", cp != null ? cp : ".",
-                    "-d", tempClasses.toString()
-            );
+                String cp = System.getProperty("java.class.path");
+                List<String> options = Arrays.asList(
+                        "-proc:none",
+                        "-Xlint:all",
+                        "-classpath", cp != null ? cp : ".",
+                        "-d", tempClasses.toString()
+                );
 
-            JavaCompiler.CompilationTask task = compiler.getTask(null, fm, diagnostics, options, null, units);
-            task.call();
+                JavaCompiler.CompilationTask task = compiler.getTask(null, fm, diagnostics, options, null, units);
+                task.call();
 
-            for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
-                Codicons icon = Codicons.INFO;
-                String severity = "Info";
-                if (d.getKind() == Diagnostic.Kind.ERROR) {
-                    icon = Codicons.ERROR;
-                    severity = "Error";
-                } else if (d.getKind() == Diagnostic.Kind.WARNING || d.getKind() == Diagnostic.Kind.MANDATORY_WARNING) {
-                    icon = Codicons.WARNING;
-                    severity = "Warning";
-                }
-
-                String sourcePath = "source";
-                if (d.getSource() != null) {
-                    try {
-                        sourcePath = Paths.get(d.getSource().toUri()).toAbsolutePath().normalize().toString();
-                    } catch (Exception e) {
-                        sourcePath = d.getSource().getName();
+                for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
+                    Codicons icon = Codicons.INFO;
+                    String severity = "Info";
+                    if (d.getKind() == Diagnostic.Kind.ERROR) {
+                        icon = Codicons.ERROR;
+                        severity = "Error";
+                    } else if (d.getKind() == Diagnostic.Kind.WARNING || d.getKind() == Diagnostic.Kind.MANDATORY_WARNING) {
+                        icon = Codicons.WARNING;
+                        severity = "Warning";
                     }
-                }
 
-                results.add(new TerminalPane.ProblemItem(
-                        icon, severity,
-                        d.getMessage(Locale.getDefault()),
-                        sourcePath,
-                        (int) Math.max(1, d.getLineNumber()),
-                        (int) Math.max(1, d.getColumnNumber()),
-                        "javac"
-                ));
+                    String sourcePath = "source";
+                    if (d.getSource() != null) {
+                        try {
+                            sourcePath = Paths.get(d.getSource().toUri()).toAbsolutePath().normalize().toString();
+                        } catch (Exception e) {
+                            sourcePath = d.getSource().getName();
+                        }
+                    }
+
+                    results.add(new TerminalPane.ProblemItem(
+                            icon, severity,
+                            d.getMessage(Locale.getDefault()),
+                            sourcePath,
+                            (int) Math.max(1, d.getLineNumber()),
+                            (int) Math.max(1, d.getColumnNumber()),
+                            "javac"
+                    ));
+                }
+            } finally {
+                try { fm.close(); } catch (Exception ignored) {}
+                if (tempClasses != null && Files.exists(tempClasses)) {
+                    try (var walk = Files.walk(tempClasses)) {
+                        walk.sorted(Comparator.reverseOrder())
+                            .map(Path::toFile)
+                            .forEach(java.io.File::delete);
+                    } catch (Exception ignored) {}
+                }
             }
-            try { fm.close(); } catch (Exception ignored) {}
         } catch (Exception ignored) {}
 
         return results;

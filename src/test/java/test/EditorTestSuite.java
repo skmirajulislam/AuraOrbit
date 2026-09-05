@@ -355,13 +355,14 @@ public class EditorTestSuite {
             Path bakFile = Paths.get("test_atomic_string.tmp.bak");
             assertTrue(Files.exists(bakFile), "Backup .bak file created on overwrite");
             assertEquals(originalContent, fs.readString(bakFile), "Backup content preserved");
-
-            // Cleanup
-            Files.deleteIfExists(testFile);
-            Files.deleteIfExists(bakFile);
         } catch (IOException e) {
             System.err.println("  ✖ FAIL: testStringAtomicSaveAndLoad threw exception: " + e.getMessage());
             testsFailed++;
+        } finally {
+            try {
+                Files.deleteIfExists(testFile);
+                Files.deleteIfExists(Paths.get("test_atomic_string.tmp.bak"));
+            } catch (IOException ignored) {}
         }
     }
 
@@ -446,9 +447,13 @@ public class EditorTestSuite {
 
     private static void testCodeDiagnosticsEngine() {
         System.out.println("\n[11] Testing Multi-Language Code Diagnostics Engine (Java, Python, JS, JSON, CSS)...");
+        Path tempJava = null;
+        Path tempPy = null;
+        Path tempJs = null;
+        Path tempJson = null;
         try {
             // 1. Test Java Unused Import Detection
-            Path tempJava = Files.createTempFile("TestDiag", ".java");
+            tempJava = Files.createTempFile("TestDiag", ".java");
             tempJava.toFile().deleteOnExit();
             String javaContent = """
                     package test;
@@ -472,7 +477,7 @@ public class EditorTestSuite {
             assertTrue(hasUnusedField, "Java: Detected unused private field TestDiag.unusedField");
 
             // 2. Test Python Unused Import & Bare Except
-            Path tempPy = Files.createTempFile("test_script", ".py");
+            tempPy = Files.createTempFile("test_script", ".py");
             tempPy.toFile().deleteOnExit();
             String pyContent = """
                     import os
@@ -494,7 +499,7 @@ public class EditorTestSuite {
             assertTrue(pyBareExcept, "Python: Detected bare except clause");
 
             // 3. Test JavaScript Unused Import & Debugger Statement
-            Path tempJs = Files.createTempFile("test_app", ".js");
+            tempJs = Files.createTempFile("test_app", ".js");
             tempJs.toFile().deleteOnExit();
             String jsContent = """
                     import { fetchUser, deleteUser } from './api';
@@ -511,7 +516,7 @@ public class EditorTestSuite {
             assertTrue(jsDebugger, "JavaScript: Detected debugger statement");
 
             // 4. Test JSON Trailing Comma Error
-            Path tempJson = Files.createTempFile("data", ".json");
+            tempJson = Files.createTempFile("data", ".json");
             tempJson.toFile().deleteOnExit();
             String jsonContent = "{\n  \"name\": 'AuraOrbit',\n  \"version\": \"2.0.0\",\n}";
             Files.writeString(tempJson, jsonContent);
@@ -526,6 +531,13 @@ public class EditorTestSuite {
         } catch (Exception e) {
             System.err.println("  ✖ FAIL: testCodeDiagnosticsEngine threw exception: " + e.getMessage());
             testsFailed++;
+        } finally {
+            try {
+                if (tempJava != null) Files.deleteIfExists(tempJava);
+                if (tempPy != null) Files.deleteIfExists(tempPy);
+                if (tempJs != null) Files.deleteIfExists(tempJs);
+                if (tempJson != null) Files.deleteIfExists(tempJson);
+            } catch (IOException ignored) {}
         }
     }
 
