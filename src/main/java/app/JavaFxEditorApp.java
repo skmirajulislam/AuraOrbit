@@ -72,6 +72,24 @@ public class JavaFxEditorApp extends Application {
         StackPane.setAlignment(commandPalette, Pos.TOP_CENTER);
         StackPane.setAlignment(welcomeWatermarkPane, Pos.CENTER);
 
+        Button splitButton = new Button();
+        splitButton.setGraphic(IconFactory.getIcon(Codicons.SPLIT_HORIZONTAL, 13));
+        splitButton.setTooltip(new Tooltip("Split Editor Right (Cmd+\\)"));
+        splitButton.getStyleClass().add("editor-action-icon-button");
+        splitButton.setOnAction(e -> controller.toggleSplitEditor());
+
+        Button formatButton = new Button();
+        formatButton.setGraphic(IconFactory.getIcon(Codicons.CHECK_ALL, 13));
+        formatButton.setTooltip(new Tooltip("Format Document (Shift+Alt+F)"));
+        formatButton.getStyleClass().add("editor-action-icon-button");
+        formatButton.setOnAction(e -> controller.formatActiveDocument());
+
+        Button wordWrapButton = new Button();
+        wordWrapButton.setGraphic(IconFactory.getIcon(Codicons.WORD_WRAP, 13));
+        wordWrapButton.setTooltip(new Tooltip("Toggle Word Wrap (Alt+Z)"));
+        wordWrapButton.getStyleClass().add("editor-action-icon-button");
+        wordWrapButton.setOnAction(e -> controller.toggleWordWrap());
+
         Button runButton = new Button("Run");
         runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#89d185"));
         runButton.setTooltip(new Tooltip("Run Active File (F5). Type runtime input in the terminal."));
@@ -79,9 +97,9 @@ public class JavaFxEditorApp extends Application {
         runButton.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         runButton.setOnAction(e -> controller.runActiveFile());
 
-        HBox runOverlay = new HBox(runButton);
+        HBox runOverlay = new HBox(3, formatButton, wordWrapButton, splitButton, runButton);
         runOverlay.setAlignment(Pos.CENTER_RIGHT);
-        runOverlay.setPadding(new Insets(0, 8, 0, 0));
+        runOverlay.setPadding(new Insets(0, 10, 0, 0));
         runOverlay.setMinHeight(35);
         runOverlay.setPrefHeight(35);
         runOverlay.setMaxHeight(35);
@@ -165,6 +183,13 @@ public class JavaFxEditorApp extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
 
+        // Auto-synchronize file explorer whenever the AuraOrbit window regains focus
+        primaryStage.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+            if (isFocused && sidebarExplorer != null) {
+                sidebarExplorer.refreshWorkspace();
+            }
+        });
+
         // Check if a file argument was passed
         List<String> rawArgs = getParameters().getRaw();
         if (!rawArgs.isEmpty() && !rawArgs.get(0).startsWith("-")) {
@@ -188,6 +213,7 @@ public class JavaFxEditorApp extends Application {
         KeyCombination ctrlShiftBacktick = new KeyCodeCombination(KeyCode.BACK_QUOTE, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
 
         KeyCombination shiftAltF = new KeyCodeCombination(KeyCode.F, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN);
+        KeyCombination altZ = new KeyCodeCombination(KeyCode.Z, KeyCombination.ALT_DOWN);
         KeyCombination runActiveFile = new KeyCodeCombination(KeyCode.F5);
 
         scene.getAccelerators().put(cmdS, () -> controller.handleSave(false));
@@ -198,6 +224,7 @@ public class JavaFxEditorApp extends Application {
         scene.getAccelerators().put(cmdF, () -> controller.handleFind(true));
         scene.getAccelerators().put(cmdP, controller::showCommandPalette);
         scene.getAccelerators().put(shiftAltF, controller::formatActiveDocument);
+        scene.getAccelerators().put(altZ, controller::toggleWordWrap);
         scene.getAccelerators().put(runActiveFile, controller::runActiveFile);
         scene.getAccelerators().put(cmdSplit, controller::toggleSplitEditor);
         scene.getAccelerators().put(cmdAi, controller::toggleAiPanel);

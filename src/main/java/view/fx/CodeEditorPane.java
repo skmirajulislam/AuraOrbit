@@ -136,6 +136,16 @@ public class CodeEditorPane extends StackPane {
             }
         });
 
+        // Active Line Highlight matching VS Code
+        this.codeArea.currentParagraphProperty().addListener((obs, oldParagraph, newParagraph) -> {
+            if (oldParagraph != null && oldParagraph >= 0 && oldParagraph < codeArea.getParagraphs().size()) {
+                codeArea.setParagraphStyle(oldParagraph, Collections.emptyList());
+            }
+            if (newParagraph != null && newParagraph >= 0 && newParagraph < codeArea.getParagraphs().size()) {
+                codeArea.setParagraphStyle(newParagraph, Collections.singletonList("active-line-highlight"));
+            }
+        });
+
         VirtualizedScrollPane<CodeArea> scrollPane = new VirtualizedScrollPane<>(codeArea);
         scrollPane.getStyleClass().add("code-scroll-pane");
         scrollPane.setMaxWidth(Double.MAX_VALUE);

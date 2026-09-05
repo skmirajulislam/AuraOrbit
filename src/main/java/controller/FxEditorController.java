@@ -59,6 +59,7 @@ public class FxEditorController {
 
     private final List<EditorTabController> tabControllers = new ArrayList<>();
     private boolean isSplitEditorActive = false;
+    private final java.util.concurrent.atomic.AtomicBoolean isRunningActiveFile = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     private final ScheduledExecutorService diagnosticDebounceExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "Diagnostic-Debounce");
@@ -531,6 +532,7 @@ public class FxEditorController {
         commandPalette.registerCommand("Run: Run Active File", "F5", this::runActiveFile);
         commandPalette.registerCommand("Edit: Find & Replace", "Cmd+F", () -> handleFind(true));
         commandPalette.registerCommand("View: Toggle Side-by-Side Split Editor", "Cmd+\\", this::toggleSplitEditor);
+        commandPalette.registerCommand("View: Toggle Word Wrap", "Alt+Z", this::toggleWordWrap);
         commandPalette.registerCommand("View: Toggle AI IDE Copilot", "Cmd+Shift+A", this::toggleAiPanel);
         commandPalette.registerCommand("AI Copilot: Configure API Keys (GPT, Gemini, Grok)", "", () -> {
             if (modalOverlayPane != null && aiAssistantPane != null) {
@@ -881,6 +883,14 @@ public class FxEditorController {
         }
     }
 
+    public void toggleWordWrap() {
+        EditorTabController current = getActiveTabController();
+        if (current != null && current.getEditorPane() != null) {
+            org.fxmisc.richtext.CodeArea ca = current.getEditorPane().getCodeArea();
+            ca.setWrapText(!ca.isWrapText());
+        }
+    }
+
     /** Detects the active file's runtime/compiler and executes it in the built-in terminal. */
     public void runActiveFile() {
         EditorTabController current = getActiveTabController();
@@ -896,6 +906,11 @@ public class FxEditorController {
             return;
         }
 
+        // Prevent rapid double-click race conditions
+        if (!isRunningActiveFile.compareAndSet(false, true)) {
+            return;
+        }
+
         // Ensure terminal is visible and added to the UI before execution
         showDockPanel(TerminalPane.DockTab.TERMINAL);
 
@@ -904,6 +919,7 @@ public class FxEditorController {
             CodeExecutionService.ExecutionPlan plan = codeExecutionService.createPlan(source);
             Platform.runLater(() -> {
                 if (!plan.isRunnable()) {
+                    isRunningActiveFile.set(false);
                     showRunMessage(plan.message());
                     return;
                 }
@@ -911,7 +927,15 @@ public class FxEditorController {
                         plan.steps(),
                         source.getParent(),
                         plan.command(),
-                        plan.cleanupHook(),
+                        () -> {
+                            try {
+                                if (plan.cleanupHook() != null) {
+                                    plan.cleanupHook().run();
+                                }
+                            } finally {
+                                isRunningActiveFile.set(false);
+                            }
+                        },
                         dirPath -> {
                             if (sidebarExplorer != null && dirPath != null) {
                                 sidebarExplorer.refreshPath(dirPath);

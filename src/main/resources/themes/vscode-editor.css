@@ -19,9 +19,11 @@
 }
 
 /* A subtle active-line treatment makes it easy to track the cursor. */
+.vscode-code-editor .paragraph-box.active-line-highlight,
+.styled-text-area .paragraph-box.active-line-highlight,
 .vscode-code-editor .paragraph-box:has-caret,
 .styled-text-area .paragraph-box:has-caret {
-    -fx-background-color: derive(-bg-editor, 4%);
+    -fx-background-color: rgba(255, 255, 255, 0.045);
 }
 
 .vscode-code-editor .text,
@@ -148,11 +150,9 @@
 }
 
 .tab-pane > .tab-header-area > .headers-region > .tab:selected {
-    -fx-background-color: -bg-tab-active;
-    -fx-border-color: -accent-color -border-color transparent -border-color;
-    -fx-border-width: 2 1 0 1;
-    -fx-background-radius: 4 4 0 0;
-    -fx-border-radius: 4 4 0 0;
+    -fx-background-color: -accent-color, -bg-tab-active;
+    -fx-background-insets: 0, 2 0 0 0;
+    -fx-background-radius: 4 4 0 0, 4 4 0 0;
 }
 
 .tab-pane > .tab-header-area > .headers-region > .tab .focus-indicator,

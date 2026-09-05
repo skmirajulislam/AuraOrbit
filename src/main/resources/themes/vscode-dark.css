@@ -157,13 +157,10 @@
 }
 .tab-pane > .tab-header-area > .headers-region > .tab:hover {
     -fx-background-color: derive(-bg-tab-inactive, 10%);
-}
 .tab-pane > .tab-header-area > .headers-region > .tab:selected {
-    -fx-background-color: -bg-tab-active;
-    -fx-border-color: -accent-color -border-color transparent -border-color;
-    -fx-border-width: 2 1 0 1;
-    -fx-background-radius: 4 4 0 0;
-    -fx-border-radius: 4 4 0 0;
+    -fx-background-color: -accent-color, -bg-tab-active;
+    -fx-background-insets: 0, 2 0 0 0;
+    -fx-background-radius: 4 4 0 0, 4 4 0 0;
 }
 .tab-pane > .tab-header-area > .headers-region > .tab .focus-indicator,
 .tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
@@ -239,6 +236,25 @@
 }
 .styled-text-area .paragraph-box {
     -fx-background-color: -bg-editor;
+}
+.styled-text-area .paragraph-box.active-line-highlight {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+}
+.editor-action-icon-button {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 3 6 3 6;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+.editor-action-icon-button:hover {
+    -fx-background-color: -bg-hover;
+}
+.editor-action-icon-button .codicon {
+    -fx-icon-color: -text-secondary;
+}
+.editor-action-icon-button:hover .codicon {
+    -fx-icon-color: -text-primary;
 }
 .styled-text-area .lineno {
     -fx-background-color: -bg-gutter;
