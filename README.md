@@ -2,8 +2,6 @@
   <img src="assets/logo.png" alt="AuraOrbit Logo" width="280">
 </p>
 
-<h1 align="center">AuraOrbit</h1>
-
 <p align="center">
   <em>Next-Gen Modern Desktop AI Code Studio &amp; IDE</em>
 </p>
@@ -18,7 +16,7 @@
 
 ---
 
-is an industrial-grade, cross-platform code studio designed for high-performance software engineering. Built from the ground up on modern **Java 21** and **JavaFX 21**, AuraOrbit combines the lightweight speed of native desktop software with the developer experience of modern editors like VS Code—featuring virtualized code rendering, an asynchronous multi-language diagnostics engine, dual-pane split editing, native shell terminals, real-time cryptographic peer collaboration, and native multi-LLM AI orchestration.
+**AuraOrbit** is an industrial-grade, cross-platform code studio designed for high-performance software engineering. Built from the ground up on modern **Java 21** and **JavaFX 21**, AuraOrbit combines the lightweight speed of native desktop software with the developer experience of modern editors like VS Code—featuring virtualized code rendering, an asynchronous multi-language diagnostics engine, dual-pane split editing, native shell terminals, real-time cryptographic peer collaboration, and native multi-LLM AI orchestration.
 
 ---
 
