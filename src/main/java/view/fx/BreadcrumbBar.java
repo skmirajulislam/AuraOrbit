@@ -5,7 +5,6 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import org.fxmisc.richtext.CodeArea;
 import org.kordamp.ikonli.codicons.Codicons;
 
 import java.nio.file.Path;

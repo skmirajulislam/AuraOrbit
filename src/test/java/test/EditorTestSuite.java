@@ -32,7 +32,6 @@ import java.util.Map;
 import collaboration.model.CollabPacket;
 import collaboration.model.CursorEvent;
 import collaboration.model.TextOpEvent;
-import collaboration.model.VirtualFileNode;
 import collaboration.network.TunnelProcessLauncher;
 import collaboration.sync.DocumentSyncCoordinator;
 import collaboration.workspace.RemoteWorkspaceModel;

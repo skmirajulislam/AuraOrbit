@@ -18,7 +18,6 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
-import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 import service.AutoCompleteService;
@@ -536,6 +535,10 @@ public class CodeEditorPane extends StackPane {
             breadcrumbBar.setManaged(true);
         }
         refreshGitGutter(filePath);
+    }
+
+    public Path getCurrentFilePath() {
+        return currentFilePath;
     }
 
     public void updateCaretLine(int line1Indexed) {

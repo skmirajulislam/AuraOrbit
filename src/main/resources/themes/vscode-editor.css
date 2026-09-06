@@ -1,3 +1,12 @@
+/* Fallback root tokens for theme variables */
+.root {
+    -bg-secondary: #252526;
+    -bg-hover: #2a2d2e;
+    -border-color: #3c3c3c;
+    -accent-color: #007acc;
+    -text-secondary: #858585;
+}
+
 /* Shared RichTextFX editor geometry inspired by VS Code's default editor. */
 .vscode-code-editor,
 .styled-text-area {
@@ -601,8 +610,10 @@
 }
 
 .command-center-pill {
+    -fx-background-color: #252526;
     -fx-background-color: -bg-secondary;
     -fx-background-radius: 6;
+    -fx-border-color: #3c3c3c;
     -fx-border-color: -border-color;
     -fx-border-radius: 6;
     -fx-border-width: 1;
@@ -610,7 +621,9 @@
 }
 
 .command-center-pill:hover {
+    -fx-background-color: #2a2d2e;
     -fx-background-color: -bg-hover;
+    -fx-border-color: #007acc;
     -fx-border-color: -accent-color;
 }
 
