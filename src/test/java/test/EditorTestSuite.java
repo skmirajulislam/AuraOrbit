@@ -4,6 +4,7 @@ import command.*;
 import model.TextBuffer;
 import service.FileSecurityValidator;
 import service.FileService;
+import service.AutoCompleteService;
 import template.JavaTemplate;
 import template.JsonTemplate;
 import template.MarkdownTemplate;
@@ -73,6 +74,7 @@ public class EditorTestSuite {
             testBreadcrumbSymbolIndexing();
             testPreviewModeAndDiagnostics();
             testCollaborationModule();
+            testAutoCompleteEngine();
 
             System.out.println("\n-------------------------------------------------");
             System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -849,5 +851,38 @@ public class EditorTestSuite {
         // 4. Test Cloudflare Process Binary Resolution
         String cloudflaredPath = TunnelProcessLauncher.resolveCloudflaredPath();
         assertTrue(cloudflaredPath != null && !cloudflaredPath.isBlank(), "Cloudflared binary resolved on system");
+    }
+
+    private static void testAutoCompleteEngine() {
+        System.out.println("\n[22] Testing IntelliSense Autocomplete & Snippet Engine...");
+
+        String sampleDoc = "public class Calculator {\n    private int totalCount = 0;\n    public void calculateTax() {}\n}";
+
+        // 1. Test Keyword Completion
+        List<AutoCompleteService.CompletionItem> pubMatches = AutoCompleteService.computeCompletions("pub", "java", sampleDoc);
+        assertTrue(!pubMatches.isEmpty(), "Found completions for prefix 'pub'");
+        boolean hasPublic = pubMatches.stream().anyMatch(i -> i.label().equals("public") && i.kind() == AutoCompleteService.ItemKind.KEYWORD);
+        assertTrue(hasPublic, "Matches contain 'public' keyword");
+
+        // 2. Test Snippet Completion
+        List<AutoCompleteService.CompletionItem> psvmMatches = AutoCompleteService.computeCompletions("psvm", "java", sampleDoc);
+        assertTrue(!psvmMatches.isEmpty(), "Found completions for prefix 'psvm'");
+        AutoCompleteService.CompletionItem psvm = psvmMatches.get(0);
+        assertEquals("psvm", psvm.label(), "Top match for 'psvm' is psvm snippet");
+        assertEquals(AutoCompleteService.ItemKind.SNIPPET, psvm.kind(), "psvm kind is SNIPPET");
+        assertTrue(psvm.insertText().contains("main(String[] args)"), "psvm snippet contains main method signature");
+
+        // 3. Test Document Symbol Extraction & Completion
+        List<AutoCompleteService.CompletionItem> calcMatches = AutoCompleteService.computeCompletions("calc", "java", sampleDoc);
+        boolean hasCalculateTax = calcMatches.stream().anyMatch(i -> i.label().equals("calculateTax"));
+        assertTrue(hasCalculateTax, "Document symbol 'calculateTax' resolved from active buffer");
+
+        boolean hasCalculator = calcMatches.stream().anyMatch(i -> i.label().equals("Calculator"));
+        assertTrue(hasCalculator, "Document symbol 'Calculator' resolved from active buffer");
+
+        // 4. Test Case-Insensitive Prefix Ordering
+        List<AutoCompleteService.CompletionItem> retMatches = AutoCompleteService.computeCompletions("ret", "java", sampleDoc);
+        boolean hasReturn = retMatches.stream().anyMatch(i -> i.label().equals("return"));
+        assertTrue(hasReturn, "Matches contain 'return' keyword");
     }
 }

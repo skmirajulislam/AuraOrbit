@@ -10,6 +10,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -20,6 +21,7 @@ import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
+import service.AutoCompleteService;
 import service.CodeFormatterService;
 import service.GitGutterService;
 
@@ -27,6 +29,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +48,7 @@ public class CodeEditorPane extends StackPane {
     private final FindReplaceBar findReplaceBar;
     private final BreadcrumbBar breadcrumbBar;
     private final MinimapPane minimapPane;
+    private final AutoCompletePopup autoCompletePopup;
     private final Map<Integer, GitGutterService.GutterType> gitDiffMap = new ConcurrentHashMap<>();
     private final ExecutorService highlightExecutor;
     private String fileType = "java";
@@ -153,11 +157,54 @@ public class CodeEditorPane extends StackPane {
         setupFindReplaceActions();
         setupEditorContextMenu();
 
-        // Keyboard Shortcut: Shift+Alt+F (Format Document)
-        this.codeArea.setOnKeyPressed(e -> {
+        this.autoCompletePopup = new AutoCompletePopup();
+
+        // IntelliSense & Shortcuts Filter (Intercepts Up/Down/Tab/Enter/Esc when popup is open)
+        this.codeArea.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (autoCompletePopup.isShowing()) {
+                if (e.getCode() == KeyCode.DOWN) {
+                    autoCompletePopup.selectNext();
+                    e.consume();
+                    return;
+                } else if (e.getCode() == KeyCode.UP) {
+                    autoCompletePopup.selectPrevious();
+                    e.consume();
+                    return;
+                } else if (e.getCode() == KeyCode.ENTER || e.getCode() == KeyCode.TAB) {
+                    autoCompletePopup.commitSelection();
+                    e.consume();
+                    return;
+                } else if (e.getCode() == KeyCode.ESCAPE) {
+                    autoCompletePopup.hide();
+                    e.consume();
+                    return;
+                }
+            }
+
+            // Explicit trigger via Ctrl + Space
+            if (e.isControlDown() && e.getCode() == KeyCode.SPACE) {
+                triggerAutoComplete(true);
+                e.consume();
+                return;
+            }
+
+            // Keyboard Shortcut: Shift+Alt+F (Format Document)
             if (e.isAltDown() && e.isShiftDown() && e.getCode() == KeyCode.F) {
                 formatCode();
                 e.consume();
+            }
+        });
+
+        // Trigger autocomplete dynamically as the user types
+        this.codeArea.textProperty().addListener((obs, oldText, newText) -> {
+            if (codeArea.isFocused()) {
+                triggerAutoComplete(false);
+            }
+        });
+
+        this.codeArea.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+            if (!isFocused && autoCompletePopup.isShowing()) {
+                autoCompletePopup.hide();
             }
         });
 
@@ -519,7 +566,55 @@ public class CodeEditorPane extends StackPane {
         return breadcrumbBar;
     }
 
+    private String getPrefixAtCaret() {
+        int caretPos = codeArea.getCaretPosition();
+        if (caretPos <= 0) return "";
+        String text = codeArea.getText();
+        if (caretPos > text.length()) caretPos = text.length();
+
+        int start = caretPos - 1;
+        while (start >= 0 && Character.isJavaIdentifierPart(text.charAt(start))) {
+            start--;
+        }
+        return text.substring(start + 1, caretPos);
+    }
+
+    public void triggerAutoComplete(boolean force) {
+        String prefix = getPrefixAtCaret();
+        if (!force && (prefix.length() < 2 || !Character.isJavaIdentifierStart(prefix.charAt(0)))) {
+            if (autoCompletePopup.isShowing()) {
+                autoCompletePopup.hide();
+            }
+            return;
+        }
+
+        List<AutoCompleteService.CompletionItem> items = AutoCompleteService.computeCompletions(
+                prefix, fileType, codeArea.getText()
+        );
+
+        if (items.isEmpty()) {
+            if (autoCompletePopup.isShowing()) {
+                autoCompletePopup.hide();
+            }
+        } else {
+            autoCompletePopup.showAtCaret(codeArea, items, this::applyCompletion);
+        }
+    }
+
+    private void applyCompletion(AutoCompleteService.CompletionItem item) {
+        int caretPos = codeArea.getCaretPosition();
+        String prefix = getPrefixAtCaret();
+        int startPos = caretPos - prefix.length();
+
+        String insert = item.insertText();
+        codeArea.replaceText(startPos, caretPos, insert);
+        codeArea.moveTo(startPos + insert.length());
+    }
+
     public void dispose() {
+        if (autoCompletePopup != null && autoCompletePopup.isShowing()) {
+            autoCompletePopup.hide();
+        }
         highlightExecutor.shutdown();
     }
 }
