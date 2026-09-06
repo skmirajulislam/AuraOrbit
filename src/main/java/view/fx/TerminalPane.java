@@ -5,10 +5,19 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Point2D;
+import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.text.HitInfo;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import org.kordamp.ikonli.codicons.Codicons;
@@ -1206,7 +1215,7 @@ public class TerminalPane extends BorderPane {
         HBox inputRow = new HBox(6);
         inputRow.setAlignment(Pos.CENTER_LEFT);
         inputRow.setPadding(new Insets(6, 12, 8, 12));
-        inputRow.setStyle("-fx-background-color: #181818; -fx-border-color: -border-color transparent transparent transparent; -fx-border-width: 1 0 0 0;");
+        inputRow.setStyle("-fx-background-color: -bg-secondary; -fx-border-color: -border-color transparent transparent transparent; -fx-border-width: 1 0 0 0;");
 
         Label promptLabel = new Label(">");
         promptLabel.setStyle("-fx-text-fill: #4ec9b0; -fx-font-family: monospace; -fx-font-size: 13px; -fx-font-weight: bold;");
@@ -1527,7 +1536,7 @@ public class TerminalPane extends BorderPane {
             HBox row = new HBox(12);
             row.setAlignment(Pos.CENTER_LEFT);
             row.setPadding(new Insets(6, 12, 6, 12));
-            row.setStyle("-fx-border-color: transparent transparent #252526 transparent; -fx-border-width: 0 0 1 0;");
+            row.setStyle("-fx-border-color: transparent transparent -border-color transparent; -fx-border-width: 0 0 1 0;");
 
             Label p = new Label(String.valueOf(entry.port));
             p.setPrefWidth(80);
@@ -1872,10 +1881,26 @@ public class TerminalPane extends BorderPane {
         scanLocalPorts();
     }
 
+    public TerminalSession getActiveSession() {
+        return activeSession;
+    }
+
+    public void copyActiveTerminalSelection() {
+        if (activeSession != null) {
+            activeSession.copySelectionOrAll();
+        }
+    }
+
+    public void pasteActiveTerminal() {
+        if (activeSession != null) {
+            activeSession.pasteToPrompt();
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Inner class: TerminalSession — Top-Aligned Direct Shell Prompt & Streaming
     // ─────────────────────────────────────────────────────────────────────────
-    private class TerminalSession {
+    public class TerminalSession {
 
         private final int sessionId;
         private final VBox sessionRoot;
@@ -1888,6 +1913,12 @@ public class TerminalPane extends BorderPane {
 
         private final List<String> commandHistory = new ArrayList<>();
         private int historyIndex = -1;
+
+        private String selectedText = "";
+        private int selectionAnchor = -1;
+        private int selectionLead = -1;
+        private boolean isMouseDragging = false;
+        private final ContextMenu terminalContextMenu = new ContextMenu();
 
         private File currentDir;
         private Process process;
@@ -1939,11 +1970,77 @@ public class TerminalPane extends BorderPane {
             scrollPane.getStyleClass().add("terminal-scroll-pane");
             VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-            // Clicking anywhere in the terminal canvas immediately focuses the shell prompt
-            scrollPane.setOnMouseClicked(e -> focusInput());
-            terminalContent.setOnMouseClicked(e -> focusInput());
-            outputFlow.setOnMouseClicked(e -> focusInput());
-            promptRow.setOnMouseClicked(e -> focusInput());
+            setupTerminalContextMenu();
+
+            // Mouse text drag selection on outputFlow
+            outputFlow.setOnMousePressed(e -> {
+                if (e.getButton() == MouseButton.PRIMARY) {
+                    isMouseDragging = false;
+                    selectionAnchor = getCharIndexAt(e.getX(), e.getY());
+                    selectionLead = selectionAnchor;
+                    clearTextSelection();
+                }
+            });
+
+            outputFlow.setOnMouseDragged(e -> {
+                if (e.getButton() == MouseButton.PRIMARY && selectionAnchor >= 0) {
+                    isMouseDragging = true;
+                    int currentLead = getCharIndexAt(e.getX(), e.getY());
+                    if (currentLead >= 0) {
+                        selectionLead = currentLead;
+                        updateTextSelection(selectionAnchor, selectionLead);
+                    }
+                }
+            });
+
+            outputFlow.setOnMouseReleased(e -> {
+                if (e.getButton() == MouseButton.PRIMARY) {
+                    if (!isMouseDragging || selectedText == null || selectedText.isEmpty()) {
+                        clearTextSelection();
+                        focusInput();
+                    }
+                    isMouseDragging = false;
+                }
+            });
+
+            // Right-click context menus
+            outputFlow.setOnContextMenuRequested(e -> showTerminalContextMenu(e.getScreenX(), e.getScreenY()));
+            scrollPane.setOnContextMenuRequested(e -> showTerminalContextMenu(e.getScreenX(), e.getScreenY()));
+            terminalContent.setOnContextMenuRequested(e -> showTerminalContextMenu(e.getScreenX(), e.getScreenY()));
+            cmdInput.setOnContextMenuRequested(e -> showTerminalContextMenu(e.getScreenX(), e.getScreenY()));
+
+            // Normal clicking on empty canvas focuses shell prompt without clearing drag
+            scrollPane.setOnMouseClicked(e -> {
+                if (e.getButton() == MouseButton.PRIMARY && !isMouseDragging) {
+                    focusInput();
+                }
+            });
+            terminalContent.setOnMouseClicked(e -> {
+                if (e.getButton() == MouseButton.PRIMARY && !isMouseDragging) {
+                    focusInput();
+                }
+            });
+            promptRow.setOnMouseClicked(e -> {
+                if (e.getButton() == MouseButton.PRIMARY) {
+                    focusInput();
+                }
+            });
+
+            // Global shortcut handler on session root
+            sessionRoot.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+                if ((e.isShortcutDown() || e.isControlDown()) && e.getCode() == KeyCode.C) {
+                    if (selectedText != null && !selectedText.isEmpty()) {
+                        copySelectionOrAll();
+                        e.consume();
+                    }
+                } else if ((e.isShortcutDown() || e.isControlDown()) && e.getCode() == KeyCode.V) {
+                    pasteToPrompt();
+                    e.consume();
+                } else if ((e.isShortcutDown() || e.isControlDown()) && e.getCode() == KeyCode.A) {
+                    selectAllOutput();
+                    e.consume();
+                }
+            });
 
             sessionRoot.getChildren().add(scrollPane);
         }
@@ -2201,16 +2298,234 @@ public class TerminalPane extends BorderPane {
             scrollPane.setVvalue(1.0);
         }
 
+        private int getCharIndexAt(double x, double y) {
+            try {
+                HitInfo hit = outputFlow.hitTest(new Point2D(x, y));
+                if (hit != null && hit.getCharIndex() >= 0) {
+                    return hit.getCharIndex();
+                }
+            } catch (Exception ignored) {}
+
+            // Fallback estimation using node bounds
+            int accumulated = 0;
+            for (Node node : outputFlow.getChildren()) {
+                if (node instanceof Text textNode) {
+                    javafx.geometry.Bounds b = textNode.getBoundsInParent();
+                    if (y < b.getMinY()) {
+                        return accumulated;
+                    }
+                    if (y <= b.getMaxY()) {
+                        int len = textNode.getText().length();
+                        if (len == 0) continue;
+                        double ratio = Math.max(0.0, Math.min(1.0, (x - b.getMinX()) / Math.max(1.0, b.getWidth())));
+                        return accumulated + (int) Math.round(ratio * len);
+                    }
+                    accumulated += textNode.getText().length();
+                }
+            }
+            return accumulated;
+        }
+
+        private void updateTextSelection(int anchor, int lead) {
+            int start = Math.min(anchor, lead);
+            int end = Math.max(anchor, lead);
+            if (start < 0) start = 0;
+
+            int currentOffset = 0;
+            StringBuilder selBuilder = new StringBuilder();
+
+            for (Node node : outputFlow.getChildren()) {
+                if (node instanceof Text t) {
+                    int nodeLen = t.getText().length();
+                    int nodeStart = currentOffset;
+                    int nodeEnd = currentOffset + nodeLen;
+
+                    if (nodeEnd <= start || nodeStart >= end) {
+                        t.setSelectionStart(0);
+                        t.setSelectionEnd(0);
+                    } else {
+                        int selStartInNode = Math.max(0, start - nodeStart);
+                        int selEndInNode = Math.min(nodeLen, end - nodeStart);
+                        t.setSelectionStart(selStartInNode);
+                        t.setSelectionEnd(selEndInNode);
+                        t.setSelectionFill(Color.WHITE);
+                        selBuilder.append(t.getText(), selStartInNode, selEndInNode);
+                    }
+                    currentOffset += nodeLen;
+                }
+            }
+            selectedText = selBuilder.toString();
+        }
+
+        private void clearTextSelection() {
+            selectedText = "";
+            selectionAnchor = -1;
+            selectionLead = -1;
+            for (Node node : outputFlow.getChildren()) {
+                if (node instanceof Text t) {
+                    t.setSelectionStart(0);
+                    t.setSelectionEnd(0);
+                }
+            }
+        }
+
+        private int getTotalOutputLength() {
+            int len = 0;
+            for (Node node : outputFlow.getChildren()) {
+                if (node instanceof Text t) {
+                    len += t.getText().length();
+                }
+            }
+            return len;
+        }
+
+        private void setupTerminalContextMenu() {
+            terminalContextMenu.getStyleClass().add("editor-context-menu");
+
+            MenuItem copyItem = new MenuItem("Copy");
+            copyItem.setAccelerator(new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN));
+            copyItem.setOnAction(e -> copySelectionOrAll());
+
+            MenuItem pasteItem = new MenuItem("Paste");
+            pasteItem.setAccelerator(new KeyCodeCombination(KeyCode.V, KeyCombination.SHORTCUT_DOWN));
+            pasteItem.setOnAction(e -> pasteToPrompt());
+
+            MenuItem copyAllItem = new MenuItem("Copy All Output");
+            copyAllItem.setOnAction(e -> copyAllOutput());
+
+            MenuItem selectAllItem = new MenuItem("Select All");
+            selectAllItem.setAccelerator(new KeyCodeCombination(KeyCode.A, KeyCombination.SHORTCUT_DOWN));
+            selectAllItem.setOnAction(e -> selectAllOutput());
+
+            MenuItem clearItem = new MenuItem("Clear Terminal (Ctrl+L)");
+            clearItem.setOnAction(e -> clearOutput());
+
+            terminalContextMenu.getItems().addAll(
+                    copyItem,
+                    pasteItem,
+                    new SeparatorMenuItem(),
+                    copyAllItem,
+                    selectAllItem,
+                    new SeparatorMenuItem(),
+                    clearItem
+            );
+        }
+
+        private void showTerminalContextMenu(double screenX, double screenY) {
+            terminalContextMenu.show(sessionRoot, screenX, screenY);
+        }
+
+        public void copySelectionOrAll() {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            ClipboardContent content = new ClipboardContent();
+            if (selectedText != null && !selectedText.isEmpty()) {
+                content.putString(selectedText);
+                clipboard.setContent(content);
+            } else if (cmdInput.getSelectedText() != null && !cmdInput.getSelectedText().isEmpty()) {
+                cmdInput.copy();
+            } else {
+                copyAllOutput();
+            }
+        }
+
+        public void copyAllOutput() {
+            StringBuilder sb = new StringBuilder();
+            for (Node node : outputFlow.getChildren()) {
+                if (node instanceof Text textNode) {
+                    sb.append(textNode.getText());
+                }
+            }
+            if (sb.length() > 0) {
+                Clipboard clipboard = Clipboard.getSystemClipboard();
+                ClipboardContent content = new ClipboardContent();
+                content.putString(sb.toString());
+                clipboard.setContent(content);
+            }
+        }
+
+        public void pasteToPrompt() {
+            Clipboard clipboard = Clipboard.getSystemClipboard();
+            if (clipboard.hasString()) {
+                String text = clipboard.getString();
+                if (text != null && !text.isEmpty()) {
+                    int caret = cmdInput.getCaretPosition();
+                    cmdInput.insertText(caret, text);
+                    focusInput();
+                }
+            }
+        }
+
+        public void selectAllOutput() {
+            int totalLen = getTotalOutputLength();
+            if (totalLen > 0) {
+                selectionAnchor = 0;
+                selectionLead = totalLen;
+                updateTextSelection(0, totalLen);
+            }
+        }
+
+        public String getSelectedText() {
+            return selectedText;
+        }
+
+        public void setSelectedText(String text) {
+            this.selectedText = text;
+        }
+
         private void handlePromptKey(KeyEvent event) {
+            // Copy shortcut: Cmd+C (Mac) or Ctrl+C when text is selected
+            if (event.isShortcutDown() && event.getCode() == KeyCode.C) {
+                if (selectedText != null && !selectedText.isEmpty()) {
+                    copySelectionOrAll();
+                    event.consume();
+                    return;
+                } else if (cmdInput.getSelectedText() != null && !cmdInput.getSelectedText().isEmpty()) {
+                    cmdInput.copy();
+                    event.consume();
+                    return;
+                }
+            }
+
+            // Ctrl+C with text selected copies; without selection sends SIGINT
+            if (event.isControlDown() && event.getCode() == KeyCode.C) {
+                if (selectedText != null && !selectedText.isEmpty()) {
+                    copySelectionOrAll();
+                    event.consume();
+                    return;
+                } else if (cmdInput.getSelectedText() != null && !cmdInput.getSelectedText().isEmpty()) {
+                    cmdInput.copy();
+                    event.consume();
+                    return;
+                } else {
+                    appendOutputText(promptLabel.getText() + cmdInput.getText() + "^C\n");
+                    cmdInput.clear();
+                    interrupt();
+                    event.consume();
+                    return;
+                }
+            }
+
+            // Paste shortcut: Cmd+V / Ctrl+V
+            if ((event.isShortcutDown() || event.isControlDown()) && event.getCode() == KeyCode.V) {
+                pasteToPrompt();
+                event.consume();
+                return;
+            }
+
+            // Select all: Cmd+A / Ctrl+A
+            if ((event.isShortcutDown() || event.isControlDown()) && event.getCode() == KeyCode.A) {
+                selectAllOutput();
+                event.consume();
+                return;
+            }
+
             if (event.getCode() == KeyCode.ENTER) {
                 String cmd = cmdInput.getText();
                 cmdInput.clear();
                 
                 if (programRunning) {
-                    // When a program is running, send input directly to the program
                     sendInputToProgram(cmd);
                 } else {
-                    // Normal shell command execution
                     executeCommand(cmd);
                 }
                 event.consume();
@@ -2223,11 +2538,6 @@ public class TerminalPane extends BorderPane {
                 if (!programRunning) {
                     navigateHistory(1);
                 }
-                event.consume();
-            } else if (event.getCode() == KeyCode.C && event.isControlDown()) {
-                appendOutputText(promptLabel.getText() + cmdInput.getText() + "^C\n");
-                cmdInput.clear();
-                interrupt();
                 event.consume();
             } else if (event.getCode() == KeyCode.L && event.isControlDown()) {
                 clearOutput();
@@ -2325,6 +2635,7 @@ public class TerminalPane extends BorderPane {
 
         void clearOutput() {
             Platform.runLater(() -> {
+                clearTextSelection();
                 outputFlow.getChildren().clear();
                 scrollPane.setVvalue(0.0);
             });

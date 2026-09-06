@@ -1,30 +1,21 @@
-/* Fallback root tokens for theme variables */
-.root {
-    -bg-secondary: #252526;
-    -bg-hover: #2a2d2e;
-    -border-color: #3c3c3c;
-    -accent-color: #007acc;
-    -text-secondary: #858585;
-}
-
 /* Shared RichTextFX editor geometry inspired by VS Code's default editor. */
 .vscode-code-editor,
 .styled-text-area {
-    -fx-font-family: "Menlo", "Monaco", "Consolas", monospace;
-    -fx-font-size: 14px;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13.5px;
     -fx-background-color: -bg-editor;
 }
 
-/* Comfortable 20px-like rows, clear code edge, and a stable dark canvas. */
+/* Comfortable 23px-like rows matching VS Code / Antigravity */
 .vscode-code-editor .paragraph-box,
 .styled-text-area .paragraph-box {
     -fx-background-color: -bg-editor;
-    -fx-padding: 1px 0 1px 0;
+    -fx-padding: 3.5px 0 3.5px 0;
 }
 
 .vscode-code-editor .paragraph-text,
 .styled-text-area .paragraph-text {
-    -fx-padding: 0 14px 0 8px;
+    -fx-padding: 0 16px 0 8px;
 }
 
 /* A subtle active-line treatment makes it easy to track the cursor. */
@@ -35,18 +26,25 @@
     -fx-background-color: rgba(255, 255, 255, 0.045);
 }
 
+.vscode-code-editor,
+.styled-text-area {
+    -fx-font-smoothing-type: gray;
+}
+
 .vscode-code-editor .text,
 .styled-text-area .text {
-    -fx-font-family: "Menlo", "Monaco", "Consolas", monospace;
-    -fx-font-size: 14px;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13.5px;
+    -fx-font-smoothing-type: gray;
 }
 
 .vscode-code-editor .lineno,
 .styled-text-area .lineno {
-    -fx-font-family: "Menlo", "Monaco", "Consolas", monospace;
-    -fx-font-size: 13px;
-    -fx-padding: 0 14px 0 12px;
-    -fx-opacity: 0.9;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 12.5px;
+    -fx-text-fill: -text-gutter;
+    -fx-opacity: 0.85;
+    -fx-font-smoothing-type: gray;
 }
 
 .vscode-code-editor .selection,
@@ -208,6 +206,10 @@
     -fx-spacing: 2;
 }
 
+.status-bar .codicon {
+    -fx-icon-color: -text-status;
+}
+
 .status-item {
     -fx-padding: 2 8 2 8;
     -fx-background-radius: 4;
@@ -232,6 +234,10 @@
     -fx-border-width: 1;
     -fx-padding: 4 14 4 12;
     -fx-cursor: hand;
+}
+
+.editor-run-button .codicon {
+    -fx-icon-color: #89d185;
 }
 
 .editor-run-button.run-blocked {
@@ -509,46 +515,85 @@
     -fx-max-height: 24px;
 }
 
-.breadcrumb-path {
-    -fx-text-fill: -text-secondary;
-    -fx-font-size: 11px;
-    -fx-font-family: 'Segoe UI', system-ui, sans-serif;
-}
-
-.breadcrumb-symbol-picker {
+.breadcrumb-segment {
     -fx-background-color: transparent;
-    -fx-text-fill: -text-primary;
-    -fx-font-size: 11px;
-    -fx-font-weight: 500;
-    -fx-padding: 1 6 1 6;
+    -fx-text-fill: -text-secondary;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-padding: 1 5 1 5;
+    -fx-background-radius: 3;
     -fx-cursor: hand;
 }
 
-.breadcrumb-symbol-picker:hover {
+.breadcrumb-segment:hover {
     -fx-background-color: -bg-hover;
+    -fx-text-fill: -text-primary;
+}
+
+.breadcrumb-segment.breadcrumb-active {
+    -fx-text-fill: -text-primary;
+    -fx-font-weight: 500;
+}
+
+.breadcrumb-segment .codicon {
+    -fx-icon-color: -text-secondary;
+}
+
+.breadcrumb-segment:hover .codicon {
+    -fx-icon-color: -accent-color;
+}
+
+.breadcrumb-segment.breadcrumb-active .codicon {
+    -fx-icon-color: -accent-color;
+}
+
+.breadcrumb-separator {
+    -fx-text-fill: -text-secondary;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-font-size: 11px;
+    -fx-opacity: 0.7;
+}
+
+.editor-action-icon-button {
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 3 6 3 6;
     -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+
+.editor-action-icon-button:hover {
+    -fx-background-color: -bg-hover;
+}
+
+.editor-action-icon-button .codicon {
+    -fx-icon-color: -text-secondary;
+}
+
+.editor-action-icon-button:hover .codicon {
+    -fx-icon-color: -text-primary;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Minimap & Overview Ruler
    ───────────────────────────────────────────────────────────────────────────── */
 .minimap-pane {
-    -fx-background-color: transparent;
+    -fx-background-color: -bg-editor;
     -fx-border-color: transparent transparent transparent -border-color;
     -fx-border-width: 0 0 0 1;
     -fx-cursor: default;
 }
 
 .minimap-slider {
-    -fx-background-color: rgba(120, 120, 120, 0.22);
-    -fx-border-color: rgba(255, 255, 255, 0.15);
-    -fx-border-width: 1;
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
     -fx-background-radius: 2;
     -fx-border-radius: 2;
 }
 
 .minimap-slider:hover {
-    -fx-background-color: rgba(140, 140, 140, 0.35);
+    -fx-background-color: rgba(255, 255, 255, 0.18);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -570,7 +615,7 @@
 }
 
 .open-editor-row.active {
-    -fx-background-color: rgba(255, 255, 255, 0.07);
+    -fx-background-color: -bg-hover;
     -fx-border-color: transparent transparent transparent -accent-color;
     -fx-border-width: 0 0 0 2;
 }
@@ -601,8 +646,16 @@
     -fx-cursor: hand;
 }
 
+.command-center-nav-btn .codicon {
+    -fx-icon-color: -text-secondary;
+}
+
 .command-center-nav-btn:hover {
     -fx-background-color: -bg-hover;
+}
+
+.command-center-nav-btn:hover .codicon {
+    -fx-icon-color: -text-primary;
 }
 
 .command-center-nav-btn:disabled {
@@ -610,21 +663,29 @@
 }
 
 .command-center-pill {
-    -fx-background-color: #252526;
     -fx-background-color: -bg-secondary;
     -fx-background-radius: 6;
-    -fx-border-color: #3c3c3c;
     -fx-border-color: -border-color;
     -fx-border-radius: 6;
     -fx-border-width: 1;
     -fx-cursor: hand;
 }
 
+.command-center-pill .codicon {
+    -fx-icon-color: -text-secondary;
+}
+
 .command-center-pill:hover {
-    -fx-background-color: #2a2d2e;
     -fx-background-color: -bg-hover;
-    -fx-border-color: #007acc;
     -fx-border-color: -accent-color;
+}
+
+.command-center-pill:hover .codicon {
+    -fx-icon-color: -text-primary;
+}
+
+.command-center-pill:hover .command-center-pill-text {
+    -fx-text-fill: -text-primary;
 }
 
 .command-center-pill-text {
@@ -632,5 +693,19 @@
     -fx-font-size: 11px;
     -fx-font-weight: 500;
 }
+
+/* Accelerator shortcut badge in context menus */
+.context-menu .menu-item .accelerator-text,
+.editor-context-menu .menu-item .accelerator-text {
+    -fx-text-fill: #858585;
+    -fx-font-size: 11px;
+}
+.context-menu .menu-item:focused .accelerator-text,
+.context-menu .menu-item:hover .accelerator-text,
+.editor-context-menu .menu-item:focused .accelerator-text,
+.editor-context-menu .menu-item:hover .accelerator-text {
+    -fx-text-fill: #ffffff;
+}
+
 
 

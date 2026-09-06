@@ -1,6 +1,7 @@
 package controller;
 
 
+import javafx.beans.value.ChangeListener;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
@@ -9,6 +10,7 @@ import model.Document;
 import org.fxmisc.richtext.CodeArea;
 import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.javafx.FontIcon;
+import org.reactfx.Subscription;
 import service.FileSecurityValidator;
 import service.FileService;
 import view.fx.CodeEditorPane;
@@ -44,6 +46,9 @@ public class EditorTabController {
     private Consumer<EditorTabController> onCloseRequested;
     private Consumer<EditorTabController> onCloseOthersRequested;
     private Runnable onCloseAllRequested;
+
+    private Subscription textChangeSub;
+    private ChangeListener<Number> caretListener;
 
     private String lineEndings = "LF";
     private String indentation = "Spaces: 4";
@@ -140,21 +145,16 @@ public class EditorTabController {
             }
         });
 
-        String name = document.getFileName();
-        int dot = name.lastIndexOf('.');
-        if (dot != -1 && dot < name.length() - 1) {
-            editorPane.setFileType(name.substring(dot + 1).toLowerCase());
-        }
-
+        String ft = getFileExtension();
         if (java.nio.file.Files.exists(sanitized)) {
             suppressEvents = true;
             String content = fileService.readString(sanitized);
-            editorPane.getCodeArea().replaceText(content);
-            editorPane.getCodeArea().moveTo(0);
+            editorPane.loadContentInstantly(content, ft);
             updateCachedMetadata(content);
             suppressEvents = false;
-            String ft = getFileExtension();
             editorPane.updateBreadcrumbs(document.getFilePath(), ft, content);
+        } else {
+            editorPane.setFileType(ft);
         }
 
         initListeners();
@@ -207,7 +207,7 @@ public class EditorTabController {
         CodeArea codeArea = editorPane.getCodeArea();
 
         // High-performance event stream: zero full-text string joins on keystrokes
-        codeArea.plainTextChanges().subscribe(change -> {
+        textChangeSub = codeArea.plainTextChanges().subscribe(change -> {
             if (!suppressEvents) {
                 if (isPreview) {
                     pin();
@@ -225,26 +225,26 @@ public class EditorTabController {
         });
 
         // Caret position updates: instantaneous cursor tracking
-        codeArea.caretPositionProperty().addListener((obs, oldVal, newVal) -> {
+        caretListener = (obs, oldVal, newVal) -> {
             editorPane.updateCaretLine(codeArea.getCurrentParagraph() + 1);
             if (onCursorMoved != null) {
                 onCursorMoved.accept(this);
             } else if (onStateChanged != null) {
                 onStateChanged.run();
             }
-        });
+        };
+        codeArea.caretPositionProperty().addListener(caretListener);
     }
 
     public void setContent(String content, boolean markModified) {
         suppressEvents = true;
-        editorPane.getCodeArea().replaceText(content != null ? content : "");
-        editorPane.getCodeArea().moveTo(0);
+        String ft = getFileExtension();
+        editorPane.loadContentInstantly(content != null ? content : "", ft);
         updateCachedMetadata(content);
         suppressEvents = false;
 
         isModified = markModified;
         updateTabTitle();
-        String ft = getFileExtension();
         editorPane.updateBreadcrumbs(document.getFilePath(), ft, content);
         if (onTextChanged != null) {
             onTextChanged.accept(this);
@@ -267,7 +267,6 @@ public class EditorTabController {
             updateTabTitle();
             String ft = getFileExtension();
             editorPane.updateBreadcrumbs(document.getFilePath(), ft, text);
-            editorPane.refreshGitGutter(document.getFilePath());
             if (onTextChanged != null) {
                 onTextChanged.accept(this);
             } else if (onStateChanged != null) {
@@ -278,6 +277,11 @@ public class EditorTabController {
             System.err.println("Save failed: " + e.getMessage());
             return false;
         }
+    }
+
+    public void markUnsaved() {
+        this.isModified = true;
+        updateTabTitle();
     }
 
     public String getFileExtension() {
@@ -321,10 +325,6 @@ public class EditorTabController {
         Path sanitized = FileSecurityValidator.sanitizeAndResolvePath(newPath.toString());
         this.document = new Document(sanitized);
         String name = document.getFileName();
-        int dot = name.lastIndexOf('.');
-        if (dot != -1 && dot < name.length() - 1) {
-            editorPane.setFileType(name.substring(dot + 1).toLowerCase());
-        }
         FontIcon newIcon = IconFactory.getFileIcon(name, 13);
         this.fileIconNode.setIconCode(newIcon.getIconCode());
         this.fileIconNode.setIconColor(newIcon.getIconColor());
@@ -334,12 +334,10 @@ public class EditorTabController {
             suppressEvents = true;
             try {
                 String content = fileService.readString(sanitized);
-                editorPane.getCodeArea().replaceText(content);
-                editorPane.getCodeArea().moveTo(0);
-                updateCachedMetadata(content);
                 String ft = getFileExtension();
+                editorPane.loadContentInstantly(content, ft);
+                updateCachedMetadata(content);
                 editorPane.updateBreadcrumbs(document.getFilePath(), ft, content);
-                editorPane.refreshGitGutter(sanitized);
             } catch (Exception e) {
                 System.err.println("Failed to read file: " + e.getMessage());
             } finally {
@@ -441,6 +439,20 @@ public class EditorTabController {
     }
 
     public void dispose() {
+        if (textChangeSub != null) {
+            textChangeSub.unsubscribe();
+            textChangeSub = null;
+        }
+        if (caretListener != null) {
+            editorPane.getCodeArea().caretPositionProperty().removeListener(caretListener);
+            caretListener = null;
+        }
+        onStateChanged = null;
+        onCursorMoved = null;
+        onTextChanged = null;
+        onCloseRequested = null;
+        onCloseOthersRequested = null;
+        onCloseAllRequested = null;
         editorPane.dispose();
     }
 }

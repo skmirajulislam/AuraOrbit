@@ -3,8 +3,10 @@ package collaboration.sync;
 import collaboration.model.CursorEvent;
 import collaboration.model.TextOpEvent;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.model.PlainTextChange;
+import org.reactfx.Subscription;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -39,6 +41,8 @@ public class EditorSyncBridge {
     private Consumer<CursorEvent> onLocalCursorMove;
 
     private CursorEvent pendingCursorEvent;
+    private Subscription textChangeSub;
+    private ChangeListener<Number> caretListener;
 
     public EditorSyncBridge(CodeArea codeArea, String fileUri, String localClientId, String localClientName, String localColorHex) {
         this.codeArea = codeArea;
@@ -52,10 +56,10 @@ public class EditorSyncBridge {
 
     private void setupLocalListeners() {
         // 1. Text edit listener via RichTextFX plainTextChanges
-        codeArea.plainTextChanges().subscribe(this::handleLocalTextChange);
+        textChangeSub = codeArea.plainTextChanges().subscribe(this::handleLocalTextChange);
 
         // 2. Cursor movement listener (debounced at 35ms)
-        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+        caretListener = (obs, oldPos, newPos) -> {
             if (isApplyingRemoteEdit.get()) return;
 
             int paragraph = codeArea.getCurrentParagraph();
@@ -80,7 +84,8 @@ public class EditorSyncBridge {
                     onLocalCursorMove.accept(toSend);
                 }
             }, 35, TimeUnit.MILLISECONDS);
-        });
+        };
+        codeArea.caretPositionProperty().addListener(caretListener);
     }
 
     private void handleLocalTextChange(PlainTextChange change) {
@@ -146,6 +151,14 @@ public class EditorSyncBridge {
     }
 
     public void dispose() {
+        if (textChangeSub != null) {
+            textChangeSub.unsubscribe();
+            textChangeSub = null;
+        }
+        if (caretListener != null) {
+            codeArea.caretPositionProperty().removeListener(caretListener);
+            caretListener = null;
+        }
         debounceExecutor.shutdownNow();
     }
 }

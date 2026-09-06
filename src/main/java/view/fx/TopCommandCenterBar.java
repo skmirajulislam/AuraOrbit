@@ -76,7 +76,7 @@ public class TopCommandCenterBar extends HBox {
         searchPill.setMaxWidth(600);
 
         Label searchIcon = new Label();
-        searchIcon.setGraphic(IconFactory.getIcon(Codicons.SEARCH, 12, "#969696"));
+        searchIcon.setGraphic(IconFactory.getIcon(Codicons.SEARCH, 12));
 
         searchPillLabel = new Label("AuraOrbit");
         searchPillLabel.getStyleClass().add("command-center-pill-text");

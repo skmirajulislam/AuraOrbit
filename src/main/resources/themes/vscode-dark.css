@@ -253,6 +253,7 @@
 }
 .styled-text-area .paragraph-box {
     -fx-background-color: -bg-editor;
+    -fx-padding: 3.5px 0 3.5px 0;
 }
 .styled-text-area .paragraph-box.active-line-highlight {
     -fx-background-color: rgba(255, 255, 255, 0.04);
@@ -276,9 +277,9 @@
 .styled-text-area .lineno {
     -fx-background-color: -bg-gutter;
     -fx-text-fill: -text-gutter;
-    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
     -fx-font-size: 13px;
-    -fx-padding: 0 10 0 8;
+    -fx-padding: 3.5px 16px 3.5px 12px;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
 }
@@ -333,7 +334,7 @@
 .styled-text-area .text.brace, .code-area .text.brace,
 .styled-text-area .text.bracket, .code-area .text.bracket,
 .styled-text-area .text.semicolon, .code-area .text.semicolon {
-    -fx-fill: #ffd700;
+    -fx-fill: -text-primary;
 }
 .styled-text-area .text.plain, .code-area .text.plain, .plain {
     -fx-fill: -text-primary;
@@ -1102,3 +1103,50 @@
     -fx-border-color: #3c3c3c;
     -fx-border-width: 1px 0 0 0;
 }
+.context-menu .menu-item .accelerator-text, .editor-context-menu .menu-item .accelerator-text {
+    -fx-text-fill: #858585;
+    -fx-font-size: 11px;
+}
+.context-menu .menu-item:focused .accelerator-text, .context-menu .menu-item:hover .accelerator-text,
+.editor-context-menu .menu-item:focused .accelerator-text, .editor-context-menu .menu-item:hover .accelerator-text {
+    -fx-text-fill: #ffffff;
+}
+
+/* ─── Breadcrumb Segments ─────────────────────────────────────────────────── */
+.breadcrumb-bar {
+    -fx-background-color: -bg-primary;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 0 8 0 8;
+    -fx-alignment: center-left;
+}
+.breadcrumb-segment {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 12px;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-padding: 2 4 2 4;
+    -fx-background-radius: 3;
+    -fx-cursor: hand;
+}
+.breadcrumb-segment:hover {
+    -fx-text-fill: -text-primary;
+    -fx-background-color: -bg-hover;
+}
+.breadcrumb-segment-active {
+    -fx-text-fill: -text-primary;
+    -fx-font-weight: bold;
+}
+.breadcrumb-separator {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 11px;
+    -fx-padding: 0 2 0 2;
+}
+
+/* ─── Minimap Viewport Slider ─────────────────────────────────────────────── */
+.minimap-slider {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 2;
+    -fx-border-color: rgba(255, 255, 255, 0.15);
+    -fx-border-width: 1 0 1 0;
+}
+

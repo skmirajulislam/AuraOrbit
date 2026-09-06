@@ -45,18 +45,19 @@ public class ThemeService {
         this.currentTheme = theme;
 
         scene.getStylesheets().clear();
+
+        // Shared editor geometry and base shell tokens are loaded FIRST,
+        // so that the active theme's colors and custom styling take precedence.
+        URL editorCss = getClass().getResource("/themes/vscode-editor.css");
+        if (editorCss != null) {
+            scene.getStylesheets().add(editorCss.toExternalForm());
+        }
+
         URL cssResource = getClass().getResource(theme.getCssPath());
         if (cssResource != null) {
             scene.getStylesheets().add(cssResource.toExternalForm());
         } else {
             System.err.println("Warning: Theme CSS not found: " + theme.getCssPath());
-        }
-
-        // Shared editor geometry is loaded after the theme so every color
-        // scheme keeps the same clear, VS Code-like code-reading experience.
-        URL editorCss = getClass().getResource("/themes/vscode-editor.css");
-        if (editorCss != null) {
-            scene.getStylesheets().add(editorCss.toExternalForm());
         }
     }
 

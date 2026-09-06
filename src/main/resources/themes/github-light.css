@@ -250,13 +250,14 @@
 }
 .styled-text-area .paragraph-box {
     -fx-background-color: -bg-editor;
+    -fx-padding: 3.5px 0 3.5px 0;
 }
 .styled-text-area .lineno {
     -fx-background-color: -bg-gutter;
     -fx-text-fill: -text-gutter;
-    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
     -fx-font-size: 13px;
-    -fx-padding: 0 10 0 8;
+    -fx-padding: 3.5px 16px 3.5px 12px;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
 }
@@ -268,8 +269,8 @@
     -fx-fill: -bg-highlight;
 }
 .styled-text-area .text {
-    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13px;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13.5px;
     -fx-fill: -text-primary;
 }
 
@@ -311,7 +312,7 @@
 .styled-text-area .text.brace, .code-area .text.brace,
 .styled-text-area .text.bracket, .code-area .text.bracket,
 .styled-text-area .text.semicolon, .code-area .text.semicolon {
-    -fx-fill: #57606a;
+    -fx-fill: -text-primary;
 }
 .styled-text-area .text.plain, .code-area .text.plain, .plain {
     -fx-fill: -text-primary;
@@ -999,3 +1000,220 @@
     -fx-border-color: #d0d7de;
     -fx-border-width: 1px 0 0 0;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GitHub Light — Top Command Center Bar
+   ───────────────────────────────────────────────────────────────────────────── */
+.top-command-center {
+    -fx-background-color: #f6f8fa;
+    -fx-border-color: transparent transparent #d0d7de transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.command-center-nav-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+}
+
+.command-center-nav-btn .codicon {
+    -fx-icon-color: #57606a;
+}
+
+.command-center-nav-btn:hover {
+    -fx-background-color: #eaeef2;
+}
+
+.command-center-nav-btn:hover .codicon {
+    -fx-icon-color: #24292f;
+}
+
+.command-center-pill {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d0d7de;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.command-center-pill .codicon {
+    -fx-icon-color: #57606a;
+}
+
+.command-center-pill-text {
+    -fx-text-fill: #24292f;
+    -fx-font-weight: 500;
+}
+
+.command-center-pill:hover {
+    -fx-background-color: #f3f4f6;
+    -fx-border-color: #0969da;
+}
+
+.command-center-pill:hover .codicon {
+    -fx-icon-color: #0969da;
+}
+
+.command-center-pill:hover .command-center-pill-text {
+    -fx-text-fill: #0969da;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GitHub Light — Breadcrumb Bar & Symbol Navigator
+   ───────────────────────────────────────────────────────────────────────────── */
+.breadcrumb-bar {
+    -fx-background-color: #ffffff;
+    -fx-border-color: transparent transparent #d0d7de transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-min-height: 24px;
+    -fx-pref-height: 24px;
+    -fx-max-height: 24px;
+}
+
+.breadcrumb-segment {
+    -fx-background-color: transparent;
+    -fx-text-fill: #57606a;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-padding: 1 5 1 5;
+    -fx-background-radius: 3;
+    -fx-cursor: hand;
+}
+
+.breadcrumb-segment:hover {
+    -fx-background-color: #eaeef2;
+    -fx-text-fill: #24292f;
+}
+
+.breadcrumb-segment.breadcrumb-active {
+    -fx-text-fill: #24292f;
+    -fx-font-weight: 500;
+}
+
+.breadcrumb-segment .codicon {
+    -fx-icon-color: #57606a;
+}
+
+.breadcrumb-segment:hover .codicon {
+    -fx-icon-color: #0969da;
+}
+
+.breadcrumb-segment.breadcrumb-active .codicon {
+    -fx-icon-color: #0969da;
+}
+
+.breadcrumb-separator {
+    -fx-text-fill: #57606a;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-font-size: 11px;
+    -fx-opacity: 0.7;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GitHub Light — Editor Top Action Buttons & Run Pill
+   ───────────────────────────────────────────────────────────────────────────── */
+.editor-action-icon-button {
+    -fx-background-color: transparent;
+}
+
+.editor-action-icon-button .codicon {
+    -fx-icon-color: #57606a;
+}
+
+.editor-action-icon-button:hover {
+    -fx-background-color: #eaeef2;
+}
+
+.editor-action-icon-button:hover .codicon {
+    -fx-icon-color: #24292f;
+}
+
+.editor-run-button {
+    -fx-background-color: #dafbe1;
+    -fx-border-color: #4ac26b;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-text-fill: #1a7f37;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+
+.editor-run-button .codicon {
+    -fx-icon-color: #1a7f37;
+}
+
+.editor-run-button:hover {
+    -fx-background-color: #2da44e;
+    -fx-border-color: #2c974b;
+    -fx-text-fill: #ffffff;
+}
+
+.editor-run-button:hover .codicon {
+    -fx-icon-color: #ffffff;
+}
+
+.editor-run-button.run-blocked {
+    -fx-background-color: #ffebe9;
+    -fx-border-color: #ff8182;
+    -fx-text-fill: #cf222e;
+}
+
+.editor-run-button.run-blocked .codicon {
+    -fx-icon-color: #cf222e;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GitHub Light — Minimap Pane & Slider
+   ───────────────────────────────────────────────────────────────────────────── */
+.minimap-pane {
+    -fx-background-color: #ffffff;
+    -fx-border-color: transparent transparent transparent #d0d7de;
+    -fx-border-width: 0 0 0 1;
+}
+
+.minimap-slider {
+    -fx-background-color: rgba(0, 0, 0, 0.08);
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 2;
+    -fx-border-radius: 2;
+}
+
+.minimap-slider:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.16);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GitHub Light — Open Editors & Welcome Watermark
+   ───────────────────────────────────────────────────────────────────────────── */
+.explorer-open-editors-section {
+    -fx-border-color: transparent transparent #d0d7de transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.open-editor-row.active {
+    -fx-background-color: #eaeef2;
+    -fx-border-color: transparent transparent transparent #0969da;
+    -fx-border-width: 0 0 0 2;
+}
+
+.open-editor-row.active .open-editor-label {
+    -fx-text-fill: #24292f;
+    -fx-font-weight: bold;
+}
+
+.welcome-watermark-pane {
+    -fx-background-color: #ffffff;
+}
+
+.welcome-watermark-icon {
+    -fx-icon-color: #0969da;
+}
+
+.welcome-action-row:hover {
+    -fx-background-color: #f6f8fa;
+    -fx-border-color: #d0d7de;
+}
+
+.welcome-action-row:hover .codicon {
+    -fx-icon-color: #0969da;
+}
+

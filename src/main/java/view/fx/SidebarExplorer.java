@@ -444,6 +444,40 @@ public class SidebarExplorer extends VBox {
             private HBox editorBox = null;
             private boolean isCommitted = false;
 
+            {
+                setOnContextMenuRequested(e -> {
+                    if (!isEmpty() && getItem() != null && !getItem().isCreationItem && getTreeItem() != null) {
+                        ContextMenu menu = createTreeContextMenu(getTreeItem());
+                        if (menu != null) {
+                            menu.show(this, e.getScreenX(), e.getScreenY());
+                        }
+                    }
+                    e.consume();
+                });
+            }
+
+            private void ensureEditorBox() {
+                if (editorBox == null) {
+                    editorBox = new HBox(6);
+                    editorBox.setAlignment(Pos.CENTER_LEFT);
+
+                    inlineInput = new TextField();
+                    inlineInput.getStyleClass().add("inline-tree-input");
+                    HBox.setHgrow(inlineInput, Priority.ALWAYS);
+                    inlineInput.setMaxWidth(Double.MAX_VALUE);
+
+                    inlineInput.focusedProperty().addListener((obs, oldF, newF) -> {
+                        if (!newF) {
+                            if (getItem() != null && getItem().isCreationItem && !isCommitted) {
+                                Platform.runLater(() -> cancelCreation(getTreeItem()));
+                            } else if (getTreeItem() == renamingTreeItem) {
+                                Platform.runLater(SidebarExplorer.this::cancelInlineRename);
+                            }
+                        }
+                    });
+                }
+            }
+
             @Override
             protected void updateItem(FileItem item, boolean empty) {
                 super.updateItem(item, empty);
@@ -451,7 +485,6 @@ public class SidebarExplorer extends VBox {
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
-                    setContextMenu(null);
                     setStyle("");
                     setTooltip(null);
                     return;
@@ -459,18 +492,9 @@ public class SidebarExplorer extends VBox {
 
                 if (item.isCreationItem) {
                     setText(null);
-                    setContextMenu(null);
                     isCommitted = false;
 
-                    if (editorBox == null) {
-                        editorBox = new HBox(6);
-                        editorBox.setAlignment(Pos.CENTER_LEFT);
-
-                        inlineInput = new TextField();
-                        inlineInput.getStyleClass().add("inline-tree-input");
-                        HBox.setHgrow(inlineInput, Priority.ALWAYS);
-                        inlineInput.setMaxWidth(Double.MAX_VALUE);
-                    }
+                    ensureEditorBox();
 
                     FontIcon icon = item.getIcon(false);
                     editorBox.getChildren().setAll(icon, inlineInput);
@@ -495,26 +519,12 @@ public class SidebarExplorer extends VBox {
                         }
                     });
 
-                    inlineInput.focusedProperty().addListener((obs, oldF, newF) -> {
-                        if (!newF && !isCommitted) {
-                            Platform.runLater(() -> cancelCreation(creationTreeItem));
-                        }
-                    });
-
                     Platform.runLater(inlineInput::requestFocus);
 
                 } else {
                     if (getTreeItem() == renamingTreeItem) {
                         setText(null);
-                        setContextMenu(null);
-                        if (editorBox == null) {
-                            editorBox = new HBox(6);
-                            editorBox.setAlignment(Pos.CENTER_LEFT);
-                            inlineInput = new TextField();
-                            inlineInput.getStyleClass().add("inline-tree-input");
-                            HBox.setHgrow(inlineInput, Priority.ALWAYS);
-                            inlineInput.setMaxWidth(Double.MAX_VALUE);
-                        }
+                        ensureEditorBox();
                         editorBox.getChildren().setAll(item.getIcon(false), inlineInput);
                         setGraphic(editorBox);
                         inlineInput.setText(item.file.getName());
@@ -526,11 +536,6 @@ public class SidebarExplorer extends VBox {
                             } else if (ke.getCode() == KeyCode.ESCAPE) {
                                 cancelInlineRename();
                                 ke.consume();
-                            }
-                        });
-                        inlineInput.focusedProperty().addListener((obs, oldFocus, focused) -> {
-                            if (!focused && getTreeItem() == renamingTreeItem) {
-                                Platform.runLater(SidebarExplorer.this::cancelInlineRename);
                             }
                         });
                         Platform.runLater(inlineInput::requestFocus);
@@ -599,7 +604,6 @@ public class SidebarExplorer extends VBox {
                     setGraphic(cellRow);
                     setText(null);
                     setStyle("");
-                    setContextMenu(createTreeContextMenu(getTreeItem()));
                 }
             }
         });
@@ -617,14 +621,13 @@ public class SidebarExplorer extends VBox {
             }
         });
 
-        // Click handler
+        // Click handler: Double click pins tab (single click is already handled by selectedItemProperty)
         fileTreeView.setOnMouseClicked(e -> {
-            if (e.getButton() == MouseButton.PRIMARY) {
+            if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() >= 2) {
                 TreeItem<FileItem> selected = fileTreeView.getSelectionModel().getSelectedItem();
                 if (selected != null && selected.getValue() != null && !selected.getValue().isCreationItem && selected.getValue().file != null && selected.getValue().file.isFile()) {
-                    boolean isPreview = (e.getClickCount() < 2);
                     if (onFileSelectedWithPreview != null) {
-                        onFileSelectedWithPreview.accept(selected.getValue().file.toPath(), isPreview);
+                        onFileSelectedWithPreview.accept(selected.getValue().file.toPath(), false);
                     } else if (onFileSelected != null) {
                         onFileSelected.accept(selected.getValue().file.toPath());
                     }

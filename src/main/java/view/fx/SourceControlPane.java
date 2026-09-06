@@ -134,10 +134,10 @@ public class SourceControlPane extends VBox {
         });
 
         commitBtn = new Button("Commit");
-        commitBtn.setGraphic(IconFactory.getIcon(Codicons.CHECK, 13, "#ffffff"));
+        commitBtn.setGraphic(IconFactory.getIcon(Codicons.CHECK, 13));
         commitBtn.setMaxWidth(Double.MAX_VALUE);
         commitBtn.getStyleClass().add("primary-btn");
-        commitBtn.setStyle("-fx-background-color: #007acc; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 4; -fx-padding: 5 10 5 10;");
+        commitBtn.setStyle("-fx-background-color: -accent-color; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 4; -fx-padding: 5 10 5 10;");
         commitBtn.setOnAction(e -> handleCommit());
 
         commitBox.getChildren().addAll(commitInput, commitBtn);
@@ -150,7 +150,7 @@ public class SourceControlPane extends VBox {
         stagedHeader.setPadding(new Insets(6, 4, 4, 4));
 
         Label stagedChevron = new Label();
-        stagedChevron.setGraphic(IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12, "#cccccc"));
+        stagedChevron.setGraphic(IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12));
         Label stagedTitle = new Label("STAGED CHANGES");
         stagedTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: -text-secondary;");
 
@@ -158,7 +158,7 @@ public class SourceControlPane extends VBox {
         HBox.setHgrow(stagedSpacer, Priority.ALWAYS);
 
         stagedCountBadge = new Label("0");
-        stagedCountBadge.setStyle("-fx-background-color: rgba(255,255,255,0.12); -fx-text-fill: -text-primary; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 8; -fx-padding: 1 6 1 6;");
+        stagedCountBadge.setStyle("-fx-background-color: -bg-hover; -fx-text-fill: -text-primary; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 8; -fx-padding: 1 6 1 6;");
 
         Button unstageAllBtn = createHeaderButton(Codicons.REMOVE, "Unstage All");
         unstageAllBtn.setOnAction(e -> unstageAll());
@@ -186,7 +186,7 @@ public class SourceControlPane extends VBox {
         changesHeader.setPadding(new Insets(6, 4, 4, 4));
 
         Label changesChevron = new Label();
-        changesChevron.setGraphic(IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12, "#cccccc"));
+        changesChevron.setGraphic(IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12));
         Label changesTitle = new Label("CHANGES");
         changesTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: -text-secondary;");
 
@@ -194,7 +194,7 @@ public class SourceControlPane extends VBox {
         HBox.setHgrow(changesSpacer, Priority.ALWAYS);
 
         changesCountBadge = new Label("0");
-        changesCountBadge.setStyle("-fx-background-color: rgba(255,255,255,0.12); -fx-text-fill: -text-primary; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 8; -fx-padding: 1 6 1 6;");
+        changesCountBadge.setStyle("-fx-background-color: -bg-hover; -fx-text-fill: -text-primary; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 8; -fx-padding: 1 6 1 6;");
 
         Button stageAllBtn = createHeaderButton(Codicons.ADD, "Stage All Changes");
         stageAllBtn.setOnAction(e -> stageAll());

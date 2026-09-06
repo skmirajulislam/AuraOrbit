@@ -8,6 +8,7 @@ import javafx.scene.layout.*;
 import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -268,7 +269,7 @@ public class WorkspaceSearchPane extends VBox {
                     cell.setPadding(new Insets(1, 4, 1, 12));
 
                     Label lineNum = new Label(String.valueOf(match.lineNumber()));
-                    lineNum.setStyle("-fx-text-fill: #858585; -fx-font-size: 11px; -fx-min-width: 30;");
+                    lineNum.setStyle("-fx-text-fill: -text-secondary; -fx-font-size: 11px; -fx-min-width: 30;");
                     lineNum.setMinWidth(30);
 
                     String text = match.lineText().trim();
@@ -380,7 +381,7 @@ public class WorkspaceSearchPane extends VBox {
                         new SimpleFileVisitor<>() {
                             @Override
                             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                                if (searchCancelled.get()) return FileVisitResult.TERMINATE;
+                                if (searchCancelled.get() || totalMatches.get() >= 5000) return FileVisitResult.TERMINATE;
                                 String dirName = dir.getFileName() != null ? dir.getFileName().toString() : "";
                                 if (DEFAULT_EXCLUDES.contains(dirName) || dirName.startsWith(".")) {
                                     return FileVisitResult.SKIP_SUBTREE;
@@ -390,7 +391,7 @@ public class WorkspaceSearchPane extends VBox {
 
                             @Override
                             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                                if (searchCancelled.get()) return FileVisitResult.TERMINATE;
+                                if (searchCancelled.get() || totalMatches.get() >= 5000) return FileVisitResult.TERMINATE;
                                 if (attrs.size() > 5 * 1024 * 1024) return FileVisitResult.CONTINUE; // skip > 5MB
 
                                 String fileName = file.getFileName().toString();
@@ -474,8 +475,22 @@ public class WorkspaceSearchPane extends VBox {
     }
 
     private List<SearchMatch> searchInFile(Path file, Pattern pattern) throws IOException {
-        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-        return searchInLines(lines, pattern);
+        List<SearchMatch> matches = new ArrayList<>();
+        try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            String line;
+            int lineNum = 1;
+            while ((line = reader.readLine()) != null) {
+                Matcher m = pattern.matcher(line);
+                while (m.find()) {
+                    matches.add(new SearchMatch(lineNum, line, m.start(), m.end()));
+                    if (matches.size() >= 1000) {
+                        return matches;
+                    }
+                }
+                lineNum++;
+            }
+        }
+        return matches;
     }
 
     // ── Pattern Building ─────────────────────────────────────────────────────

@@ -131,9 +131,9 @@ public class AutoCompleteService {
 
     /**
      * Resolves matching completions for a given prefix in a document.
-     * Includes workspace symbols if available.
+     * Uses precomputed document symbols for zero UI-thread regex overhead.
      */
-    public static List<CompletionItem> computeCompletions(String prefix, String fileType, String documentText) {
+    public static List<CompletionItem> computeCompletions(String prefix, String fileType, Set<String> docSymbols) {
         if (prefix == null || prefix.isBlank()) {
             return Collections.emptyList();
         }
@@ -159,11 +159,12 @@ public class AutoCompleteService {
         }
 
         // 3. Check Document Symbols (current file)
-        Set<String> docSymbols = extractDocumentSymbols(documentText);
-        for (String sym : docSymbols) {
-            if (sym.toLowerCase(Locale.ROOT).startsWith(pLower) && !sym.equals(prefix)) {
-                ItemKind kind = Character.isUpperCase(sym.charAt(0)) ? ItemKind.CLASS : ItemKind.VARIABLE;
-                results.add(new CompletionItem(sym, sym, kind, "identifier"));
+        if (docSymbols != null) {
+            for (String sym : docSymbols) {
+                if (sym.toLowerCase(Locale.ROOT).startsWith(pLower) && !sym.equals(prefix)) {
+                    ItemKind kind = Character.isUpperCase(sym.charAt(0)) ? ItemKind.CLASS : ItemKind.VARIABLE;
+                    results.add(new CompletionItem(sym, sym, kind, "identifier"));
+                }
             }
         }
 
@@ -193,6 +194,14 @@ public class AutoCompleteService {
         return results.stream().limit(25).collect(Collectors.toList());
     }
 
+    /**
+     * Resolves matching completions for a given prefix in a document text.
+     * Backwards-compatible overload.
+     */
+    public static List<CompletionItem> computeCompletions(String prefix, String fileType, String documentText) {
+        return computeCompletions(prefix, fileType, extractDocumentSymbols(documentText));
+    }
+
     // ── Workspace Symbol Index ───────────────────────────────────────────────
 
     public record WorkspaceSymbol(String name, ItemKind kind, String sourceFile) {}
@@ -220,6 +229,7 @@ public class AutoCompleteService {
                         new java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
                             @Override
                             public java.nio.file.FileVisitResult preVisitDirectory(java.nio.file.Path dir, java.nio.file.attribute.BasicFileAttributes attrs) {
+                                if (newSymbols.size() >= 5000) return java.nio.file.FileVisitResult.TERMINATE;
                                 String dirName = dir.getFileName() != null ? dir.getFileName().toString() : "";
                                 if (dirName.equals(".git") || dirName.equals("target") || dirName.equals("build") ||
                                         dirName.equals("node_modules") || dirName.equals("out") || dirName.startsWith(".")) {
@@ -230,6 +240,7 @@ public class AutoCompleteService {
 
                             @Override
                             public java.nio.file.FileVisitResult visitFile(java.nio.file.Path file, java.nio.file.attribute.BasicFileAttributes attrs) {
+                                if (newSymbols.size() >= 5000) return java.nio.file.FileVisitResult.TERMINATE;
                                 if (attrs.size() > 512 * 1024) return java.nio.file.FileVisitResult.CONTINUE; // Skip large files
                                 String name = file.getFileName().toString();
                                 String ext = "";

@@ -480,6 +480,12 @@ public class FxEditorController {
      * Ensure the bottom dock panel is visible and switch to the specified dock tab.
      */
     public void showDockPanel(TerminalPane.DockTab tab) {
+        EditorTabController current = getActiveTabController();
+        int topPar = 0;
+        if (current != null && current.getEditorPane() != null && !current.getEditorPane().getCodeArea().getVisibleParagraphs().isEmpty()) {
+            topPar = current.getEditorPane().getCodeArea().visibleParToAllParIndex(0);
+        }
+
         if (!terminalPane.isTerminalVisible()) {
             terminalPane.showTerminal();
             if (!editorTerminalSplitPane.getItems().contains(terminalPane)) {
@@ -490,12 +496,25 @@ public class FxEditorController {
             }
         }
         terminalPane.switchDockTab(tab);
+
+        final int restoreTop = topPar;
+        Platform.runLater(() -> {
+            if (current != null && current.getEditorPane() != null) {
+                current.getEditorPane().getCodeArea().showParagraphAtTop(restoreTop);
+            }
+        });
     }
 
     /**
      * Toggle integrated terminal panel visibility.
      */
     public void toggleTerminal() {
+        EditorTabController current = getActiveTabController();
+        int topPar = 0;
+        if (current != null && current.getEditorPane() != null && !current.getEditorPane().getCodeArea().getVisibleParagraphs().isEmpty()) {
+            topPar = current.getEditorPane().getCodeArea().visibleParToAllParIndex(0);
+        }
+
         if (terminalPane.isTerminalVisible()) {
             terminalPane.hideTerminal();
             editorTerminalSplitPane.getItems().remove(terminalPane);
@@ -508,6 +527,13 @@ public class FxEditorController {
                         editorTerminalSplitPane.getItems().size() - 2, 0.7);
             }
         }
+
+        final int restoreTop = topPar;
+        Platform.runLater(() -> {
+            if (current != null && current.getEditorPane() != null) {
+                current.getEditorPane().getCodeArea().showParagraphAtTop(restoreTop);
+            }
+        });
     }
 
     /**
@@ -556,26 +582,84 @@ public class FxEditorController {
     public void toggleSplitEditor() {
         isSplitEditorActive = !isSplitEditorActive;
         if (isSplitEditorActive) {
-            if (!editorSplitPane.getItems().contains(tabPaneRight)) {
-                editorSplitPane.getItems().add(tabPaneRight);
-                editorSplitPane.setDividerPosition(0, 0.5);
-            }
-            tabPaneRight.setVisible(true);
-            tabPaneRight.setManaged(true);
-
-            if (tabPaneRight.getTabs().isEmpty()) {
-                EditorTabController current = getActiveTabController();
-                if (current != null && current.getDocument().getFilePath() != null) {
-                    openFileInTargetTabPane(current.getDocument().getFilePath(), tabPaneRight);
-                } else {
-                    createNewTabInTargetPane("split-view.txt", tabPaneRight);
-                }
-            }
+            splitEditorRight();
         } else {
             editorSplitPane.getItems().remove(tabPaneRight);
             tabPaneRight.setVisible(false);
             tabPaneRight.setManaged(false);
         }
+    }
+
+    public void splitEditorRight() {
+        splitEditor(javafx.geometry.Orientation.HORIZONTAL, true);
+    }
+
+    public void splitEditorLeft() {
+        splitEditor(javafx.geometry.Orientation.HORIZONTAL, false);
+    }
+
+    public void splitEditorUp() {
+        splitEditor(javafx.geometry.Orientation.VERTICAL, false);
+    }
+
+    public void splitEditorDown() {
+        splitEditor(javafx.geometry.Orientation.VERTICAL, true);
+    }
+
+    public void splitEditor(javafx.geometry.Orientation orientation, boolean rightOrDown) {
+        if (editorSplitPane == null) return;
+        editorSplitPane.setOrientation(orientation);
+        isSplitEditorActive = true;
+
+        if (!editorSplitPane.getItems().contains(tabPaneRight)) {
+            if (rightOrDown) {
+                editorSplitPane.getItems().add(tabPaneRight);
+            } else {
+                editorSplitPane.getItems().add(0, tabPaneRight);
+            }
+            editorSplitPane.setDividerPosition(0, 0.5);
+        }
+        tabPaneRight.setVisible(true);
+        tabPaneRight.setManaged(true);
+
+        if (tabPaneLeft != null && tabPaneLeft.getTabs().isEmpty() && tabPaneRight.getTabs().isEmpty()) {
+            createNewTab("untitled.txt");
+        }
+
+        if (tabPaneRight.getTabs().isEmpty()) {
+            EditorTabController current = getActiveTabController();
+            if (current != null && current.getDocument().getFilePath() != null) {
+                openFileInTargetTabPane(current.getDocument().getFilePath(), tabPaneRight);
+            } else {
+                createNewTabInTargetPane("split-view.txt", tabPaneRight);
+            }
+        }
+        updateActiveTabMetrics();
+    }
+
+    private boolean isGroupLocked = false;
+
+    public void toggleLockGroup() {
+        isGroupLocked = !isGroupLocked;
+        if (statusBar != null) {
+            statusBar.showTemporaryMessage(isGroupLocked ? "Editor Group: Locked" : "Editor Group: Unlocked", 3000);
+        }
+    }
+
+    public boolean isGroupLocked() {
+        return isGroupLocked;
+    }
+
+    public void openNewWindow() {
+        Platform.runLater(() -> {
+            try {
+                Stage newStage = new Stage();
+                app.JavaFxEditorApp newApp = new app.JavaFxEditorApp();
+                newApp.start(newStage);
+            } catch (Exception ex) {
+                System.err.println("Failed to open new editor window: " + ex.getMessage());
+            }
+        });
     }
 
     private void setupStatusBar() {
@@ -817,17 +901,8 @@ public class FxEditorController {
 
     private void bindTabController(EditorTabController tabCtrl, TabPane parentPane) {
         tabCtrl.getTab().setOnCloseRequest(e -> {
-            boolean canClose = confirmAndSaveIfModified(tabCtrl);
-            if (!canClose) {
-                e.consume();
-            } else {
-                e.consume();
-                parentPane.getTabs().remove(tabCtrl.getTab());
-                tabControllers.remove(tabCtrl);
-                tabCtrl.dispose();
-                updateActiveTabMetrics();
-                refreshRunAvailability();
-            }
+            e.consume();
+            closeTab(tabCtrl);
         });
 
         tabCtrl.setOnCloseRequested(this::closeTab);
@@ -886,6 +961,9 @@ public class FxEditorController {
         if (tc == null) return;
         boolean canClose = confirmAndSaveIfModified(tc);
         if (canClose) {
+            if (tc.getDocument() != null && tc.getDocument().getFilePath() != null) {
+                collaborationManager.unbindEditor(tc.getDocument().getFilePath().toUri().toString());
+            }
             tabPaneLeft.getTabs().remove(tc.getTab());
             tabPaneRight.getTabs().remove(tc.getTab());
             tabControllers.remove(tc);
@@ -1419,6 +1497,9 @@ public class FxEditorController {
             navigationHistory.remove(navigationHistory.size() - 1);
         }
         navigationHistory.add(path);
+        while (navigationHistory.size() > 100) {
+            navigationHistory.remove(0);
+        }
         navigationHistoryIndex = navigationHistory.size() - 1;
         updateNavigationButtons();
     }
@@ -1576,8 +1657,11 @@ public class FxEditorController {
     }
 
     public void shutdown() {
-        diagnosticDebounceExecutor.shutdown();
+        diagnosticDebounceExecutor.shutdownNow();
         collaborationManager.stopSession();
+        if (workspaceSearchPane != null) {
+            workspaceSearchPane.shutdown();
+        }
         if (sourceControlPane != null) {
             sourceControlPane.shutdown();
         }

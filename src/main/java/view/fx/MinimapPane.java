@@ -1,5 +1,6 @@
 package view.fx;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -9,7 +10,10 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
+import javafx.util.Duration;
 import org.fxmisc.richtext.CodeArea;
+
+import org.reactfx.Subscription;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +32,8 @@ public class MinimapPane extends StackPane {
     private final Canvas canvas;
     private final Region viewportSlider;
     private final Pane tickOverlay;
+    private final PauseTransition renderDebounce = new PauseTransition(Duration.millis(120));
+    private Subscription textChangeSubscription;
 
     private final List<Integer> errorLines = new ArrayList<>();
     private final List<Integer> warningLines = new ArrayList<>();
@@ -73,7 +79,9 @@ public class MinimapPane extends StackPane {
         // Hook into CodeArea scroll and text changes
         codeArea.estimatedScrollYProperty().addListener((obs, o, n) -> updateSlider());
         codeArea.totalHeightEstimateProperty().addListener((obs, o, n) -> updateSlider());
-        codeArea.plainTextChanges().subscribe(ch -> Platform.runLater(this::renderMinimap));
+        
+        renderDebounce.setOnFinished(e -> renderMinimap());
+        textChangeSubscription = codeArea.plainTextChanges().subscribe(ch -> renderDebounce.playFromStart());
 
         visibleProperty().addListener((obs, oldV, newV) -> {
             if (Boolean.TRUE.equals(newV)) {
@@ -137,27 +145,33 @@ public class MinimapPane extends StackPane {
     }
 
     private void updateSlider() {
-        Platform.runLater(() -> {
-            int lineCount = codeArea.getParagraphs().size();
-            if (lineCount <= 0 || getHeight() <= 0) return;
+        if (Platform.isFxApplicationThread()) {
+            doUpdateSlider();
+        } else {
+            Platform.runLater(this::doUpdateSlider);
+        }
+    }
 
-            double scrollY = codeArea.estimatedScrollYProperty().getValue();
-            double totalHeight = codeArea.totalHeightEstimateProperty().getValue();
-            double viewportH = codeArea.getHeight();
+    private void doUpdateSlider() {
+        int lineCount = codeArea.getParagraphs().size();
+        if (lineCount <= 0 || getHeight() <= 0) return;
 
-            if (totalHeight <= 0) {
-                viewportSlider.setVisible(false);
-                return;
-            }
+        double scrollY = codeArea.estimatedScrollYProperty().getValue();
+        double totalHeight = codeArea.totalHeightEstimateProperty().getValue();
+        double viewportH = codeArea.getHeight();
 
-            viewportSlider.setVisible(true);
-            double ratio = Math.min(1.0, viewportH / totalHeight);
-            double sliderHeight = Math.max(20.0, getHeight() * ratio);
-            double scrollRatio = scrollY / (totalHeight - viewportH > 0 ? totalHeight - viewportH : 1.0);
-            double sliderY = (getHeight() - sliderHeight) * Math.max(0.0, Math.min(1.0, scrollRatio));
+        if (totalHeight <= 0) {
+            viewportSlider.setVisible(false);
+            return;
+        }
 
-            viewportSlider.resizeRelocate(0, sliderY, MINIMAP_WIDTH, sliderHeight);
-        });
+        viewportSlider.setVisible(true);
+        double ratio = Math.min(1.0, viewportH / totalHeight);
+        double sliderHeight = Math.max(20.0, getHeight() * ratio);
+        double scrollRatio = scrollY / (totalHeight - viewportH > 0 ? totalHeight - viewportH : 1.0);
+        double sliderY = (getHeight() - sliderHeight) * Math.max(0.0, Math.min(1.0, scrollRatio));
+
+        viewportSlider.resizeRelocate(0, sliderY, MINIMAP_WIDTH, sliderHeight);
     }
 
     public void updateDiagnostics(List<Integer> errors, List<Integer> warnings) {
@@ -191,5 +205,13 @@ public class MinimapPane extends StackPane {
             tick.resizeRelocate(MINIMAP_WIDTH - 6, y, 6, 3);
             tickOverlay.getChildren().add(tick);
         }
+    }
+
+    public void dispose() {
+        if (textChangeSubscription != null) {
+            textChangeSubscription.unsubscribe();
+            textChangeSubscription = null;
+        }
+        renderDebounce.stop();
     }
 }

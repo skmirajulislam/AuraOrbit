@@ -207,12 +207,21 @@ public final class CodeExecutionService {
     }
 
     private boolean checkToolAvailable(String command) {
+        Process process = null;
         try {
-            Process process = new ProcessBuilder(command, "--version").redirectErrorStream(true).start();
-            return process.waitFor(2, TimeUnit.SECONDS) && process.exitValue() == 0;
+            process = new ProcessBuilder(command, "--version").redirectErrorStream(true).start();
+            boolean finished = process.waitFor(2, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return false;
+            }
+            return process.exitValue() == 0;
         } catch (IOException exception) {
             return false;
         } catch (InterruptedException exception) {
+            if (process != null) {
+                process.destroyForcibly();
+            }
             Thread.currentThread().interrupt();
             return false;
         }

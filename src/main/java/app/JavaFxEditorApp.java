@@ -41,6 +41,13 @@ public class JavaFxEditorApp extends Application {
         themeService = new ThemeService();
         controller = new FxEditorController(primaryStage, themeService);
 
+        // Guarantee clean process, thread pool, and tunnel termination on window close
+        primaryStage.setOnCloseRequest(e -> {
+            if (controller != null) {
+                controller.shutdown();
+            }
+        });
+
         // Tab Panes (Primary Left + Split Right)
         TabPane tabPaneLeft = new TabPane();
         tabPaneLeft.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
@@ -58,12 +65,21 @@ public class JavaFxEditorApp extends Application {
 
         // Welcome Watermark Pane (Displayed when no editor tabs are open)
         WelcomeWatermarkPane welcomeWatermarkPane = new WelcomeWatermarkPane(
-        () -> controller.createNewTab("untitled.txt"),
-        controller::handleOpenFile,
-        controller::showCommandPalette,
-        controller::toggleTerminal,
-        controller::toggleAiPanel
-    );
+            () -> controller.createNewTab("untitled.txt"),
+            controller::handleOpenFile,
+            controller::showCommandPalette,
+            controller::toggleTerminal,
+            controller::toggleAiPanel
+        );
+        welcomeWatermarkPane.setAdditionalActions(
+            controller::createNewTerminalTab,
+            controller::splitEditorUp,
+            controller::splitEditorDown,
+            controller::splitEditorLeft,
+            controller::splitEditorRight,
+            controller::openNewWindow,
+            controller::toggleLockGroup
+        );
         welcomeWatermarkPane.setVisible(true);
         welcomeWatermarkPane.setManaged(true);
 
@@ -93,7 +109,7 @@ public class JavaFxEditorApp extends Application {
         wordWrapButton.setOnAction(e -> controller.toggleWordWrap());
 
         Button runButton = new Button("Run");
-        runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 14, "#89d185"));
+        runButton.setGraphic(IconFactory.getIcon(Codicons.PLAY, 13));
         runButton.setTooltip(new Tooltip("Run Active File (F5). Type runtime input in the terminal."));
         runButton.getStyleClass().add("editor-run-button");
         runButton.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
@@ -273,6 +289,14 @@ public class JavaFxEditorApp extends Application {
         scene.getAccelerators().put(cmdShiftF, controller::showWorkspaceSearch);
         scene.getAccelerators().put(ctrlBacktick, controller::toggleTerminal);
         scene.getAccelerators().put(ctrlShiftBacktick, controller::createNewTerminalTab);
+    }
+
+    @Override
+    public void stop() throws Exception {
+        if (controller != null) {
+            controller.shutdown();
+        }
+        super.stop();
     }
 
     public static void main(String[] args) {

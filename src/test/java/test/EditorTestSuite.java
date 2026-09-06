@@ -33,6 +33,8 @@ import service.GitGutterService;
 import service.ScriptPluginService;
 import view.fx.BreadcrumbBar;
 import view.fx.SidebarExplorer;
+import view.fx.CodeEditorPane;
+import view.fx.WelcomeWatermarkPane;
 import controller.EditorTabController;
 import java.util.Map;
 import collaboration.model.CollabPacket;
@@ -87,6 +89,9 @@ public class EditorTestSuite {
             testMavenCompilerDiagnosticParsing();
             testWorkspaceSymbolIntelliSense();
             testResilientGitGutterEdgeCases();
+            testSmoothScrollingAndEmptySpaceMenu();
+            testThemeServiceAndComponentStyling();
+            testEditorAndTerminalCopyPaste();
 
             System.out.println("\n-------------------------------------------------");
             System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -1205,6 +1210,266 @@ public class EditorTestSuite {
         Path nonExistent = Paths.get("does_not_exist_12345.java");
         Map<Integer, GitGutterService.GutterType> res = GitGutterService.computeDiff(nonExistent);
         assertTrue(res.isEmpty(), "Non-existent file safely returns empty diff map without crashing");
+    }
+
+    private static void testSmoothScrollingAndEmptySpaceMenu() {
+        System.out.println("\n[30] Testing VS Code Smooth Scrolling & Antigravity Empty Space Menu...");
+
+        try {
+            try {
+                javafx.application.Platform.startup(() -> {});
+            } catch (IllegalStateException ignored) {
+                // Platform already running
+            }
+
+            CountDownLatch latch = new CountDownLatch(1);
+
+            javafx.application.Platform.runLater(() -> {
+                try {
+                    // 1. Test Smooth Scrolling Engine in CodeEditorPane
+                    CodeEditorPane editorPane = new CodeEditorPane();
+                    assertTrue(editorPane.isSmoothScrollingEnabled(), "Smooth scrolling is enabled by default in CodeEditorPane");
+
+                    editorPane.setSmoothScrollingEnabled(false);
+                    assertTrue(!editorPane.isSmoothScrollingEnabled(), "Smooth scrolling can be disabled cleanly");
+
+                    editorPane.setSmoothScrollingEnabled(true);
+                    assertTrue(editorPane.isSmoothScrollingEnabled(), "Smooth scrolling re-enabled");
+
+                    assertEquals(0.0, editorPane.getTargetScrollY(), "Initial targetScrollY is 0.0");
+                    assertEquals(0.0, editorPane.getTargetScrollX(), "Initial targetScrollX is 0.0");
+                    assertTrue(!editorPane.isSmoothScrollingActive(), "Smooth scrolling animation timer is idle initially");
+
+                    // 2. Test WelcomeWatermarkPane Context Menu & Antigravity actions
+                    boolean[] newFileTriggered = new boolean[1];
+                    boolean[] openFileTriggered = new boolean[1];
+                    boolean[] terminalTriggered = new boolean[1];
+                    boolean[] splitUpTriggered = new boolean[1];
+                    boolean[] splitDownTriggered = new boolean[1];
+                    boolean[] splitLeftTriggered = new boolean[1];
+                    boolean[] splitRightTriggered = new boolean[1];
+                    boolean[] newWindowTriggered = new boolean[1];
+                    boolean[] lockGroupTriggered = new boolean[1];
+
+                    WelcomeWatermarkPane watermarkPane = new WelcomeWatermarkPane(
+                            () -> newFileTriggered[0] = true,
+                            () -> openFileTriggered[0] = true,
+                            () -> {},
+                            () -> {},
+                            () -> {}
+                    );
+
+                    watermarkPane.setAdditionalActions(
+                            () -> terminalTriggered[0] = true,
+                            () -> splitUpTriggered[0] = true,
+                            () -> splitDownTriggered[0] = true,
+                            () -> splitLeftTriggered[0] = true,
+                            () -> splitRightTriggered[0] = true,
+                            () -> newWindowTriggered[0] = true,
+                            () -> lockGroupTriggered[0] = true
+                    );
+
+                    javafx.scene.control.ContextMenu menu = watermarkPane.getEmptySpaceContextMenu();
+                    assertTrue(menu != null, "Empty space context menu initialized on WelcomeWatermarkPane");
+                    assertTrue(menu.getItems().size() >= 9, "Context menu has all 9 Antigravity actions and separators");
+
+                    // Verify menu items by label
+                    List<String> labels = menu.getItems().stream()
+                            .filter(item -> !(item instanceof javafx.scene.control.SeparatorMenuItem))
+                            .map(javafx.scene.control.MenuItem::getText)
+                            .toList();
+
+                    assertTrue(labels.contains("New Text File"), "Context menu contains 'New Text File'");
+                    assertTrue(labels.contains("Open File..."), "Context menu contains 'Open File...'");
+                    assertTrue(labels.contains("New Terminal"), "Context menu contains 'New Terminal'");
+                    assertTrue(labels.contains("Split Up"), "Context menu contains 'Split Up'");
+                    assertTrue(labels.contains("Split Down"), "Context menu contains 'Split Down'");
+                    assertTrue(labels.contains("Split Left"), "Context menu contains 'Split Left'");
+                    assertTrue(labels.contains("Split Right"), "Context menu contains 'Split Right'");
+                    assertTrue(labels.contains("New Window"), "Context menu contains 'New Window'");
+                    assertTrue(labels.contains("Lock Group"), "Context menu contains 'Lock Group'");
+
+                    // Trigger menu item actions to verify wiring
+                    menu.getItems().stream()
+                            .filter(i -> "New Text File".equals(i.getText()))
+                            .findFirst()
+                            .ifPresent(i -> i.getOnAction().handle(new javafx.event.ActionEvent()));
+                    assertTrue(newFileTriggered[0], "'New Text File' action executed successfully");
+
+                    menu.getItems().stream()
+                            .filter(i -> "New Terminal".equals(i.getText()))
+                            .findFirst()
+                            .ifPresent(i -> i.getOnAction().handle(new javafx.event.ActionEvent()));
+                    assertTrue(terminalTriggered[0], "'New Terminal' action executed successfully");
+
+                    menu.getItems().stream()
+                            .filter(i -> "Split Up".equals(i.getText()))
+                            .findFirst()
+                            .ifPresent(i -> i.getOnAction().handle(new javafx.event.ActionEvent()));
+                    assertTrue(splitUpTriggered[0], "'Split Up' action executed successfully");
+
+                    menu.getItems().stream()
+                            .filter(i -> "Lock Group".equals(i.getText()))
+                            .findFirst()
+                            .ifPresent(i -> i.getOnAction().handle(new javafx.event.ActionEvent()));
+                    assertTrue(lockGroupTriggered[0], "'Lock Group' action executed successfully");
+                    assertTrue(watermarkPane.isGroupLocked(), "Watermark pane locked state toggled to true");
+
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    testsFailed++;
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            boolean completed = latch.await(5, TimeUnit.SECONDS);
+            assertTrue(completed, "Smooth scrolling and empty space menu test completed within timeout");
+
+        } catch (Throwable t) {
+            System.err.println("Failed testSmoothScrollingAndEmptySpaceMenu: " + t.getMessage());
+            testsFailed++;
+        }
+    }
+
+    private static void testThemeServiceAndComponentStyling() {
+        System.out.println("\n[31] Testing Theme Service Cascading Order & Component Theme Styling...");
+
+        service.ThemeService themeService = new service.ThemeService();
+        assertEquals(service.ThemeService.Theme.VSCODE_DARK, themeService.getCurrentTheme(), "ThemeService default is VSCODE_DARK");
+
+        Map<String, service.ThemeService.Theme> allThemes = themeService.getAllThemes();
+        assertEquals(5, allThemes.size(), "ThemeService contains exactly 5 themes");
+        assertTrue(allThemes.containsKey("GitHub Light"), "Contains GitHub Light");
+        assertTrue(allThemes.containsKey("Cyberpunk Neon"), "Contains Cyberpunk Neon");
+        assertTrue(allThemes.containsKey("Dracula"), "Contains Dracula");
+        assertTrue(allThemes.containsKey("Monokai Pro"), "Contains Monokai Pro");
+        assertTrue(allThemes.containsKey("VS Code Dark+"), "Contains VS Code Dark+");
+
+        for (service.ThemeService.Theme t : service.ThemeService.Theme.values()) {
+            java.net.URL url = EditorTestSuite.class.getResource(t.getCssPath());
+            assertTrue(url != null, "Theme CSS resource exists: " + t.getCssPath());
+        }
+
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                try {
+                    javafx.scene.layout.Pane root = new javafx.scene.layout.Pane();
+                    javafx.scene.Scene scene = new javafx.scene.Scene(root, 800, 600);
+
+                    // Test GitHub Light application order
+                    themeService.applyTheme(scene, service.ThemeService.Theme.GITHUB_LIGHT);
+                    assertEquals(service.ThemeService.Theme.GITHUB_LIGHT, themeService.getCurrentTheme(), "Current theme set to GITHUB_LIGHT");
+                    assertEquals(2, scene.getStylesheets().size(), "Scene has 2 stylesheets loaded");
+                    assertTrue(scene.getStylesheets().get(0).contains("vscode-editor.css"), "Base stylesheet loaded first (vscode-editor.css)");
+                    assertTrue(scene.getStylesheets().get(1).contains("github-light.css"), "Active theme stylesheet loaded second (github-light.css)");
+
+                    // Test Cyberpunk Neon application order
+                    themeService.applyTheme(scene, service.ThemeService.Theme.CYBERPUNK);
+                    assertEquals(service.ThemeService.Theme.CYBERPUNK, themeService.getCurrentTheme(), "Current theme set to CYBERPUNK");
+                    assertEquals(2, scene.getStylesheets().size(), "Scene has 2 stylesheets loaded");
+                    assertTrue(scene.getStylesheets().get(0).contains("vscode-editor.css"), "Base stylesheet loaded first (vscode-editor.css)");
+                    assertTrue(scene.getStylesheets().get(1).contains("cyberpunk.css"), "Active theme stylesheet loaded second (cyberpunk.css)");
+
+                    // Component verification
+                    view.fx.TopCommandCenterBar cmdBar = new view.fx.TopCommandCenterBar();
+                    assertTrue(cmdBar.getStyleClass().contains("top-command-center"), "TopCommandCenterBar has top-command-center styleClass");
+
+                    view.fx.BreadcrumbBar breadcrumb = new view.fx.BreadcrumbBar();
+                    assertTrue(breadcrumb.getStyleClass().contains("breadcrumb-bar"), "BreadcrumbBar has breadcrumb-bar styleClass");
+
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    testsFailed++;
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            boolean completed = latch.await(5, TimeUnit.SECONDS);
+            assertTrue(completed, "Theme cascading and component styling test completed within timeout");
+        } catch (Throwable t) {
+            System.err.println("Failed testThemeServiceAndComponentStyling: " + t.getMessage());
+            testsFailed++;
+        }
+    }
+
+    private static void testEditorAndTerminalCopyPaste() {
+        System.out.println("\n[32] Testing Editor & Terminal Smooth Copy/Paste & Text Selection...");
+
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                try {
+                    // 1. Test CodeEditorPane Copy/Cut/Paste
+                    CodeEditorPane editorPane = new CodeEditorPane();
+                    editorPane.getCodeArea().replaceText("Line 1: System.out.println(\"Hello\");\nLine 2: return 42;");
+
+                    // Test line copy when nothing is selected (VS Code line copy parity)
+                    editorPane.getCodeArea().moveTo(0, 5); // on Line 1, no selection
+                    editorPane.copyAction();
+                    javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+                    assertTrue(clipboard.hasString(), "Clipboard has string after line copy");
+                    assertEquals("Line 1: System.out.println(\"Hello\");\n", clipboard.getString(), "Line copy copies full line with trailing newline");
+
+                    // Test selected text copy
+                    editorPane.getCodeArea().selectRange(8, 26);
+                    assertEquals("System.out.println", editorPane.getCodeArea().getSelectedText(), "Selected text matches expected range");
+                    editorPane.copyAction();
+                    assertEquals("System.out.println", clipboard.getString(), "Selection copy copies exact selected text");
+
+                    // Test paste action with line ending normalization
+                    javafx.scene.input.ClipboardContent clipContent = new javafx.scene.input.ClipboardContent();
+                    clipContent.putString("System.err.println(\"Error\");\r\nint code = 1;");
+                    clipboard.setContent(clipContent);
+                    editorPane.getCodeArea().moveTo(1, 0);
+                    editorPane.pasteAction();
+                    assertTrue(editorPane.getCodeArea().getText().contains("System.err.println(\"Error\");\nint code = 1;"), "Paste normalizes CRLF into clean LF");
+
+                    // Test line cut with no selection
+                    editorPane.getCodeArea().moveTo(0, 2);
+                    editorPane.cutAction();
+                    assertEquals("Line 1: System.out.println(\"Hello\");\n", clipboard.getString(), "Line cut copies full line to clipboard");
+
+                    // 2. Test TerminalSession Text Selection & Copy/Paste
+                    TerminalPane terminalPane = new TerminalPane();
+                    terminalPane.showTerminal();
+                    TerminalPane.TerminalSession session = terminalPane.getActiveSession();
+                    assertTrue(session != null, "TerminalSession active session initialized");
+
+                    // Test copying whole terminal output
+                    session.copyAllOutput();
+                    assertTrue(clipboard.hasString(), "Clipboard populated with terminal output");
+
+                    // Test setting and copying selected text in terminal
+                    session.setSelectedText("echo 'Hello World'");
+                    session.copySelectionOrAll();
+                    assertEquals("echo 'Hello World'", clipboard.getString(), "Terminal copySelectionOrAll copies active selection");
+
+                    // Test terminal pasteToPrompt
+                    clipContent.putString("cd /tmp/test_dir");
+                    clipboard.setContent(clipContent);
+                    session.pasteToPrompt();
+
+                    // Test terminal shortcuts and context menu
+                    terminalPane.copyActiveTerminalSelection();
+                    terminalPane.pasteActiveTerminal();
+
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    testsFailed++;
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            boolean completed = latch.await(5, TimeUnit.SECONDS);
+            assertTrue(completed, "Editor & terminal copy/paste test completed within timeout");
+        } catch (Throwable t) {
+            System.err.println("Failed testEditorAndTerminalCopyPaste: " + t.getMessage());
+            testsFailed++;
+        }
     }
 }
 

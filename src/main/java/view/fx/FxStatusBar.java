@@ -53,12 +53,12 @@ public class FxStatusBar extends HBox {
 
         // 1. Left items: Git Branch + Sync + Error/Warning Diagnostic Badges
         gitBranchLabel = new Label(" " + detectGitBranch());
-        gitBranchLabel.setGraphic(IconFactory.getIcon(Codicons.SOURCE_CONTROL, 12, "#ffffff"));
+        gitBranchLabel.setGraphic(IconFactory.getIcon(Codicons.SOURCE_CONTROL, 12));
         gitBranchLabel.getStyleClass().add("status-item");
         gitBranchLabel.setTooltip(new Tooltip("Current Git Branch"));
 
         syncIconLabel = new Label();
-        syncIconLabel.setGraphic(IconFactory.getIcon(Codicons.SYNC, 11, "#ffffff"));
+        syncIconLabel.setGraphic(IconFactory.getIcon(Codicons.SYNC, 11));
         syncIconLabel.getStyleClass().add("status-item");
         syncIconLabel.setTooltip(new Tooltip("AuraOrbit Sync Status"));
 
@@ -79,7 +79,7 @@ public class FxStatusBar extends HBox {
         });
 
         syncStatusLabel = new Label(" Saved");
-        syncStatusLabel.setGraphic(IconFactory.getIcon(Codicons.CHECK, 12, "#ffffff"));
+        syncStatusLabel.setGraphic(IconFactory.getIcon(Codicons.CHECK, 12));
         syncStatusLabel.getStyleClass().add("status-item");
 
         positionLabel = new Label("Ln 1, Col 1");
@@ -114,12 +114,12 @@ public class FxStatusBar extends HBox {
         });
 
         themeButton = new Label(" " + themeService.getCurrentTheme().getDisplayName());
-        themeButton.setGraphic(IconFactory.getIcon(Codicons.COLOR_MODE, 12, "#ffffff"));
+        themeButton.setGraphic(IconFactory.getIcon(Codicons.COLOR_MODE, 12));
         themeButton.getStyleClass().add("status-item");
         themeButton.setTooltip(new Tooltip("Switch Color Theme"));
 
         bellLabel = new Label();
-        bellLabel.setGraphic(IconFactory.getIcon(Codicons.BELL, 11, "#ffffff"));
+        bellLabel.setGraphic(IconFactory.getIcon(Codicons.BELL, 11));
         bellLabel.getStyleClass().add("status-item");
         bellLabel.setTooltip(new Tooltip("Notifications"));
 
@@ -251,6 +251,10 @@ public class FxStatusBar extends HBox {
             syncStatusLabel.setStyle(originalStyle);
         });
         pause.play();
+    }
+
+    public void setStatusMessage(String message) {
+        showTemporaryMessage(message, 3000);
     }
 
     public void setModified(boolean isModified) {

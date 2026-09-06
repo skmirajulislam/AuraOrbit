@@ -68,14 +68,21 @@ public class AutoCompletePopup extends Popup {
 
                     row.getChildren().addAll(icon, label, spacer, detail);
                     setGraphic(row);
+                    updateSelectionStyle(isSelected());
+                }
+            }
 
-                    selectedProperty().addListener((obs, wasSel, isSel) -> {
-                        if (isSel) {
-                            setStyle("-fx-background-color: #04395e; -fx-text-fill: #ffffff;");
-                        } else {
-                            setStyle("-fx-background-color: transparent;");
-                        }
-                    });
+            @Override
+            public void updateSelected(boolean selected) {
+                super.updateSelected(selected);
+                updateSelectionStyle(selected);
+            }
+
+            private void updateSelectionStyle(boolean selected) {
+                if (selected && !isEmpty()) {
+                    setStyle("-fx-background-color: #04395e; -fx-text-fill: #ffffff;");
+                } else {
+                    setStyle("-fx-background-color: transparent;");
                 }
             }
         });

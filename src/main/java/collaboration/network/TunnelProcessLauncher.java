@@ -45,7 +45,12 @@ public class TunnelProcessLauncher {
         for (String candidate : candidatePaths) {
             try {
                 Process test = new ProcessBuilder(candidate, "--version").start();
-                if (test.waitFor(2, TimeUnit.SECONDS) && test.exitValue() == 0) {
+                boolean finished = test.waitFor(2, TimeUnit.SECONDS);
+                if (!finished) {
+                    test.destroyForcibly();
+                    continue;
+                }
+                if (test.exitValue() == 0) {
                     return candidate;
                 }
             } catch (Exception ignored) {}
@@ -92,15 +97,20 @@ public class TunnelProcessLauncher {
             });
 
             // Schedule timeout fallback
-            Executors.newSingleThreadScheduledExecutor(r -> {
+            ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "Tunnel-Timeout-Watcher");
                 t.setDaemon(true);
                 return t;
-            }).schedule(() -> {
-                if (!future.isDone()) {
-                    future.completeExceptionally(new TimeoutException(
-                            "Cloudflare tunnel connection timed out after " + timeoutSeconds + "s"));
-                    stop();
+            });
+            watcher.schedule(() -> {
+                try {
+                    if (!future.isDone()) {
+                        future.completeExceptionally(new TimeoutException(
+                                "Cloudflare tunnel connection timed out after " + timeoutSeconds + "s"));
+                        stop();
+                    }
+                } finally {
+                    watcher.shutdown();
                 }
             }, timeoutSeconds, TimeUnit.SECONDS);
 

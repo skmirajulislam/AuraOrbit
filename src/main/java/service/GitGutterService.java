@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -33,7 +32,14 @@ public class GitGutterService {
             "^@@\\s+-(\\d+)(?:,(\\d+))?\\s+\\+(\\d+)(?:,(\\d+))?\\s+@@"
     );
 
-    private static final Map<Path, Map<Integer, GutterType>> CACHE = new ConcurrentHashMap<>();
+    private static final int MAX_CACHE_SIZE = 100;
+    private static final Map<Path, Map<Integer, GutterType>> CACHE =
+            Collections.synchronizedMap(new LinkedHashMap<Path, Map<Integer, GutterType>>(128, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Path, Map<Integer, GutterType>> eldest) {
+                    return size() > MAX_CACHE_SIZE;
+                }
+            });
 
     /**
      * Synchronously computes the diff map for testing or direct access.
@@ -186,8 +192,8 @@ public class GitGutterService {
 
     private static Map<Integer, GutterType> markAllLinesAdded(Path file) {
         Map<Integer, GutterType> result = new HashMap<>();
-        try {
-            long lineCount = Files.lines(file, StandardCharsets.UTF_8).count();
+        try (var linesStream = Files.lines(file, StandardCharsets.UTF_8)) {
+            long lineCount = linesStream.count();
             for (int i = 1; i <= lineCount; i++) {
                 result.put(i, GutterType.ADDED);
             }

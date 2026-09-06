@@ -105,7 +105,7 @@ public class CommandPalette extends VBox {
                     cellBox.setAlignment(Pos.CENTER_LEFT);
                     cellBox.setPadding(new Insets(5, 8, 5, 8));
 
-                    FontIcon iconNode = IconFactory.getIcon(item.icon, 13, "#969696");
+                    FontIcon iconNode = IconFactory.getIcon(item.icon, 13);
 
                     Label titleNode = new Label(item.title);
                     titleNode.getStyleClass().add("command-palette-title");

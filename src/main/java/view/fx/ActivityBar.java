@@ -62,7 +62,7 @@ public class ActivityBar extends VBox {
         // Source Control with badge
         sourceControlBtn = createIconButton(Codicons.SOURCE_CONTROL, "Source Control (Cmd/Ctrl+Shift+G)", Panel.SOURCE_CONTROL);
         sourceControlBadgeLabel = new Label();
-        sourceControlBadgeLabel.setStyle("-fx-background-color: #007acc; -fx-text-fill: white; -fx-font-size: 9px; -fx-font-weight: bold; -fx-padding: 0 4 0 4; -fx-background-radius: 8;");
+        sourceControlBadgeLabel.setStyle("-fx-background-color: -accent-color; -fx-text-fill: white; -fx-font-size: 9px; -fx-font-weight: bold; -fx-padding: 0 4 0 4; -fx-background-radius: 8;");
         sourceControlBadgeLabel.setVisible(false);
         sourceControlBadgeLabel.setMouseTransparent(true);
         StackPane sourceControlWrapper = new StackPane(sourceControlBtn, sourceControlBadgeLabel);

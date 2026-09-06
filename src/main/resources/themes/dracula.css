@@ -248,13 +248,14 @@
 }
 .styled-text-area .paragraph-box {
     -fx-background-color: -bg-editor;
+    -fx-padding: 3.5px 0 3.5px 0;
 }
 .styled-text-area .lineno {
     -fx-background-color: -bg-gutter;
     -fx-text-fill: -text-gutter;
-    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
     -fx-font-size: 13px;
-    -fx-padding: 0 10 0 8;
+    -fx-padding: 3.5px 16px 3.5px 12px;
     -fx-border-color: transparent -border-color transparent transparent;
     -fx-border-width: 0 1 0 0;
 }
@@ -266,8 +267,8 @@
     -fx-fill: -bg-highlight;
 }
 .styled-text-area .text {
-    -fx-font-family: "JetBrains Mono", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13px;
+    -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
+    -fx-font-size: 13.5px;
     -fx-fill: -text-primary;
 }
 
@@ -309,7 +310,7 @@
 .styled-text-area .text.brace, .code-area .text.brace,
 .styled-text-area .text.bracket, .code-area .text.bracket,
 .styled-text-area .text.semicolon, .code-area .text.semicolon {
-    -fx-fill: #ff79c6;
+    -fx-fill: -text-primary;
 }
 .styled-text-area .text.plain, .code-area .text.plain, .plain {
     -fx-fill: -text-primary;
@@ -720,3 +721,238 @@
     -fx-border-color: #44475a;
     -fx-border-width: 1px 0 0 0;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dracula — Top Command Center Bar
+   ───────────────────────────────────────────────────────────────────────────── */
+.top-command-center {
+    -fx-background-color: #21222c;
+    -fx-border-color: transparent transparent #44475a transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.command-center-nav-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+}
+
+.command-center-nav-btn .codicon {
+    -fx-icon-color: #6272a4;
+}
+
+.command-center-nav-btn:hover {
+    -fx-background-color: #343746;
+}
+
+.command-center-nav-btn:hover .codicon {
+    -fx-icon-color: #f8f8f2;
+}
+
+.command-center-pill {
+    -fx-background-color: #282a36;
+    -fx-border-color: #44475a;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.command-center-pill .codicon {
+    -fx-icon-color: #6272a4;
+}
+
+.command-center-pill-text {
+    -fx-text-fill: #f8f8f2;
+    -fx-font-weight: 500;
+}
+
+.command-center-pill:hover {
+    -fx-background-color: #343746;
+    -fx-border-color: #bd93f9;
+}
+
+.command-center-pill:hover .codicon {
+    -fx-icon-color: #bd93f9;
+}
+
+.command-center-pill:hover .command-center-pill-text {
+    -fx-text-fill: #bd93f9;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dracula — Breadcrumb Bar & Symbol Navigator
+   ───────────────────────────────────────────────────────────────────────────── */
+.breadcrumb-bar {
+    -fx-background-color: #282a36;
+    -fx-border-color: transparent transparent #44475a transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-min-height: 24px;
+    -fx-pref-height: 24px;
+    -fx-max-height: 24px;
+}
+
+.breadcrumb-segment {
+    -fx-background-color: transparent;
+    -fx-text-fill: #6272a4;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-font-size: 11.5px;
+    -fx-padding: 1 5 1 5;
+    -fx-background-radius: 3;
+    -fx-cursor: hand;
+}
+
+.breadcrumb-segment:hover {
+    -fx-background-color: #343746;
+    -fx-text-fill: #f8f8f2;
+}
+
+.breadcrumb-segment.breadcrumb-active {
+    -fx-text-fill: #f8f8f2;
+    -fx-font-weight: 500;
+}
+
+.breadcrumb-segment .codicon {
+    -fx-icon-color: #6272a4;
+}
+
+.breadcrumb-segment:hover .codicon {
+    -fx-icon-color: #bd93f9;
+}
+
+.breadcrumb-segment.breadcrumb-active .codicon {
+    -fx-icon-color: #bd93f9;
+}
+
+.breadcrumb-separator {
+    -fx-text-fill: #6272a4;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -fx-font-size: 11px;
+    -fx-opacity: 0.7;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dracula — Editor Top Action Buttons & Run Pill
+   ───────────────────────────────────────────────────────────────────────────── */
+.editor-action-icon-button {
+    -fx-background-color: transparent;
+}
+
+.editor-action-icon-button .codicon {
+    -fx-icon-color: #6272a4;
+}
+
+.editor-action-icon-button:hover {
+    -fx-background-color: #343746;
+}
+
+.editor-action-icon-button:hover .codicon {
+    -fx-icon-color: #f8f8f2;
+}
+
+.editor-run-button {
+    -fx-background-color: rgba(80, 250, 123, 0.15);
+    -fx-border-color: #50fa7b;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-text-fill: #50fa7b;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+
+.editor-run-button .codicon {
+    -fx-icon-color: #50fa7b;
+}
+
+.editor-run-button:hover {
+    -fx-background-color: #50fa7b;
+    -fx-border-color: #50fa7b;
+    -fx-text-fill: #282a36;
+}
+
+.editor-run-button:hover .codicon {
+    -fx-icon-color: #282a36;
+}
+
+.editor-run-button.run-blocked {
+    -fx-background-color: rgba(255, 85, 85, 0.2);
+    -fx-border-color: #ff5555;
+    -fx-text-fill: #ff5555;
+}
+
+.editor-run-button.run-blocked .codicon {
+    -fx-icon-color: #ff5555;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dracula — Minimap Pane & Slider
+   ───────────────────────────────────────────────────────────────────────────── */
+.minimap-pane {
+    -fx-background-color: #282a36;
+    -fx-border-color: transparent transparent transparent #44475a;
+    -fx-border-width: 0 0 0 1;
+}
+
+.minimap-slider {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 2;
+    -fx-border-radius: 2;
+}
+
+.minimap-slider:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dracula — Open Editors & Welcome Watermark
+   ───────────────────────────────────────────────────────────────────────────── */
+.explorer-open-editors-section {
+    -fx-border-color: transparent transparent #44475a transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.open-editor-row.active {
+    -fx-background-color: #44475a;
+    -fx-border-color: transparent transparent transparent #bd93f9;
+    -fx-border-width: 0 0 0 2;
+}
+
+.open-editor-row.active .open-editor-label {
+    -fx-text-fill: #f8f8f2;
+    -fx-font-weight: bold;
+}
+
+.welcome-watermark-pane {
+    -fx-background-color: #282a36;
+}
+
+.welcome-watermark-icon {
+    -fx-icon-color: #bd93f9;
+}
+
+.welcome-action-row:hover {
+    -fx-background-color: #343746;
+    -fx-border-color: #44475a;
+}
+
+.welcome-action-row:hover .codicon {
+    -fx-icon-color: #bd93f9;
+}
+
+.shortcut-badge {
+    -fx-background-color: #21222c;
+    -fx-text-fill: #f8f8f2;
+    -fx-border-color: #44475a;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-border-width: 1px;
+    -fx-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 2 6 2 6;
+}
+
+.welcome-action-row:hover .shortcut-badge {
+    -fx-text-fill: #bd93f9;
+    -fx-border-color: #bd93f9;
+}
+
