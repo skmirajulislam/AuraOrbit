@@ -39,6 +39,8 @@ public class MinimapPane extends StackPane {
         setMaxWidth(MINIMAP_WIDTH);
         setMinWidth(MINIMAP_WIDTH);
         getStyleClass().add("minimap-pane");
+        setVisible(false);
+        setManaged(false);
 
         this.canvas = new Canvas(MINIMAP_WIDTH, 600);
         this.canvas.widthProperty().bind(widthProperty());

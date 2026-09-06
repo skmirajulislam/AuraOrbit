@@ -126,8 +126,8 @@ public class FxEditorController {
         setupStatusBar();
         setupCommandPalette();
 
-        // Create default initial tab
-        createNewTab("untitled.txt");
+        // Initialize empty tab metrics and welcome screen state
+        updateActiveTabMetrics();
 
         // Deferred workspace scan — avoid hitching the first paint
         diagnosticDebounceExecutor.schedule(() -> Platform.runLater(() -> {
@@ -161,6 +161,14 @@ public class FxEditorController {
             refreshRunAvailability();
         });
         tabPaneRight.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            updateActiveTabMetrics();
+            refreshRunAvailability();
+        });
+        tabPaneLeft.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) c -> {
+            updateActiveTabMetrics();
+            refreshRunAvailability();
+        });
+        tabPaneRight.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) c -> {
             updateActiveTabMetrics();
             refreshRunAvailability();
         });
@@ -664,10 +672,12 @@ public class FxEditorController {
             if (!canClose) {
                 e.consume();
             } else {
+                e.consume();
                 parentPane.getTabs().remove(tabCtrl.getTab());
                 tabControllers.remove(tabCtrl);
                 tabCtrl.dispose();
                 updateActiveTabMetrics();
+                refreshRunAvailability();
             }
         });
 

@@ -121,6 +121,8 @@ public class CodeEditorPane extends StackPane {
         this.breadcrumbBar.setOnNavigateToLine(this::navigateToLineAndHighlight);
 
         this.minimapPane = new MinimapPane(codeArea);
+        this.minimapPane.setVisible(false);
+        this.minimapPane.setManaged(false);
 
         this.highlightExecutor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "syntax-highlight-thread");

@@ -524,7 +524,7 @@
    Minimap & Overview Ruler
    ───────────────────────────────────────────────────────────────────────────── */
 .minimap-pane {
-    -fx-background-color: rgba(0, 0, 0, 0.12);
+    -fx-background-color: transparent;
     -fx-border-color: transparent transparent transparent -border-color;
     -fx-border-width: 0 0 0 1;
     -fx-cursor: default;

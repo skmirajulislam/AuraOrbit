@@ -53,6 +53,8 @@ public class JavaFxEditorApp extends Application {
         // Editor Split Pane (Allows Side-by-Side Dual Editor)
         SplitPane editorSplitPane = new SplitPane(tabPaneLeft);
         editorSplitPane.getStyleClass().add("editor-split-pane");
+        editorSplitPane.setVisible(false);
+        editorSplitPane.setManaged(false);
 
         // Welcome Watermark Pane (Displayed when no editor tabs are open)
         WelcomeWatermarkPane welcomeWatermarkPane = new WelcomeWatermarkPane(
@@ -62,8 +64,8 @@ public class JavaFxEditorApp extends Application {
         controller::toggleTerminal,
         controller::toggleAiPanel
     );
-        welcomeWatermarkPane.setVisible(false);
-        welcomeWatermarkPane.setManaged(false);
+        welcomeWatermarkPane.setVisible(true);
+        welcomeWatermarkPane.setManaged(true);
 
         // Command Palette Floating Overlay
         CommandPalette commandPalette = new CommandPalette();
