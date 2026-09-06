@@ -803,6 +803,24 @@ public class TerminalPane extends BorderPane {
         }
     }
 
+    public Map<String, int[]> getProblemCountsByFile() {
+        Map<String, int[]> map = new HashMap<>();
+        for (ProblemItem p : problemItems) {
+            if (p.file() != null) {
+                try {
+                    String normPath = Paths.get(p.file()).toAbsolutePath().normalize().toString();
+                    int[] counts = map.computeIfAbsent(normPath, k -> new int[2]);
+                    if ("Error".equalsIgnoreCase(p.severity())) {
+                        counts[0]++;
+                    } else if ("Warning".equalsIgnoreCase(p.severity())) {
+                        counts[1]++;
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        return map;
+    }
+
     private void renderProblemItems() {
         problemListContainer.getChildren().clear();
         if (filteredProblemItems.isEmpty()) {

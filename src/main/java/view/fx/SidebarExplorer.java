@@ -63,20 +63,30 @@ public class SidebarExplorer extends VBox {
     private FontIcon openEditorsChevron;
     private boolean openEditorsExpanded = true;
     private Runnable onCloseAllEditorsRequested;
+    private BiConsumer<Path, Boolean> onFileSelectedWithPreview;
+    private final Map<String, int[]> fileDiagnostics = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static class OpenEditorItem {
         public final String title;
         public final String filePath;
         public final boolean isModified;
         public final boolean isActive;
+        public final boolean isPreview;
+        public final int errorCount;
+        public final int warningCount;
         public final Runnable onSelect;
         public final Runnable onClose;
 
-        public OpenEditorItem(String title, String filePath, boolean isModified, boolean isActive, Runnable onSelect, Runnable onClose) {
+        public OpenEditorItem(String title, String filePath, boolean isModified, boolean isActive,
+                              boolean isPreview, int errorCount, int warningCount,
+                              Runnable onSelect, Runnable onClose) {
             this.title = title;
             this.filePath = filePath;
             this.isModified = isModified;
             this.isActive = isActive;
+            this.isPreview = isPreview;
+            this.errorCount = errorCount;
+            this.warningCount = warningCount;
             this.onSelect = onSelect;
             this.onClose = onClose;
         }
@@ -332,8 +342,18 @@ public class SidebarExplorer extends VBox {
             FontIcon icon = IconFactory.getFileIcon(item.title, 13);
             Label nameLabel = new Label(item.title);
             nameLabel.getStyleClass().add("open-editor-label");
-            if (item.isActive) {
-                nameLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-primary;");
+            if (item.errorCount > 0) {
+                nameLabel.setStyle("-fx-text-fill: #f14c4c; " + (item.isActive ? "-fx-font-weight: bold; " : "") + (item.isPreview ? "-fx-font-style: italic; " : ""));
+                nameLabel.setTooltip(new Tooltip(item.title + " (" + item.errorCount + " errors)"));
+            } else if (item.warningCount > 0) {
+                nameLabel.setStyle("-fx-text-fill: #cca700; " + (item.isActive ? "-fx-font-weight: bold; " : "") + (item.isPreview ? "-fx-font-style: italic; " : ""));
+                nameLabel.setTooltip(new Tooltip(item.title + " (" + item.warningCount + " warnings)"));
+            } else {
+                if (item.isActive) {
+                    nameLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-primary; " + (item.isPreview ? "-fx-font-style: italic; " : ""));
+                } else if (item.isPreview) {
+                    nameLabel.setStyle("-fx-font-style: italic;");
+                }
             }
 
             Region rowSpacer = new Region();
@@ -368,6 +388,22 @@ public class SidebarExplorer extends VBox {
         }
     }
 
+    public void setOnFileSelectedWithPreview(BiConsumer<Path, Boolean> callback) {
+        this.onFileSelectedWithPreview = callback;
+    }
+
+    public void updateDiagnostics(Map<String, int[]> diagnostics) {
+        fileDiagnostics.clear();
+        if (diagnostics != null) {
+            fileDiagnostics.putAll(diagnostics);
+        }
+        Platform.runLater(() -> {
+            if (fileTreeView != null) {
+                fileTreeView.refresh();
+            }
+        });
+    }
+
     private Button createActionButton(Codicons codicon, String tooltipText) {
         Button btn = new Button();
         btn.setGraphic(IconFactory.getIcon(codicon, 13));
@@ -399,6 +435,8 @@ public class SidebarExplorer extends VBox {
                     setText(null);
                     setGraphic(null);
                     setContextMenu(null);
+                    setStyle("");
+                    setTooltip(null);
                     return;
                 }
 
@@ -485,6 +523,29 @@ public class SidebarExplorer extends VBox {
                     boolean expanded = getTreeItem() != null && getTreeItem().isExpanded();
                     setGraphic(item.getIcon(expanded));
                     setContextMenu(createTreeContextMenu(getTreeItem()));
+
+                    if (item.file != null) {
+                        try {
+                            String abs = item.file.toPath().toAbsolutePath().normalize().toString();
+                            int[] diag = fileDiagnostics.get(abs);
+                            if (diag != null && diag[0] > 0) {
+                                setStyle("-fx-text-fill: #f14c4c;");
+                                setTooltip(new Tooltip(item.file.getName() + " (" + diag[0] + " errors)"));
+                            } else if (diag != null && diag[1] > 0) {
+                                setStyle("-fx-text-fill: #cca700;");
+                                setTooltip(new Tooltip(item.file.getName() + " (" + diag[1] + " warnings)"));
+                            } else {
+                                setStyle("");
+                                setTooltip(null);
+                            }
+                        } catch (Exception ignored) {
+                            setStyle("");
+                            setTooltip(null);
+                        }
+                    } else {
+                        setStyle("");
+                        setTooltip(null);
+                    }
                 }
             }
         });
@@ -494,7 +555,9 @@ public class SidebarExplorer extends VBox {
         // Selection change
         fileTreeView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null && newVal.getValue() != null && !newVal.getValue().isCreationItem && newVal.getValue().file != null && newVal.getValue().file.isFile()) {
-                if (onFileSelected != null) {
+                if (onFileSelectedWithPreview != null) {
+                    onFileSelectedWithPreview.accept(newVal.getValue().file.toPath(), true);
+                } else if (onFileSelected != null) {
                     onFileSelected.accept(newVal.getValue().file.toPath());
                 }
             }
@@ -505,7 +568,10 @@ public class SidebarExplorer extends VBox {
             if (e.getButton() == MouseButton.PRIMARY) {
                 TreeItem<FileItem> selected = fileTreeView.getSelectionModel().getSelectedItem();
                 if (selected != null && selected.getValue() != null && !selected.getValue().isCreationItem && selected.getValue().file != null && selected.getValue().file.isFile()) {
-                    if (onFileSelected != null) {
+                    boolean isPreview = (e.getClickCount() < 2);
+                    if (onFileSelectedWithPreview != null) {
+                        onFileSelectedWithPreview.accept(selected.getValue().file.toPath(), isPreview);
+                    } else if (onFileSelected != null) {
                         onFileSelected.accept(selected.getValue().file.toPath());
                     }
                 }
@@ -517,7 +583,9 @@ public class SidebarExplorer extends VBox {
             if (e.getCode() == KeyCode.ENTER) {
                 TreeItem<FileItem> selected = fileTreeView.getSelectionModel().getSelectedItem();
                 if (selected != null && selected.getValue() != null && !selected.getValue().isCreationItem && selected.getValue().file != null && selected.getValue().file.isFile()) {
-                    if (onFileSelected != null) {
+                    if (onFileSelectedWithPreview != null) {
+                        onFileSelectedWithPreview.accept(selected.getValue().file.toPath(), false);
+                    } else if (onFileSelected != null) {
                         onFileSelected.accept(selected.getValue().file.toPath());
                     }
                 }

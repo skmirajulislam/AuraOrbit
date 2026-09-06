@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 import service.GitGutterService;
 import service.ScriptPluginService;
 import view.fx.BreadcrumbBar;
+import view.fx.SidebarExplorer;
+import controller.EditorTabController;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -62,6 +64,7 @@ public class EditorTestSuite {
             testGitGutterDiffEngine();
             testScriptPluginDiscovery();
             testBreadcrumbSymbolIndexing();
+            testPreviewModeAndDiagnostics();
 
             System.out.println("\n-------------------------------------------------");
             System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -95,6 +98,10 @@ public class EditorTestSuite {
             System.err.println("  ✖ FAIL: " + testName + " | Expected true, Got false");
             testsFailed++;
         }
+    }
+
+    private static void assertFalse(boolean condition, String testName) {
+        assertTrue(!condition, testName);
     }
 
     private static void testTextBufferOperations() {
@@ -722,5 +729,64 @@ public class EditorTestSuite {
         bar.indexSymbols(mdText, "md");
         bar.updateActiveCaretLine(3);
         assertTrue(bar.getChildren().size() >= 2, "Markdown headings indexed in breadcrumbs");
+    }
+
+    private static void testPreviewModeAndDiagnostics() {
+        System.out.println("\n[20] Testing Preview Mode & Real-Time Diagnostics Integration...");
+
+        // 1. Sidebar OpenEditorItem Record Testing
+        SidebarExplorer.OpenEditorItem item = new SidebarExplorer.OpenEditorItem(
+                "Calculator.java", "/workspace/Calculator.java", false, true, true, 3, 1, () -> {}, () -> {}
+        );
+        assertTrue(item.isPreview, "OpenEditorItem isPreview flag preserved");
+        assertEquals(3, item.errorCount, "OpenEditorItem errorCount is 3");
+        assertEquals(1, item.warningCount, "OpenEditorItem warningCount is 1");
+
+        // 2. TerminalPane Problem Mapping & EditorTabController Diagnostics
+        try {
+            CountDownLatch latch = new CountDownLatch(1);
+            Platform.runLater(() -> {
+                try {
+                    TerminalPane pane = new TerminalPane();
+                    pane.addProblem(Codicons.ERROR, "Error", "Test syntax error", "/workspace/Calculator.java", 10, 5, "javac");
+                    pane.addProblem(Codicons.WARNING, "Warning", "Unused variable", "/workspace/Calculator.java", 12, 1, "javac");
+                    pane.addProblem(Codicons.ERROR, "Error", "Cannot find symbol", "/workspace/Other.java", 20, 2, "javac");
+
+                    Map<String, int[]> counts = pane.getProblemCountsByFile();
+                    String calcNorm = Paths.get("/workspace/Calculator.java").toAbsolutePath().normalize().toString();
+                    int[] calcCounts = counts.get(calcNorm);
+                    assertTrue(calcCounts != null, "Calculator.java present in problem counts map");
+                    if (calcCounts != null) {
+                        assertEquals(1, calcCounts[0], "Calculator.java has 1 error");
+                        assertEquals(1, calcCounts[1], "Calculator.java has 1 warning");
+                    }
+
+                    EditorTabController tabCtrl = new EditorTabController("Calculator.java", new FileService());
+                    tabCtrl.setPreview(true);
+                    assertTrue(tabCtrl.isPreview(), "EditorTabController isPreview is initially true");
+
+                    tabCtrl.setDiagnostics(1, 1);
+                    assertEquals(1, tabCtrl.getErrorCount(), "EditorTabController errorCount is 1");
+                    assertEquals(1, tabCtrl.getWarningCount(), "EditorTabController warningCount is 1");
+
+                    tabCtrl.pin();
+                    assertFalse(tabCtrl.isPreview(), "EditorTabController isPreview is false after pin()");
+
+                    tabCtrl.dispose();
+                    pane.dispose();
+                } catch (Exception e) {
+                    System.err.println("  ✖ FAIL: testPreviewModeAndDiagnostics exception: " + e.getMessage());
+                    testsFailed++;
+                } finally {
+                    latch.countDown();
+                }
+            });
+
+            boolean finished = latch.await(5, TimeUnit.SECONDS);
+            assertTrue(finished, "JavaFX Preview and Diagnostics tests completed within timeout");
+        } catch (Exception e) {
+            System.err.println("  ✖ FAIL: testPreviewModeAndDiagnostics threw exception: " + e.getMessage());
+            testsFailed++;
+        }
     }
 }

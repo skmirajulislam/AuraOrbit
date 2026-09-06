@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.*;
 
 /**
@@ -176,7 +177,8 @@ public class FxEditorController {
     }
 
     private void setupSidebar() {
-        sidebarExplorer.setOnFileSelected(this::openFile);
+        sidebarExplorer.setOnFileSelectedWithPreview((path, isPreview) -> openFile(path, isPreview));
+        sidebarExplorer.setOnFileSelected(path -> openFile(path, true));
         sidebarExplorer.setOnTemplateSelected(choice -> {
             if (choice != null && choice.template != null) {
                 createFromTemplate(choice.template, choice.defaultName);
@@ -381,7 +383,25 @@ public class FxEditorController {
         });
 
         terminalPane.setOnProblemsUpdated((errors, warnings) -> {
-            Platform.runLater(() -> statusBar.setProblems(errors, warnings));
+            Platform.runLater(() -> {
+                statusBar.setProblems(errors, warnings);
+                Map<String, int[]> counts = terminalPane.getProblemCountsByFile();
+                if (sidebarExplorer != null) {
+                    sidebarExplorer.updateDiagnostics(counts);
+                }
+                for (EditorTabController tc : tabControllers) {
+                    if (tc.getDocument() != null && tc.getDocument().getFilePath() != null) {
+                        String p = tc.getDocument().getFilePath().toAbsolutePath().normalize().toString();
+                        int[] c = counts.get(p);
+                        if (c != null) {
+                            tc.setDiagnostics(c[0], c[1]);
+                        } else {
+                            tc.setDiagnostics(0, 0);
+                        }
+                    }
+                }
+                syncOpenEditorsSidebar();
+            });
         });
     }
 
@@ -617,10 +637,18 @@ public class FxEditorController {
     }
 
     public void openFile(Path path) {
-        openFileInTargetTabPane(path, tabPaneLeft);
+        openFile(path, true);
+    }
+
+    public void openFile(Path path, boolean isPreview) {
+        openFileInTargetTabPane(path, tabPaneLeft, isPreview);
     }
 
     public void openFileInTargetTabPane(Path path, TabPane targetPane) {
+        openFileInTargetTabPane(path, targetPane, false);
+    }
+
+    public void openFileInTargetTabPane(Path path, TabPane targetPane, boolean isPreview) {
         if (path == null) return;
         Path absPath = path.toAbsolutePath().normalize();
 
@@ -631,12 +659,37 @@ public class FxEditorController {
                 } else if (tabPaneRight.getTabs().contains(tc.getTab())) {
                     tabPaneRight.getSelectionModel().select(tc.getTab());
                 }
+                if (!isPreview) {
+                    tc.pin();
+                }
                 updateActiveTabMetrics();
                 return;
             }
         }
 
         try {
+            // If opening in preview mode, reuse existing unpinned and unmodified preview tab in targetPane
+            if (isPreview) {
+                for (EditorTabController tc : tabControllers) {
+                    if (tc.isPreview() && !tc.isModified() && targetPane.getTabs().contains(tc.getTab())) {
+                        tc.loadNewFile(absPath);
+                        targetPane.getSelectionModel().select(tc.getTab());
+                        if (terminalPane != null) {
+                            Map<String, int[]> counts = terminalPane.getProblemCountsByFile();
+                            int[] diag = counts.get(absPath.toString());
+                            if (diag != null) {
+                                tc.setDiagnostics(diag[0], diag[1]);
+                            } else {
+                                tc.setDiagnostics(0, 0);
+                            }
+                        }
+                        updateActiveTabMetrics();
+                        triggerLiveDiagnostics(tc);
+                        return;
+                    }
+                }
+            }
+
             if (targetPane.getTabs().size() == 1) {
                 Tab initialTab = targetPane.getTabs().get(0);
                 EditorTabController initialTc = findTabController(initialTab);
@@ -648,6 +701,14 @@ public class FxEditorController {
             }
 
             EditorTabController tabCtrl = new EditorTabController(absPath, fileService);
+            tabCtrl.setPreview(isPreview);
+            if (terminalPane != null) {
+                Map<String, int[]> counts = terminalPane.getProblemCountsByFile();
+                int[] diag = counts.get(absPath.toString());
+                if (diag != null) {
+                    tabCtrl.setDiagnostics(diag[0], diag[1]);
+                }
+            }
             bindTabController(tabCtrl, targetPane);
             tabControllers.add(tabCtrl);
             targetPane.getTabs().add(tabCtrl.getTab());
@@ -887,6 +948,9 @@ public class FxEditorController {
                     path,
                     isModified,
                     isActive,
+                    tc.isPreview(),
+                    tc.getErrorCount(),
+                    tc.getWarningCount(),
                     () -> selectTabController(tc),
                     () -> closeTab(tc)
             ));
@@ -955,7 +1019,7 @@ public class FxEditorController {
         chooser.setTitle("Open File");
         File file = chooser.showOpenDialog(stage);
         if (file != null) {
-            openFile(file.toPath());
+            openFile(file.toPath(), false);
         }
     }
 

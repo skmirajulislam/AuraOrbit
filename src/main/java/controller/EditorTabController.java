@@ -49,6 +49,10 @@ public class EditorTabController {
     private String indentation = "Spaces: 4";
     private String lastIconName = "";
 
+    private boolean isPreview = false;
+    private int errorCount = 0;
+    private int warningCount = 0;
+
     public EditorTabController(String initialName, FileService fileService) {
         this.fileService = fileService;
         this.document = new Document(initialName);
@@ -82,10 +86,12 @@ public class EditorTabController {
         this.tabHeaderBox.getChildren().addAll(fileIconNode, titleLabel, closeButton);
         this.tab.setGraphic(tabHeaderBox);
 
-        // Middle click to close tab
+        // Middle click to close tab, double click to pin
         this.tabHeaderBox.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.MIDDLE) {
                 if (onCloseRequested != null) onCloseRequested.accept(this);
+            } else if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
+                pin();
             }
         });
 
@@ -125,10 +131,12 @@ public class EditorTabController {
         this.tabHeaderBox.getChildren().addAll(fileIconNode, titleLabel, closeButton);
         this.tab.setGraphic(tabHeaderBox);
 
-        // Middle click to close tab
+        // Middle click to close tab, double click to pin
         this.tabHeaderBox.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.MIDDLE) {
                 if (onCloseRequested != null) onCloseRequested.accept(this);
+            } else if (e.getButton() == MouseButton.PRIMARY && e.getClickCount() == 2) {
+                pin();
             }
         });
 
@@ -201,6 +209,9 @@ public class EditorTabController {
         // High-performance event stream: zero full-text string joins on keystrokes
         codeArea.plainTextChanges().subscribe(change -> {
             if (!suppressEvents) {
+                if (isPreview) {
+                    pin();
+                }
                 if (!isModified) {
                     isModified = true;
                     updateTabTitle();
@@ -276,6 +287,69 @@ public class EditorTabController {
         return (dot != -1 && dot < name.length() - 1) ? name.substring(dot + 1).toLowerCase() : "";
     }
 
+    public void setDiagnostics(int errors, int warnings) {
+        this.errorCount = errors;
+        this.warningCount = warnings;
+        updateTabTitle();
+    }
+
+    public int getErrorCount() {
+        return errorCount;
+    }
+
+    public int getWarningCount() {
+        return warningCount;
+    }
+
+    public boolean isPreview() {
+        return isPreview;
+    }
+
+    public void setPreview(boolean preview) {
+        this.isPreview = preview;
+        updateTabTitle();
+    }
+
+    public void pin() {
+        if (this.isPreview) {
+            this.isPreview = false;
+            updateTabTitle();
+        }
+    }
+
+    public void loadNewFile(Path newPath) {
+        Path sanitized = FileSecurityValidator.sanitizeAndResolvePath(newPath.toString());
+        this.document = new Document(sanitized);
+        String name = document.getFileName();
+        int dot = name.lastIndexOf('.');
+        if (dot != -1 && dot < name.length() - 1) {
+            editorPane.setFileType(name.substring(dot + 1).toLowerCase());
+        }
+        FontIcon newIcon = IconFactory.getFileIcon(name, 13);
+        this.fileIconNode.setIconCode(newIcon.getIconCode());
+        this.fileIconNode.setIconColor(newIcon.getIconColor());
+        this.lastIconName = name;
+
+        if (java.nio.file.Files.exists(sanitized)) {
+            suppressEvents = true;
+            try {
+                String content = fileService.readString(sanitized);
+                editorPane.getCodeArea().replaceText(content);
+                editorPane.getCodeArea().moveTo(0);
+                updateCachedMetadata(content);
+                String ft = getFileExtension();
+                editorPane.updateBreadcrumbs(document.getFilePath(), ft, content);
+                editorPane.refreshGitGutter(sanitized);
+            } catch (Exception e) {
+                System.err.println("Failed to read file: " + e.getMessage());
+            } finally {
+                suppressEvents = false;
+            }
+        }
+        this.isModified = false;
+        updateTabTitle();
+    }
+
     public void updateTabTitle() {
         String name = (document != null) ? document.getFileName() : "untitled";
         String expectedText = (isModified ? "● " : "") + name;
@@ -290,6 +364,26 @@ public class EditorTabController {
             fileIconNode.setIconCode(newIcon.getIconCode());
             fileIconNode.setIconColor(newIcon.getIconColor());
         }
+
+        StringBuilder style = new StringBuilder();
+        if (isPreview) {
+            style.append("-fx-font-style: italic; ");
+        } else {
+            style.append("-fx-font-style: normal; ");
+        }
+
+        if (errorCount > 0) {
+            style.append("-fx-text-fill: #f14c4c; ");
+            titleLabel.setTooltip(new Tooltip(name + " (" + errorCount + " error" + (errorCount > 1 ? "s" : "") + ")"));
+        } else if (warningCount > 0) {
+            style.append("-fx-text-fill: #cca700; ");
+            titleLabel.setTooltip(new Tooltip(name + " (" + warningCount + " warning" + (warningCount > 1 ? "s" : "") + ")"));
+        } else {
+            style.append("-fx-text-fill: -text-primary; ");
+            titleLabel.setTooltip(new Tooltip(document != null && document.getFilePath() != null ? document.getFilePath().toString() : name));
+        }
+
+        titleLabel.setStyle(style.toString());
     }
 
     public Tab getTab() { return tab; }
