@@ -202,6 +202,25 @@ public class FxStatusBar extends HBox {
         });
     }
 
+    public void showTemporaryMessage(String message, int durationMs) {
+        if (message == null || syncStatusLabel == null) return;
+        String originalText = syncStatusLabel.getText();
+        javafx.scene.Node originalGraphic = syncStatusLabel.getGraphic();
+        String originalStyle = syncStatusLabel.getStyle();
+
+        syncStatusLabel.setText(" " + message);
+        syncStatusLabel.setGraphic(IconFactory.getIcon(Codicons.INFO, 12, "#ffffff"));
+        syncStatusLabel.setStyle("-fx-text-fill: #ffffff; -fx-font-weight: bold;");
+
+        javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(durationMs));
+        pause.setOnFinished(e -> {
+            syncStatusLabel.setText(originalText);
+            syncStatusLabel.setGraphic(originalGraphic);
+            syncStatusLabel.setStyle(originalStyle);
+        });
+        pause.play();
+    }
+
     public void setModified(boolean isModified) {
         if (isModified) {
             syncStatusLabel.setText(" Modified");
