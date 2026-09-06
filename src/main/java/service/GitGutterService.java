@@ -13,6 +13,12 @@ import java.util.regex.Pattern;
 /**
  * High-performance asynchronous Git diff service for editor gutter annotations.
  * Analyzes file changes against Git HEAD in sub-millisecond time.
+ *
+ * Resilience:
+ * - Checks if repo has any commits before using HEAD reference
+ * - Falls back to index-only diff for repos with no commits
+ * - Marks untracked files as all-ADDED lines
+ * - Handles uninitialized repos, missing HEAD, and permission errors gracefully
  */
 public class GitGutterService {
 
@@ -31,6 +37,10 @@ public class GitGutterService {
 
     /**
      * Synchronously computes the diff map for testing or direct access.
+     * Handles edge cases:
+     *  - Not inside a git repo: returns empty
+     *  - Repo has no commits (empty HEAD): uses 'git diff' without HEAD
+     *  - Untracked file: marks every line as ADDED
      */
     public static Map<Integer, GutterType> computeDiff(Path file) {
         Map<Integer, GutterType> result = new HashMap<>();
@@ -40,17 +50,32 @@ public class GitGutterService {
         if (parent == null) return result;
 
         try {
-            // Check if directory is inside a git repo
-            ProcessBuilder checkPb = new ProcessBuilder("git", "rev-parse", "--is-inside-work-tree");
-            checkPb.directory(parent.toFile());
-            Process checkProc = checkPb.start();
-            boolean inRepo = checkProc.waitFor() == 0;
-            if (!inRepo) return result;
+            // Step 1: Check if directory is inside a git repo
+            if (!isInsideGitRepo(parent)) return result;
 
             String fileName = file.getFileName().toString();
-            ProcessBuilder pb = new ProcessBuilder(
-                    "git", "diff", "--no-color", "--no-ext-diff", "-U0", "HEAD", "--", fileName
-            );
+
+            // Step 2: Check if file is tracked by git
+            boolean isTracked = isFileTracked(parent, fileName);
+
+            if (!isTracked) {
+                // Untracked file — mark ALL lines as ADDED
+                return markAllLinesAdded(file);
+            }
+
+            // Step 3: Check if HEAD exists (repo has at least one commit)
+            boolean hasHead = hasHeadCommit(parent);
+
+            // Step 4: Run git diff with appropriate reference
+            List<String> diffCommand;
+            if (hasHead) {
+                diffCommand = List.of("git", "diff", "--no-color", "--no-ext-diff", "-U0", "HEAD", "--", fileName);
+            } else {
+                // No commits yet — diff against the empty tree (staged vs nothing)
+                diffCommand = List.of("git", "diff", "--no-color", "--no-ext-diff", "-U0", "--cached", "--", fileName);
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(diffCommand);
             pb.directory(parent.toFile());
             Process proc = pb.start();
 
@@ -63,6 +88,12 @@ public class GitGutterService {
                 }
             }
             proc.waitFor();
+
+            // If HEAD doesn't exist and we got no diff output, it means the file is staged with all-new content
+            if (!hasHead && result.isEmpty()) {
+                return markAllLinesAdded(file);
+            }
+
             CACHE.put(file.toAbsolutePath().normalize(), Collections.unmodifiableMap(result));
         } catch (Exception ignored) {}
 
@@ -110,5 +141,65 @@ public class GitGutterService {
                 diffMap.put(newStart + i, GutterType.MODIFIED);
             }
         }
+    }
+
+    // ── Helper Methods ───────────────────────────────────────────────────────
+
+    static boolean isInsideGitRepo(Path dir) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("git", "rev-parse", "--is-inside-work-tree");
+            pb.directory(dir.toFile());
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
+            String output = new String(proc.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            return proc.waitFor() == 0 && "true".equals(output);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static boolean hasHeadCommit(Path dir) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("git", "rev-parse", "--verify", "HEAD");
+            pb.directory(dir.toFile());
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
+            proc.getInputStream().readAllBytes(); // consume output
+            return proc.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    static boolean isFileTracked(Path dir, String fileName) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("git", "ls-files", "--error-unmatch", "--", fileName);
+            pb.directory(dir.toFile());
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
+            proc.getInputStream().readAllBytes(); // consume output
+            return proc.waitFor() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static Map<Integer, GutterType> markAllLinesAdded(Path file) {
+        Map<Integer, GutterType> result = new HashMap<>();
+        try {
+            long lineCount = Files.lines(file, StandardCharsets.UTF_8).count();
+            for (int i = 1; i <= lineCount; i++) {
+                result.put(i, GutterType.ADDED);
+            }
+            CACHE.put(file.toAbsolutePath().normalize(), Collections.unmodifiableMap(result));
+        } catch (Exception ignored) {}
+        return result;
+    }
+
+    /**
+     * Clears the cached diff results for all files.
+     */
+    public static void clearCache() {
+        CACHE.clear();
     }
 }

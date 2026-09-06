@@ -10,6 +10,8 @@ import template.JsonTemplate;
 import template.MarkdownTemplate;
 import template.TemplateFactory;
 import view.fx.TerminalPane;
+import view.fx.SourceControlPane;
+import view.fx.WorkspaceSearchPane;
 import view.fx.IconFactory;
 import service.CodeDiagnosticsService;
 import org.kordamp.ikonli.codicons.Codicons;
@@ -19,8 +21,12 @@ import javafx.application.Platform;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import service.GitGutterService;
@@ -76,6 +82,11 @@ public class EditorTestSuite {
             testAutoCompleteEngine();
             testVsCodeParityAndDynamicComponents();
             testProjectCodeDiagnosticsHygiene();
+            testWorkspaceSearchLogic();
+            testProductionGitSourceControl();
+            testMavenCompilerDiagnosticParsing();
+            testWorkspaceSymbolIntelliSense();
+            testResilientGitGutterEdgeCases();
 
             System.out.println("\n-------------------------------------------------");
             System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -980,7 +991,7 @@ public class EditorTestSuite {
         }
 
         // 4. Batch compiler diagnostics over ALL source files in src/main/java
-        try (var walk = Files.walk(Paths.get("src/main/java"))) {
+        try (Stream<Path> walk = Files.walk(Paths.get("src/main/java"))) {
             List<Path> allSrc = walk.filter(p -> p.toString().endsWith(".java")).toList();
             List<TerminalPane.ProblemItem> allCompilerProblems = CodeDiagnosticsService.runJavaCompilerDiagnostics(allSrc);
             for (TerminalPane.ProblemItem p : allCompilerProblems) {
@@ -993,6 +1004,207 @@ public class EditorTestSuite {
         } catch (IOException e) {
             assertTrue(false, "Failed to walk src/main/java: " + e.getMessage());
         }
+    }
+
+    private static void testWorkspaceSearchLogic() {
+        System.out.println("\n[25] Testing Production Workspace Search Logic...");
+
+        // 1. Exact case-insensitive search pattern
+        Pattern p1 = WorkspaceSearchPane.buildSearchPattern("hello", false, false, false);
+        assertTrue(p1 != null, "Search pattern built successfully");
+        assertTrue(p1.matcher("Hello World").find(), "Case-insensitive pattern matches 'Hello'");
+        assertTrue(p1.matcher("say hello now").find(), "Case-insensitive pattern matches 'hello'");
+
+        // 2. Case-sensitive search pattern
+        Pattern p2 = WorkspaceSearchPane.buildSearchPattern("Hello", true, false, false);
+        assertTrue(p2.matcher("Hello World").find(), "Case-sensitive pattern matches exact 'Hello'");
+        assertFalse(p2.matcher("hello world").find(), "Case-sensitive pattern does not match 'hello'");
+
+        // 3. Whole-word search pattern
+        Pattern p3 = WorkspaceSearchPane.buildSearchPattern("cat", false, true, false);
+        assertTrue(p3.matcher("the cat sleeps").find(), "Whole-word pattern matches standalone 'cat'");
+        assertFalse(p3.matcher("the concatenate logic").find(), "Whole-word pattern rejects 'concatenate'");
+
+        // 4. Regex search pattern
+        Pattern p4 = WorkspaceSearchPane.buildSearchPattern("public\\s+(?:class|interface)\\s+\\w+", false, false, true);
+        assertTrue(p4 != null, "Regex pattern compiled");
+        assertTrue(p4.matcher("public class MyService {").find(), "Regex pattern matches class declaration");
+        assertTrue(p4.matcher("public interface MyListener {").find(), "Regex pattern matches interface declaration");
+
+        // 5. Multi-line search match extraction
+        List<String> lines = List.of(
+                "package com.example;",
+                "",
+                "// TODO: refactor this method",
+                "public void run() {",
+                "    // TODO: implement logic",
+                "}"
+        );
+        Pattern todoPattern = WorkspaceSearchPane.buildSearchPattern("TODO", false, false, false);
+        List<WorkspaceSearchPane.SearchMatch> matches = WorkspaceSearchPane.searchInLines(lines, todoPattern);
+        assertEquals(2, matches.size(), "Extracted 2 TODO matches from lines");
+        assertEquals(3, matches.get(0).lineNumber(), "First match is on line 3");
+        assertEquals(5, matches.get(1).lineNumber(), "Second match is on line 5");
+
+        // 6. Glob parsing
+        List<PathMatcher> matchers = WorkspaceSearchPane.parseGlobPatterns("*.java, *.kt, src/**");
+        assertEquals(3, matchers.size(), "Parsed 3 glob patterns from comma-separated list");
+    }
+
+    private static void testProductionGitSourceControl() {
+        System.out.println("\n[26] Testing Production Git Source Control Staged/Unstaged Model...");
+
+        // 1. Staged modified file
+        SourceControlPane.GitChange stagedChange = new SourceControlPane.GitChange(
+                "M", "src/main/java/App.java", Paths.get("src/main/java/App.java"), true
+        );
+        assertTrue(stagedChange.isStaged(), "GitChange marked as staged");
+        assertEquals("M", stagedChange.getStatusChar(), "Status char is 'M'");
+        assertEquals("App.java", stagedChange.getFileName(), "File name is App.java");
+        assertEquals("src/main/java", stagedChange.getDirectoryPath(), "Directory path is src/main/java");
+
+        // 2. Unstaged untracked file
+        SourceControlPane.GitChange untrackedChange = new SourceControlPane.GitChange(
+                "??", "newfile.txt", Paths.get("newfile.txt"), false
+        );
+        assertFalse(untrackedChange.isStaged(), "GitChange marked as unstaged");
+        assertEquals("??", untrackedChange.getStatusChar(), "Status char is '??'");
+        assertEquals("newfile.txt", untrackedChange.getFileName(), "File name is newfile.txt");
+        assertEquals("", untrackedChange.getDirectoryPath(), "Root directory path is empty string");
+
+        // 3. Staged addition
+        SourceControlPane.GitChange addedChange = new SourceControlPane.GitChange(
+                "A", "docs/README.md", Paths.get("docs/README.md"), true
+        );
+        assertTrue(addedChange.isStaged(), "Added change is staged");
+        assertEquals("A", addedChange.getStatusChar(), "Status char is 'A'");
+        assertEquals("docs", addedChange.getDirectoryPath(), "Directory is docs");
+
+        // 4. Backwards compatibility constructor
+        SourceControlPane.GitChange compatChange = new SourceControlPane.GitChange(
+                "D", "old/File.java", Paths.get("old/File.java")
+        );
+        assertFalse(compatChange.isStaged(), "3-arg constructor defaults isStaged to false");
+        assertEquals("D", compatChange.getStatusChar(), "Status char is 'D'");
+    }
+
+    private static void testMavenCompilerDiagnosticParsing() {
+        System.out.println("\n[27] Testing Maven/javac Compiler Diagnostic Regex Parsing...");
+
+        // 1. Standard bracket javac output
+        String line1 = "[ERROR] /Users/dev/project/src/Main.java:[42,15] cannot find symbol";
+        TerminalPane.ProblemItem p1 = TerminalPane.parseMavenDiagnostic(line1);
+        assertTrue(p1 != null, "Parsed bracket compiler error");
+        assertEquals("Error", p1.severity(), "Severity is Error");
+        assertEquals("/Users/dev/project/src/Main.java", p1.file(), "File path extracted accurately");
+        assertEquals(42, p1.line(), "Line number 42 extracted");
+        assertEquals(15, p1.column(), "Column number 15 extracted");
+        assertTrue(p1.message().contains("cannot find symbol"), "Message contains error text");
+        assertEquals("javac", p1.source(), "Source is javac");
+
+        // 2. Warning bracket output
+        String line2 = "[WARNING] /path/to/Service.java:[108,5] [deprecation] oldMethod() in DeprecatedClass has been deprecated";
+        TerminalPane.ProblemItem p2 = TerminalPane.parseMavenDiagnostic(line2);
+        assertTrue(p2 != null, "Parsed bracket compiler warning");
+        assertEquals("Warning", p2.severity(), "Severity is Warning");
+        assertEquals(108, p2.line(), "Line 108 extracted");
+        assertEquals(5, p2.column(), "Column 5 extracted");
+
+        // 3. Colon format output
+        String line3 = "[ERROR] /path/to/Util.java:77: reached end of file while parsing";
+        TerminalPane.ProblemItem p3 = TerminalPane.parseMavenDiagnostic(line3);
+        assertTrue(p3 != null, "Parsed colon compiler error");
+        assertEquals(77, p3.line(), "Line 77 extracted");
+        assertEquals(1, p3.column(), "Default column 1 for colon format");
+        assertTrue(p3.message().contains("reached end of file"), "Message extracted");
+
+        // 4. Non-compiler line returns null (does not false-positive)
+        String line4 = "[INFO] Compiling 42 source files to /target/classes";
+        TerminalPane.ProblemItem p4 = TerminalPane.parseMavenDiagnostic(line4);
+        assertTrue(p4 == null, "Non-diagnostic line correctly returns null");
+    }
+
+    private static void testWorkspaceSymbolIntelliSense() {
+        System.out.println("\n[28] Testing Workspace-Wide Symbol IntelliSense & Extraction...");
+
+        // 1. Extract Java symbols
+        String javaSrc = "package com.demo;\n"
+                + "public class OrderProcessor {\n"
+                + "    public void processOrder() {}\n"
+                + "    private int calculateTotal() {}\n"
+                + "    public record OrderItem(String id, double price) {}\n"
+                + "}\n";
+        List<AutoCompleteService.WorkspaceSymbol> javaSymbols = new ArrayList<>();
+        AutoCompleteService.extractWorkspaceSymbols(javaSrc, "java", "OrderProcessor.java", javaSymbols);
+
+        boolean hasOrderProcessor = javaSymbols.stream().anyMatch(s -> s.name().equals("OrderProcessor") && s.kind() == AutoCompleteService.ItemKind.CLASS);
+        assertTrue(hasOrderProcessor, "Extracted OrderProcessor class");
+
+        boolean hasProcessOrder = javaSymbols.stream().anyMatch(s -> s.name().equals("processOrder") && s.kind() == AutoCompleteService.ItemKind.METHOD);
+        assertTrue(hasProcessOrder, "Extracted processOrder method");
+
+        boolean hasCalculateTotal = javaSymbols.stream().anyMatch(s -> s.name().equals("calculateTotal") && s.kind() == AutoCompleteService.ItemKind.METHOD);
+        assertTrue(hasCalculateTotal, "Extracted calculateTotal method");
+
+        // 2. Extract Python symbols
+        String pySrc = "class DataPipeline:\n"
+                + "    def ingest_records():\n"
+                + "        pass\n";
+        List<AutoCompleteService.WorkspaceSymbol> pySymbols = new ArrayList<>();
+        AutoCompleteService.extractWorkspaceSymbols(pySrc, "py", "pipeline.py", pySymbols);
+
+        boolean hasDataPipeline = pySymbols.stream().anyMatch(s -> s.name().equals("DataPipeline") && s.kind() == AutoCompleteService.ItemKind.CLASS);
+        assertTrue(hasDataPipeline, "Extracted Python DataPipeline class");
+
+        boolean hasIngest = pySymbols.stream().anyMatch(s -> s.name().equals("ingest_records") && s.kind() == AutoCompleteService.ItemKind.METHOD);
+        assertTrue(hasIngest, "Extracted Python ingest_records function");
+
+        // 3. Extract JavaScript/TypeScript symbols
+        String jsSrc = "export function fetchUserProfile(userId) {}\n"
+                + "const handleCheckout = async () => {}\n";
+        List<AutoCompleteService.WorkspaceSymbol> jsSymbols = new ArrayList<>();
+        AutoCompleteService.extractWorkspaceSymbols(jsSrc, "js", "api.js", jsSymbols);
+
+        boolean hasFetch = jsSymbols.stream().anyMatch(s -> s.name().equals("fetchUserProfile"));
+        assertTrue(hasFetch, "Extracted JS function fetchUserProfile");
+
+        boolean hasCheckout = jsSymbols.stream().anyMatch(s -> s.name().equals("handleCheckout"));
+        assertTrue(hasCheckout, "Extracted JS arrow function handleCheckout");
+
+        // 4. Test workspace symbol inclusion in computeCompletions
+        AutoCompleteService.clearWorkspaceSymbols();
+        AutoCompleteService.addWorkspaceSymbol("GlobalServiceRegistry", AutoCompleteService.ItemKind.CLASS, "Registry.java");
+
+        List<AutoCompleteService.CompletionItem> completions = AutoCompleteService.computeCompletions("Glob", "java", "public class Main {}");
+        boolean hasGlobal = completions.stream().anyMatch(c -> c.label().equals("GlobalServiceRegistry") && "workspace".equals(c.detail()));
+        assertTrue(hasGlobal, "Workspace symbol 'GlobalServiceRegistry' resolved in computeCompletions with workspace detail");
+    }
+
+    private static void testResilientGitGutterEdgeCases() {
+        System.out.println("\n[29] Testing Resilient Git Gutter Engine...");
+
+        // 1. Diff parser: Addition hunk
+        Map<Integer, GitGutterService.GutterType> diffMap = new HashMap<>();
+        GitGutterService.parseHunkHeader("@@ -10,0 +10,3 @@", diffMap);
+        assertEquals(GitGutterService.GutterType.ADDED, diffMap.get(10), "Line 10 is ADDED");
+        assertEquals(GitGutterService.GutterType.ADDED, diffMap.get(11), "Line 11 is ADDED");
+        assertEquals(GitGutterService.GutterType.ADDED, diffMap.get(12), "Line 12 is ADDED");
+
+        // 2. Diff parser: Deletion hunk
+        diffMap.clear();
+        GitGutterService.parseHunkHeader("@@ -25,2 +25,0 @@", diffMap);
+        assertEquals(GitGutterService.GutterType.DELETED, diffMap.get(25), "Line 25 marked DELETED");
+
+        // 3. Diff parser: Modification hunk
+        diffMap.clear();
+        GitGutterService.parseHunkHeader("@@ -50,2 +50,2 @@", diffMap);
+        assertEquals(GitGutterService.GutterType.MODIFIED, diffMap.get(50), "Line 50 is MODIFIED");
+        assertEquals(GitGutterService.GutterType.MODIFIED, diffMap.get(51), "Line 51 is MODIFIED");
+
+        // 4. Non-existent file returns empty map without throwing exception
+        Path nonExistent = Paths.get("does_not_exist_12345.java");
+        Map<Integer, GitGutterService.GutterType> res = GitGutterService.computeDiff(nonExistent);
+        assertTrue(res.isEmpty(), "Non-existent file safely returns empty diff map without crashing");
     }
 }
 

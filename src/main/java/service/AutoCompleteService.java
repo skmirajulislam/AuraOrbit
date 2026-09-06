@@ -131,6 +131,7 @@ public class AutoCompleteService {
 
     /**
      * Resolves matching completions for a given prefix in a document.
+     * Includes workspace symbols if available.
      */
     public static List<CompletionItem> computeCompletions(String prefix, String fileType, String documentText) {
         if (prefix == null || prefix.isBlank()) {
@@ -157,7 +158,7 @@ public class AutoCompleteService {
             }
         }
 
-        // 3. Check Document Symbols
+        // 3. Check Document Symbols (current file)
         Set<String> docSymbols = extractDocumentSymbols(documentText);
         for (String sym : docSymbols) {
             if (sym.toLowerCase(Locale.ROOT).startsWith(pLower) && !sym.equals(prefix)) {
@@ -166,10 +167,17 @@ public class AutoCompleteService {
             }
         }
 
-        // Sort by relevance:
-        // 1. Snippets first
-        // 2. Exact case matches before case-insensitive
-        // 3. Shorter matches before longer matches
+        // 4. Check Workspace Symbols (other files in the project)
+        Set<String> addedLabels = results.stream().map(CompletionItem::label).collect(Collectors.toSet());
+        for (WorkspaceSymbol ws : workspaceSymbols) {
+            String label = ws.name();
+            if (label.toLowerCase(Locale.ROOT).startsWith(pLower) && !label.equals(prefix) && !addedLabels.contains(label)) {
+                results.add(new CompletionItem(label, label, ws.kind(), "workspace"));
+                addedLabels.add(label);
+            }
+        }
+
+        // Sort by relevance
         results.sort((a, b) -> {
             if (a.kind() == ItemKind.SNIPPET && b.kind() != ItemKind.SNIPPET) return -1;
             if (b.kind() == ItemKind.SNIPPET && a.kind() != ItemKind.SNIPPET) return 1;
@@ -184,4 +192,120 @@ public class AutoCompleteService {
         // Cap to 25 items for UI responsiveness
         return results.stream().limit(25).collect(Collectors.toList());
     }
+
+    // ── Workspace Symbol Index ───────────────────────────────────────────────
+
+    public record WorkspaceSymbol(String name, ItemKind kind, String sourceFile) {}
+
+    private static final List<WorkspaceSymbol> workspaceSymbols = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    private static final Pattern WS_JAVA_CLASS = Pattern.compile("(?:public\\s+)?(?:abstract\\s+)?(?:final\\s+)?(?:class|interface|enum|record)\\s+([A-Z][a-zA-Z0-9_]*)");
+    private static final Pattern WS_JAVA_METHOD = Pattern.compile("(?:public|private|protected|static|final|\\s)+[\\w<>,\\[\\]\\s]+\\s+([a-z][a-zA-Z0-9_]*)\\s*\\([^)]*\\)\\s*(?:throws\\s+[\\w,\\s]+)?\\s*\\{");
+    private static final Pattern WS_PY_CLASS = Pattern.compile("^\\s*class\\s+([A-Z][a-zA-Z0-9_]*)");
+    private static final Pattern WS_PY_DEF = Pattern.compile("^\\s*def\\s+([a-zA-Z0-9_]+)\\s*\\(");
+    private static final Pattern WS_JS_FUNC = Pattern.compile("(?:function\\s+([a-zA-Z0-9_]+)|(?:const|let|var)\\s+([a-zA-Z0-9_]+)\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)|[a-zA-Z0-9_]+)\\s*=>)");
+
+    private static final Set<String> CONTROL_KEYWORDS = Set.of("if", "while", "for", "switch", "catch", "try", "else", "do", "return");
+
+    /**
+     * Scans workspace source files asynchronously and populates the workspace symbol index.
+     * Call this when workspace is opened/changed.
+     */
+    public static void scanWorkspaceSymbols(java.nio.file.Path workspacePath) {
+        if (workspacePath == null) return;
+        Thread.ofVirtual().start(() -> {
+            List<WorkspaceSymbol> newSymbols = new ArrayList<>();
+            try {
+                java.nio.file.Files.walkFileTree(workspacePath, java.util.EnumSet.noneOf(java.nio.file.FileVisitOption.class), 15,
+                        new java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+                            @Override
+                            public java.nio.file.FileVisitResult preVisitDirectory(java.nio.file.Path dir, java.nio.file.attribute.BasicFileAttributes attrs) {
+                                String dirName = dir.getFileName() != null ? dir.getFileName().toString() : "";
+                                if (dirName.equals(".git") || dirName.equals("target") || dirName.equals("build") ||
+                                        dirName.equals("node_modules") || dirName.equals("out") || dirName.startsWith(".")) {
+                                    return java.nio.file.FileVisitResult.SKIP_SUBTREE;
+                                }
+                                return java.nio.file.FileVisitResult.CONTINUE;
+                            }
+
+                            @Override
+                            public java.nio.file.FileVisitResult visitFile(java.nio.file.Path file, java.nio.file.attribute.BasicFileAttributes attrs) {
+                                if (attrs.size() > 512 * 1024) return java.nio.file.FileVisitResult.CONTINUE; // Skip large files
+                                String name = file.getFileName().toString();
+                                String ext = "";
+                                int dot = name.lastIndexOf('.');
+                                if (dot >= 0) ext = name.substring(dot + 1).toLowerCase();
+
+                                if (!ext.equals("java") && !ext.equals("py") && !ext.equals("js") && !ext.equals("ts") && !ext.equals("jsx") && !ext.equals("tsx")) {
+                                    return java.nio.file.FileVisitResult.CONTINUE;
+                                }
+
+                                try {
+                                    String content = java.nio.file.Files.readString(file, java.nio.charset.StandardCharsets.UTF_8);
+                                    extractWorkspaceSymbols(content, ext, name, newSymbols);
+                                } catch (Exception ignored) {}
+
+                                return java.nio.file.FileVisitResult.CONTINUE;
+                            }
+
+                            @Override
+                            public java.nio.file.FileVisitResult visitFileFailed(java.nio.file.Path file, java.io.IOException exc) {
+                                return java.nio.file.FileVisitResult.CONTINUE;
+                            }
+                        });
+            } catch (Exception ignored) {}
+
+            workspaceSymbols.clear();
+            workspaceSymbols.addAll(newSymbols);
+        });
+    }
+
+    public static void addWorkspaceSymbol(String name, ItemKind kind, String sourceFile) {
+        workspaceSymbols.add(new WorkspaceSymbol(name, kind, sourceFile));
+    }
+
+    public static void extractWorkspaceSymbols(String content, String ext, String fileName, List<WorkspaceSymbol> out) {
+        String[] lines = content.split("\\R", -1);
+        for (String line : lines) {
+            if (ext.equals("java")) {
+                Matcher cm = WS_JAVA_CLASS.matcher(line);
+                if (cm.find()) {
+                    out.add(new WorkspaceSymbol(cm.group(1), ItemKind.CLASS, fileName));
+                }
+                Matcher mm = WS_JAVA_METHOD.matcher(line);
+                if (mm.find()) {
+                    String mName = mm.group(1);
+                    if (!CONTROL_KEYWORDS.contains(mName)) {
+                        out.add(new WorkspaceSymbol(mName, ItemKind.METHOD, fileName));
+                    }
+                }
+            } else if (ext.equals("py")) {
+                Matcher cm = WS_PY_CLASS.matcher(line);
+                if (cm.find()) out.add(new WorkspaceSymbol(cm.group(1), ItemKind.CLASS, fileName));
+                Matcher dm = WS_PY_DEF.matcher(line);
+                if (dm.find()) out.add(new WorkspaceSymbol(dm.group(1), ItemKind.METHOD, fileName));
+            } else if (ext.equals("js") || ext.equals("ts") || ext.equals("jsx") || ext.equals("tsx")) {
+                Matcher jm = WS_JS_FUNC.matcher(line);
+                if (jm.find()) {
+                    String n = jm.group(1) != null ? jm.group(1) : jm.group(2);
+                    if (n != null) out.add(new WorkspaceSymbol(n, ItemKind.METHOD, fileName));
+                }
+            }
+        }
+    }
+
+    /**
+     * Returns the current workspace symbol count (for testing).
+     */
+    public static int getWorkspaceSymbolCount() {
+        return workspaceSymbols.size();
+    }
+
+    /**
+     * Clears the workspace symbol index.
+     */
+    public static void clearWorkspaceSymbols() {
+        workspaceSymbols.clear();
+    }
 }
+

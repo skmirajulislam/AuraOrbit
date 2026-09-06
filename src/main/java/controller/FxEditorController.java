@@ -54,6 +54,7 @@ public class FxEditorController {
     private ModalOverlayPane modalOverlayPane;
     private TopCommandCenterBar topCommandCenterBar;
     private SourceControlPane sourceControlPane;
+    private WorkspaceSearchPane workspaceSearchPane;
     private Button runButton;
     private HBox runOverlay;
 
@@ -188,9 +189,14 @@ public class FxEditorController {
             if (sourceControlPane != null) {
                 sourceControlPane.setWorkspacePath(path);
             }
+            if (workspaceSearchPane != null) {
+                workspaceSearchPane.setWorkspacePath(path);
+            }
             if (topCommandCenterBar != null) {
                 topCommandCenterBar.setWorkspaceName(path != null && path.getFileName() != null ? path.getFileName().toString() : "AuraOrbit");
             }
+            // Trigger workspace-wide symbol indexing for IntelliSense
+            service.AutoCompleteService.scanWorkspaceSymbols(path);
             updateActiveTabMetrics();
         });
         sidebarExplorer.setOnFileRenamed((oldPath, newPath) -> {
@@ -225,7 +231,13 @@ public class FxEditorController {
                     showPrimarySidebarPane(sourceControlPane);
                 }
             } else if (panel == ActivityBar.Panel.SEARCH) {
-                handleFind(true);
+                if (workspaceSearchPane != null) {
+                    workspaceSearchPane.setWorkspacePath(sidebarExplorer != null ? sidebarExplorer.getRootPath() : Paths.get(".").toAbsolutePath().normalize());
+                    showPrimarySidebarPane(workspaceSearchPane);
+                    workspaceSearchPane.focusSearchField();
+                } else {
+                    handleFind(true);
+                }
             } else if (panel == ActivityBar.Panel.AI_COPILOT) {
                 showAiPanel(true);
             } else if (panel == ActivityBar.Panel.TERMINAL) {
@@ -258,7 +270,7 @@ public class FxEditorController {
         } else {
             javafx.scene.Node first = masterSplitPane.getItems().get(0);
             if (first != pane) {
-                if (first == sidebarExplorer || first == sourceControlPane) {
+                if (first == sidebarExplorer || first == sourceControlPane || first == workspaceSearchPane) {
                     masterSplitPane.getItems().set(0, pane);
                 } else {
                     masterSplitPane.getItems().add(0, pane);
@@ -272,7 +284,8 @@ public class FxEditorController {
 
     public void togglePrimarySidebar() {
         boolean isCurrentlyOpen = masterSplitPane.getItems().contains(sidebarExplorer) ||
-                (sourceControlPane != null && masterSplitPane.getItems().contains(sourceControlPane));
+                (sourceControlPane != null && masterSplitPane.getItems().contains(sourceControlPane)) ||
+                (workspaceSearchPane != null && masterSplitPane.getItems().contains(workspaceSearchPane));
         if (isCurrentlyOpen) {
             ensureSidebarVisible(false);
             activityBar.setActivePanel(null, false);
@@ -294,6 +307,11 @@ public class FxEditorController {
                 sourceControlPane.setVisible(false);
                 sourceControlPane.setManaged(false);
                 masterSplitPane.getItems().remove(sourceControlPane);
+            }
+            if (workspaceSearchPane != null) {
+                workspaceSearchPane.setVisible(false);
+                workspaceSearchPane.setManaged(false);
+                masterSplitPane.getItems().remove(workspaceSearchPane);
             }
         }
     }
@@ -618,6 +636,9 @@ public class FxEditorController {
         commandPalette.registerCommand("Edit: Format Document", "Shift+Alt+F", this::formatActiveDocument);
         commandPalette.registerCommand("Run: Run Active File", "F5", this::runActiveFile);
         commandPalette.registerCommand("Edit: Find & Replace", "Cmd+F", () -> handleFind(true));
+        commandPalette.registerCommand("Search: Find in Files", "Cmd+Shift+F", this::showWorkspaceSearch);
+        commandPalette.registerCommand("Search: Replace in Files", "Cmd+Shift+H", this::showWorkspaceSearch);
+        commandPalette.registerCommand("View: Show Search", "Cmd+Shift+F", this::showWorkspaceSearch);
         commandPalette.registerCommand("Navigation: Go to Line/Column...", "Cmd+G", this::showGoToLinePrompt);
         commandPalette.registerCommand("Navigation: Go Back", "Ctrl+-", this::navigateBack);
         commandPalette.registerCommand("Navigation: Go Forward", "Ctrl+Shift+-", this::navigateForward);
@@ -1355,6 +1376,36 @@ public class FxEditorController {
                     statusBar.showTemporaryMessage(msg, 3000);
                 }
             });
+        }
+    }
+
+    public void setWorkspaceSearchPane(WorkspaceSearchPane workspaceSearchPane) {
+        this.workspaceSearchPane = workspaceSearchPane;
+        if (workspaceSearchPane != null) {
+            if (sidebarExplorer != null && sidebarExplorer.getRootPath() != null) {
+                workspaceSearchPane.setWorkspacePath(sidebarExplorer.getRootPath());
+            }
+            workspaceSearchPane.setOnNavigateToFileAndLine((path, line) -> {
+                openFile(path, true);
+                Platform.runLater(() -> {
+                    EditorTabController tc = getActiveTabController();
+                    if (tc != null) {
+                        tc.getEditorPane().getCodeArea().showParagraphAtCenter(Math.max(0, line - 1));
+                        tc.getEditorPane().getCodeArea().moveTo(line - 1, 0);
+                    }
+                });
+            });
+            workspaceSearchPane.setOnNotification(msg -> {
+                if (statusBar != null) {
+                    statusBar.showTemporaryMessage(msg, 3000);
+                }
+            });
+        }
+    }
+
+    public void showWorkspaceSearch() {
+        if (activityBar != null) {
+            activityBar.setActivePanel(ActivityBar.Panel.SEARCH, true);
         }
     }
 

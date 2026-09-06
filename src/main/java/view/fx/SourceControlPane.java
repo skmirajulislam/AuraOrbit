@@ -12,6 +12,7 @@ import org.kordamp.ikonli.codicons.Codicons;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,12 +21,16 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
- * Modern VS Code Source Control (Git) sidebar pane.
+ * Production-grade VS Code Source Control (Git) sidebar pane.
  * Features:
- * - Real-time git status tracking (Modified, Added, Untracked, Deleted)
- * - File list with status badges ('M', 'A', 'U', 'D')
- * - Direct click to open file in editor
- * - Commit message input with Cmd/Ctrl+Enter shortcut and Commit button
+ * - Real-time git status tracking (Modified, Added, Untracked, Deleted, Renamed)
+ * - Separate STAGED CHANGES and CHANGES (unstaged) sections
+ * - Per-file Stage (+), Unstage (-), and Discard (↺) actions
+ * - Stage All / Unstage All header buttons
+ * - File list with status badges ('M', 'A', 'U', 'D', 'R')
+ * - Safety: clicking deleted files shows status only, does not try to open
+ * - Smart commit: commits staged if any, else stages all tracked before committing
+ * - Diff viewing via Output channel
  * - Git Refresh and Git Sync (pull & push) operations
  * - Notifies ActivityBar to update source control badge count
  */
@@ -37,11 +42,13 @@ public class SourceControlPane extends VBox {
         private final String fileName;
         private final String directoryPath;
         private final Path fullPath;
+        private final boolean isStaged;
 
-        public GitChange(String statusChar, String relativePath, Path fullPath) {
+        public GitChange(String statusChar, String relativePath, Path fullPath, boolean isStaged) {
             this.statusChar = statusChar;
             this.relativePath = relativePath;
             this.fullPath = fullPath;
+            this.isStaged = isStaged;
 
             File f = new File(relativePath);
             this.fileName = f.getName();
@@ -49,19 +56,27 @@ public class SourceControlPane extends VBox {
             this.directoryPath = (parent != null) ? parent : "";
         }
 
+        public GitChange(String statusChar, String relativePath, Path fullPath) {
+            this(statusChar, relativePath, fullPath, false);
+        }
+
         public String getStatusChar() { return statusChar; }
         public String getRelativePath() { return relativePath; }
         public String getFileName() { return fileName; }
         public String getDirectoryPath() { return directoryPath; }
         public Path getFullPath() { return fullPath; }
+        public boolean isStaged() { return isStaged; }
     }
 
     private Path workspacePath;
     private final TextArea commitInput;
     private final Button commitBtn;
+    private final ListView<GitChange> stagedListView;
     private final ListView<GitChange> changesListView;
+    private final Label stagedCountBadge;
     private final Label changesCountBadge;
     private final Label statusSummaryLabel;
+    private final VBox stagedSection;
     private final ExecutorService gitExecutor;
 
     private Consumer<Path> onOpenFileRequested;
@@ -102,7 +117,7 @@ public class SourceControlPane extends VBox {
 
         header.getChildren().addAll(titleLabel, spacer, refreshBtn, syncBtn);
 
-        // 2. Commit Section: Message box + Commit button
+        // 2. Commit Section
         VBox commitBox = new VBox(6);
         commitBox.setPadding(new Insets(4, 0, 4, 0));
 
@@ -127,14 +142,51 @@ public class SourceControlPane extends VBox {
 
         commitBox.getChildren().addAll(commitInput, commitBtn);
 
-        // 3. Changes Section Header: [▼ CHANGES   (3)]
+        // 3. STAGED CHANGES Section
+        stagedSection = new VBox(2);
+
+        HBox stagedHeader = new HBox(6);
+        stagedHeader.setAlignment(Pos.CENTER_LEFT);
+        stagedHeader.setPadding(new Insets(6, 4, 4, 4));
+
+        Label stagedChevron = new Label();
+        stagedChevron.setGraphic(IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12, "#cccccc"));
+        Label stagedTitle = new Label("STAGED CHANGES");
+        stagedTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: -text-secondary;");
+
+        Region stagedSpacer = new Region();
+        HBox.setHgrow(stagedSpacer, Priority.ALWAYS);
+
+        stagedCountBadge = new Label("0");
+        stagedCountBadge.setStyle("-fx-background-color: rgba(255,255,255,0.12); -fx-text-fill: -text-primary; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 8; -fx-padding: 1 6 1 6;");
+
+        Button unstageAllBtn = createHeaderButton(Codicons.REMOVE, "Unstage All");
+        unstageAllBtn.setOnAction(e -> unstageAll());
+
+        stagedHeader.getChildren().addAll(stagedChevron, stagedTitle, stagedSpacer, stagedCountBadge, unstageAllBtn);
+
+        stagedListView = new ListView<>();
+        stagedListView.setStyle("-fx-background-color: transparent; -fx-border-width: 0;");
+        stagedListView.setPrefHeight(80);
+        stagedListView.setCellFactory(lv -> createChangeCell(true));
+        stagedListView.setOnMouseClicked(event -> {
+            GitChange selected = stagedListView.getSelectionModel().getSelectedItem();
+            if (selected != null && onOpenFileRequested != null && !selected.getStatusChar().equals("D")) {
+                onOpenFileRequested.accept(selected.getFullPath());
+            }
+        });
+
+        stagedSection.getChildren().addAll(stagedHeader, stagedListView);
+        stagedSection.setVisible(false);
+        stagedSection.setManaged(false);
+
+        // 4. CHANGES Section
         HBox changesHeader = new HBox(6);
         changesHeader.setAlignment(Pos.CENTER_LEFT);
         changesHeader.setPadding(new Insets(6, 4, 4, 4));
 
         Label changesChevron = new Label();
         changesChevron.setGraphic(IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12, "#cccccc"));
-
         Label changesTitle = new Label("CHANGES");
         changesTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: -text-secondary;");
 
@@ -144,13 +196,34 @@ public class SourceControlPane extends VBox {
         changesCountBadge = new Label("0");
         changesCountBadge.setStyle("-fx-background-color: rgba(255,255,255,0.12); -fx-text-fill: -text-primary; -fx-font-size: 10px; -fx-font-weight: bold; -fx-background-radius: 8; -fx-padding: 1 6 1 6;");
 
-        changesHeader.getChildren().addAll(changesChevron, changesTitle, changesSpacer, changesCountBadge);
+        Button stageAllBtn = createHeaderButton(Codicons.ADD, "Stage All Changes");
+        stageAllBtn.setOnAction(e -> stageAll());
 
-        // 4. Changes ListView
+        Button discardAllBtn = createHeaderButton(Codicons.DISCARD, "Discard All Changes");
+        discardAllBtn.setOnAction(e -> discardAllChanges());
+
+        changesHeader.getChildren().addAll(changesChevron, changesTitle, changesSpacer, changesCountBadge, stageAllBtn, discardAllBtn);
+
         changesListView = new ListView<>();
         VBox.setVgrow(changesListView, Priority.ALWAYS);
         changesListView.setStyle("-fx-background-color: transparent; -fx-border-width: 0;");
-        changesListView.setCellFactory(lv -> new ListCell<>() {
+        changesListView.setCellFactory(lv -> createChangeCell(false));
+        changesListView.setOnMouseClicked(event -> {
+            GitChange selected = changesListView.getSelectionModel().getSelectedItem();
+            if (selected != null && onOpenFileRequested != null && !selected.getStatusChar().equals("D")) {
+                onOpenFileRequested.accept(selected.getFullPath());
+            }
+        });
+
+        // 5. Bottom Status Summary
+        statusSummaryLabel = new Label("Git repository ready");
+        statusSummaryLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: -text-secondary; -fx-padding: 2 4 2 4;");
+
+        getChildren().addAll(header, commitBox, stagedSection, changesHeader, changesListView, statusSummaryLabel);
+    }
+
+    private ListCell<GitChange> createChangeCell(boolean isStagedSection) {
+        return new ListCell<>() {
             @Override
             protected void updateItem(GitChange item, boolean empty) {
                 super.updateItem(item, empty);
@@ -159,7 +232,7 @@ public class SourceControlPane extends VBox {
                     setGraphic(null);
                     setStyle("-fx-background-color: transparent;");
                 } else {
-                    HBox cell = new HBox(6);
+                    HBox cell = new HBox(4);
                     cell.setAlignment(Pos.CENTER_LEFT);
                     cell.setPadding(new Insets(2, 4, 2, 4));
 
@@ -175,39 +248,63 @@ public class SourceControlPane extends VBox {
                     Region cellSpacer = new Region();
                     HBox.setHgrow(cellSpacer, Priority.ALWAYS);
 
+                    // Action buttons
+                    if (isStagedSection) {
+                        // Unstage button (-)
+                        Button unstageBtn = createActionMiniButton(Codicons.REMOVE, "Unstage");
+                        unstageBtn.setOnAction(e -> {
+                            e.consume();
+                            unstageFile(item.getRelativePath());
+                        });
+                        cell.getChildren().addAll(fileIcon, fileNameLabel, dirLabel, cellSpacer, unstageBtn);
+                    } else {
+                        // Stage button (+)
+                        Button stageBtn = createActionMiniButton(Codicons.ADD, "Stage Changes");
+                        stageBtn.setOnAction(e -> {
+                            e.consume();
+                            stageFile(item.getRelativePath());
+                        });
+                        // Discard button (↺)
+                        Button discardBtn = createActionMiniButton(Codicons.DISCARD, "Discard Changes");
+                        discardBtn.setOnAction(e -> {
+                            e.consume();
+                            discardFile(item);
+                        });
+                        cell.getChildren().addAll(fileIcon, fileNameLabel, dirLabel, cellSpacer, stageBtn, discardBtn);
+                    }
+
                     Label badge = new Label(item.getStatusChar());
                     badge.setStyle(getBadgeStyle(item.getStatusChar()));
+                    cell.getChildren().add(badge);
 
-                    cell.getChildren().addAll(fileIcon, fileNameLabel, dirLabel, cellSpacer, badge);
                     setGraphic(cell);
                     setStyle("-fx-background-color: transparent;");
                 }
             }
-        });
+        };
+    }
 
-        changesListView.setOnMouseClicked(event -> {
-            GitChange selected = changesListView.getSelectionModel().getSelectedItem();
-            if (selected != null && onOpenFileRequested != null) {
-                onOpenFileRequested.accept(selected.getFullPath());
-            }
-        });
-
-        // 5. Bottom Status Summary
-        statusSummaryLabel = new Label("Git repository ready");
-        statusSummaryLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: -text-secondary; -fx-padding: 2 4 2 4;");
-
-        getChildren().addAll(header, commitBox, changesHeader, changesListView, statusSummaryLabel);
+    private Button createActionMiniButton(Codicons codicon, String tooltipText) {
+        Button btn = new Button();
+        btn.setGraphic(IconFactory.getIcon(codicon, 11));
+        btn.getStyleClass().add("sidebar-header-btn");
+        btn.setStyle("-fx-background-color: transparent; -fx-padding: 1 3 1 3; -fx-cursor: hand;");
+        btn.setTooltip(new Tooltip(tooltipText));
+        btn.setMinSize(18, 18);
+        btn.setPrefSize(18, 18);
+        btn.setMaxSize(18, 18);
+        return btn;
     }
 
     private String getBadgeStyle(String statusChar) {
         String color;
         switch (statusChar.toUpperCase()) {
-            case "M": color = "#e2c08d"; break; // Modified (amber)
-            case "A": color = "#73c991"; break; // Added (green)
+            case "M": color = "#e2c08d"; break;
+            case "A": color = "#73c991"; break;
             case "U":
-            case "?": color = "#73c991"; break; // Untracked (green)
-            case "D": color = "#f14c4c"; break; // Deleted (red)
-            case "R": color = "#3794ff"; break; // Renamed (blue)
+            case "?": color = "#73c991"; break;
+            case "D": color = "#f14c4c"; break;
+            case "R": color = "#3794ff"; break;
             default:  color = "#cccccc"; break;
         }
         return String.format("-fx-text-fill: %s; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 0 4 0 4;", color);
@@ -227,11 +324,14 @@ public class SourceControlPane extends VBox {
         refreshGitStatus();
     }
 
+    // ── Git Status Parsing ───────────────────────────────────────────────────
+
     public void refreshGitStatus() {
         if (workspacePath == null) return;
 
         gitExecutor.submit(() -> {
-            List<GitChange> changes = new ArrayList<>();
+            List<GitChange> staged = new ArrayList<>();
+            List<GitChange> unstaged = new ArrayList<>();
             try {
                 Process process = new ProcessBuilder("git", "status", "--porcelain=v1", "-uall")
                         .directory(workspacePath.toFile())
@@ -245,37 +345,52 @@ public class SourceControlPane extends VBox {
                         char workTreeStatus = line.charAt(1);
                         String relPath = line.substring(3).trim();
 
-                        // Remove possible quotes in path
                         if (relPath.startsWith("\"") && relPath.endsWith("\"")) {
                             relPath = relPath.substring(1, relPath.length() - 1);
                         }
 
-                        String badgeChar;
-                        if (indexStatus == '?' || workTreeStatus == '?') {
-                            badgeChar = "U";
-                        } else if (indexStatus == 'A' || workTreeStatus == 'A') {
-                            badgeChar = "A";
-                        } else if (indexStatus == 'D' || workTreeStatus == 'D') {
-                            badgeChar = "D";
-                        } else if (indexStatus == 'R' || workTreeStatus == 'R') {
-                            badgeChar = "R";
-                        } else {
-                            badgeChar = "M";
+                        Path fullPath = workspacePath.resolve(relPath).toAbsolutePath().normalize();
+
+                        // Staged changes (index status)
+                        if (indexStatus != ' ' && indexStatus != '?') {
+                            String badge = mapStatusChar(indexStatus);
+                            staged.add(new GitChange(badge, relPath, fullPath, true));
                         }
 
-                        Path fullPath = workspacePath.resolve(relPath).toAbsolutePath().normalize();
-                        changes.add(new GitChange(badgeChar, relPath, fullPath));
+                        // Unstaged changes (work tree status)
+                        if (workTreeStatus != ' ') {
+                            String badge;
+                            if (indexStatus == '?' && workTreeStatus == '?') {
+                                badge = "U"; // Untracked
+                            } else {
+                                badge = mapStatusChar(workTreeStatus);
+                            }
+                            unstaged.add(new GitChange(badge, relPath, fullPath, false));
+                        }
                     }
                 }
                 process.waitFor();
 
                 Platform.runLater(() -> {
-                    changesListView.getItems().setAll(changes);
-                    int count = changes.size();
-                    changesCountBadge.setText(String.valueOf(count));
-                    statusSummaryLabel.setText(count == 0 ? "Working tree clean" : count + " uncommitted changes");
+                    stagedListView.getItems().setAll(staged);
+                    changesListView.getItems().setAll(unstaged);
+
+                    int stagedCount = staged.size();
+                    int unstagedCount = unstaged.size();
+                    int totalCount = stagedCount + unstagedCount;
+
+                    stagedCountBadge.setText(String.valueOf(stagedCount));
+                    changesCountBadge.setText(String.valueOf(unstagedCount));
+
+                    stagedSection.setVisible(stagedCount > 0);
+                    stagedSection.setManaged(stagedCount > 0);
+                    if (stagedCount > 0) {
+                        stagedListView.setPrefHeight(Math.min(stagedCount * 28 + 4, 150));
+                    }
+
+                    statusSummaryLabel.setText(totalCount == 0 ? "Working tree clean" : totalCount + " uncommitted changes");
                     if (onBadgeCountChanged != null) {
-                        onBadgeCountChanged.accept(count);
+                        onBadgeCountChanged.accept(totalCount);
                     }
                 });
             } catch (Exception ex) {
@@ -284,26 +399,135 @@ public class SourceControlPane extends VBox {
         });
     }
 
+    private String mapStatusChar(char c) {
+        return switch (c) {
+            case 'M' -> "M";
+            case 'A' -> "A";
+            case 'D' -> "D";
+            case 'R' -> "R";
+            case 'C' -> "C";
+            case '?' -> "U";
+            default -> "M";
+        };
+    }
+
+    // ── Per-File Operations ──────────────────────────────────────────────────
+
+    private void stageFile(String relativePath) {
+        if (workspacePath == null) return;
+        gitExecutor.submit(() -> {
+            try {
+                new ProcessBuilder("git", "add", "--", relativePath)
+                        .directory(workspacePath.toFile()).start().waitFor();
+                refreshGitStatus();
+            } catch (Exception ex) {
+                Platform.runLater(() -> notifyMessage("Stage failed: " + ex.getMessage()));
+            }
+        });
+    }
+
+    private void unstageFile(String relativePath) {
+        if (workspacePath == null) return;
+        gitExecutor.submit(() -> {
+            try {
+                new ProcessBuilder("git", "restore", "--staged", "--", relativePath)
+                        .directory(workspacePath.toFile()).start().waitFor();
+                refreshGitStatus();
+            } catch (Exception ex) {
+                Platform.runLater(() -> notifyMessage("Unstage failed: " + ex.getMessage()));
+            }
+        });
+    }
+
+    private void discardFile(GitChange change) {
+        if (workspacePath == null) return;
+        String relPath = change.getRelativePath();
+
+        gitExecutor.submit(() -> {
+            try {
+                if (change.getStatusChar().equals("U")) {
+                    // Untracked file — delete it
+                    Files.deleteIfExists(change.getFullPath());
+                } else {
+                    // Tracked file — restore from HEAD
+                    new ProcessBuilder("git", "checkout", "--", relPath)
+                            .directory(workspacePath.toFile()).start().waitFor();
+                }
+                refreshGitStatus();
+                Platform.runLater(() -> notifyMessage("Discarded: " + change.getFileName()));
+            } catch (Exception ex) {
+                Platform.runLater(() -> notifyMessage("Discard failed: " + ex.getMessage()));
+            }
+        });
+    }
+
+    private void stageAll() {
+        if (workspacePath == null) return;
+        gitExecutor.submit(() -> {
+            try {
+                new ProcessBuilder("git", "add", "-A")
+                        .directory(workspacePath.toFile()).start().waitFor();
+                refreshGitStatus();
+            } catch (Exception ex) {
+                Platform.runLater(() -> notifyMessage("Stage all failed: " + ex.getMessage()));
+            }
+        });
+    }
+
+    private void unstageAll() {
+        if (workspacePath == null) return;
+        gitExecutor.submit(() -> {
+            try {
+                new ProcessBuilder("git", "reset", "HEAD")
+                        .directory(workspacePath.toFile()).start().waitFor();
+                refreshGitStatus();
+            } catch (Exception ex) {
+                Platform.runLater(() -> notifyMessage("Unstage all failed: " + ex.getMessage()));
+            }
+        });
+    }
+
+    private void discardAllChanges() {
+        if (workspacePath == null) return;
+        gitExecutor.submit(() -> {
+            try {
+                // Restore all tracked files
+                new ProcessBuilder("git", "checkout", "--", ".")
+                        .directory(workspacePath.toFile()).start().waitFor();
+                // Clean untracked files
+                new ProcessBuilder("git", "clean", "-fd")
+                        .directory(workspacePath.toFile()).start().waitFor();
+                refreshGitStatus();
+                Platform.runLater(() -> notifyMessage("All changes discarded"));
+            } catch (Exception ex) {
+                Platform.runLater(() -> notifyMessage("Discard all failed: " + ex.getMessage()));
+            }
+        });
+    }
+
+    // ── Commit ───────────────────────────────────────────────────────────────
+
     private void handleCommit() {
         String msg = commitInput.getText().trim();
         if (msg.isEmpty()) {
             notifyMessage("Please provide a commit message before committing.");
             return;
         }
-        if (changesListView.getItems().isEmpty()) {
+        if (stagedListView.getItems().isEmpty() && changesListView.getItems().isEmpty()) {
             notifyMessage("No changes to commit in current workspace.");
             return;
         }
 
         gitExecutor.submit(() -> {
             try {
-                // 1. git add -A
-                Process addProc = new ProcessBuilder("git", "add", "-A")
-                        .directory(workspacePath.toFile())
-                        .start();
-                addProc.waitFor();
+                // If nothing is staged, stage all tracked changes first
+                if (stagedListView.getItems().isEmpty()) {
+                    Process addProc = new ProcessBuilder("git", "add", "-A")
+                            .directory(workspacePath.toFile())
+                            .start();
+                    addProc.waitFor();
+                }
 
-                // 2. git commit -m <msg>
                 Process commitProc = new ProcessBuilder("git", "commit", "-m", msg)
                         .directory(workspacePath.toFile())
                         .start();
@@ -324,19 +548,19 @@ public class SourceControlPane extends VBox {
         });
     }
 
+    // ── Sync ─────────────────────────────────────────────────────────────────
+
     private void syncChanges() {
         if (workspacePath == null) return;
 
         notifyMessage("Syncing changes (git pull & push)...");
         gitExecutor.submit(() -> {
             try {
-                // git pull --rebase
                 Process pullProc = new ProcessBuilder("git", "pull", "--rebase")
                         .directory(workspacePath.toFile())
                         .start();
                 pullProc.waitFor();
 
-                // git push
                 Process pushProc = new ProcessBuilder("git", "push")
                         .directory(workspacePath.toFile())
                         .start();

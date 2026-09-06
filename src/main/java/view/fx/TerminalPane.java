@@ -33,6 +33,8 @@ import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * VS Code-Identical Integrated Dock & Terminal Panel for AuraOrbit.
@@ -1020,9 +1022,7 @@ public class TerminalPane extends BorderPane {
                     while ((line = reader.readLine()) != null) {
                         final String l = line;
                         logOutput("Tasks & Maven", l);
-                        if (l.contains("[ERROR]")) {
-                            addProblem(Codicons.ERROR, "Error", l, "pom.xml", 1, 1, "maven");
-                        }
+                        parseMavenDiagnosticLine(l);
                     }
                 }
                 int exitCode = p.waitFor();
@@ -1031,6 +1031,69 @@ public class TerminalPane extends BorderPane {
                 logOutput("Tasks & Maven", "Failed to run Maven: " + e.getMessage());
             }
         });
+    }
+
+    // Maven/javac compiler output regex patterns:
+    // [ERROR] /path/to/File.java:[10,5] error: some message
+    // [WARNING] /path/to/File.java:[10,5] warning: some message
+    private static final Pattern MAVEN_COMPILER_ERROR_PATTERN =
+            Pattern.compile("\\[(ERROR|WARNING)\\]\\s+(.+?):\\[(\\d+),(\\d+)\\]\\s+(.+)");
+
+    // Fallback: [ERROR] /path/to/File.java:10: error: message
+    private static final Pattern MAVEN_COMPILER_COLON_PATTERN =
+            Pattern.compile("\\[(ERROR|WARNING)\\]\\s+(.+?):(\\d+):\\s+(.+)");
+
+    /**
+     * Parses Maven/javac compiler output lines to extract precise file, line, column, message.
+     * Returns a ProblemItem or null if line is not a compiler error/warning.
+     */
+    public static ProblemItem parseMavenDiagnostic(String line) {
+        if (line == null) return null;
+
+        // Try bracket format first: [ERROR] File.java:[10,5] message
+        Matcher m = MAVEN_COMPILER_ERROR_PATTERN.matcher(line);
+        if (m.find()) {
+            String severity = m.group(1);
+            String filePath = m.group(2).trim();
+            int lineNum = Integer.parseInt(m.group(3));
+            int col = Integer.parseInt(m.group(4));
+            String message = m.group(5).trim();
+
+            Codicons icon = severity.equals("ERROR") ? Codicons.ERROR : Codicons.WARNING;
+            return new ProblemItem(icon, severity.equals("ERROR") ? "Error" : "Warning", message, filePath, lineNum, col, "javac");
+        }
+
+        // Try colon format: [ERROR] File.java:10: message
+        Matcher m2 = MAVEN_COMPILER_COLON_PATTERN.matcher(line);
+        if (m2.find()) {
+            String severity = m2.group(1);
+            String filePath = m2.group(2).trim();
+            int lineNum = Integer.parseInt(m2.group(3));
+            String message = m2.group(4).trim();
+
+            Codicons icon = severity.equals("ERROR") ? Codicons.ERROR : Codicons.WARNING;
+            return new ProblemItem(icon, severity.equals("ERROR") ? "Error" : "Warning", message, filePath, lineNum, 1, "javac");
+        }
+
+        return null;
+    }
+
+    /**
+     * Parses Maven/javac compiler output lines and adds matched diagnostics to the Problems tab.
+     */
+    void parseMavenDiagnosticLine(String line) {
+        if (line == null) return;
+
+        ProblemItem item = parseMavenDiagnostic(line);
+        if (item != null) {
+            addProblem(item.icon(), item.severity(), item.message(), item.file(), item.line(), item.column(), item.source());
+            return;
+        }
+
+        // Fallback: generic [ERROR] line (not a compiler error — could be maven lifecycle error)
+        if (line.contains("[ERROR]") && !line.contains("BUILD FAILURE") && !line.contains("-> [Help")) {
+            addProblem(Codicons.ERROR, "Error", line.replaceFirst("^\\[ERROR\\]\\s*", ""), "pom.xml", 1, 1, "maven");
+        }
     }
 
     private void clearActiveOutput() {

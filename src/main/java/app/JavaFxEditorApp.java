@@ -114,6 +114,7 @@ public class JavaFxEditorApp extends Application {
         ActivityBar activityBar = new ActivityBar();
         SidebarExplorer sidebarExplorer = new SidebarExplorer();
         SourceControlPane sourceControlPane = new SourceControlPane();
+        WorkspaceSearchPane workspaceSearchPane = new WorkspaceSearchPane();
         AiAssistantPane aiAssistantPane = new AiAssistantPane();
         TerminalPane terminalPane = new TerminalPane();
         terminalPane.setMinHeight(100);
@@ -169,6 +170,7 @@ public class JavaFxEditorApp extends Application {
 
         controller.setTopCommandCenterBar(topCommandCenterBar);
         controller.setSourceControlPane(sourceControlPane);
+        controller.setWorkspaceSearchPane(workspaceSearchPane);
         controller.setRunButton(runButton);
         controller.setRunOverlay(runOverlay);
 
@@ -237,6 +239,7 @@ public class JavaFxEditorApp extends Application {
         KeyCombination cmdShiftE = new KeyCodeCombination(KeyCode.E, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
         KeyCombination cmdSplit = new KeyCodeCombination(KeyCode.BACK_SLASH, KeyCombination.SHORTCUT_DOWN);
         KeyCombination cmdAi = new KeyCodeCombination(KeyCode.A, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
+        KeyCombination cmdShiftF = new KeyCodeCombination(KeyCode.F, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
 
         // Terminal shortcuts use CONTROL_DOWN (not SHORTCUT) to match VS Code behavior on all platforms
         KeyCombination ctrlBacktick = new KeyCodeCombination(KeyCode.BACK_QUOTE, KeyCombination.CONTROL_DOWN);
@@ -267,6 +270,7 @@ public class JavaFxEditorApp extends Application {
         scene.getAccelerators().put(runActiveFile, controller::runActiveFile);
         scene.getAccelerators().put(cmdSplit, controller::toggleSplitEditor);
         scene.getAccelerators().put(cmdAi, controller::toggleAiPanel);
+        scene.getAccelerators().put(cmdShiftF, controller::showWorkspaceSearch);
         scene.getAccelerators().put(ctrlBacktick, controller::toggleTerminal);
         scene.getAccelerators().put(ctrlShiftBacktick, controller::createNewTerminalTab);
     }
