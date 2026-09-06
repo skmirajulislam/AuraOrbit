@@ -145,6 +145,8 @@ public class EditorTabController {
             editorPane.getCodeArea().moveTo(0);
             updateCachedMetadata(content);
             suppressEvents = false;
+            String ft = getFileExtension();
+            editorPane.updateBreadcrumbs(document.getFilePath(), ft, content);
         }
 
         initListeners();

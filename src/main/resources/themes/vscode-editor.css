@@ -542,3 +542,37 @@
     -fx-background-color: rgba(140, 140, 140, 0.35);
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Open Editors Sidebar Section
+   ───────────────────────────────────────────────────────────────────────────── */
+.explorer-open-editors-section {
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 0 0 4 0;
+}
+
+.open-editor-row {
+    -fx-cursor: hand;
+    -fx-background-color: transparent;
+}
+
+.open-editor-row:hover {
+    -fx-background-color: -bg-hover;
+}
+
+.open-editor-row.active {
+    -fx-background-color: rgba(255, 255, 255, 0.07);
+    -fx-border-color: transparent transparent transparent -accent-color;
+    -fx-border-width: 0 0 0 2;
+}
+
+.open-editor-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: -text-secondary;
+}
+
+.open-editor-row.active .open-editor-label {
+    -fx-text-fill: -text-primary;
+    -fx-font-weight: bold;
+}
+

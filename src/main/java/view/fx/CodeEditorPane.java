@@ -119,6 +119,8 @@ public class CodeEditorPane extends StackPane {
 
         this.breadcrumbBar = new BreadcrumbBar();
         this.breadcrumbBar.setOnNavigateToLine(this::navigateToLineAndHighlight);
+        this.breadcrumbBar.setVisible(false);
+        this.breadcrumbBar.setManaged(false);
 
         this.minimapPane = new MinimapPane(codeArea);
         this.minimapPane.setVisible(false);
@@ -493,6 +495,16 @@ public class CodeEditorPane extends StackPane {
         boolean visible = !minimapPane.isVisible();
         minimapPane.setVisible(visible);
         minimapPane.setManaged(visible);
+    }
+
+    public void toggleBreadcrumbs() {
+        boolean visible = !breadcrumbBar.isVisible();
+        breadcrumbBar.setVisible(visible);
+        breadcrumbBar.setManaged(visible);
+    }
+
+    public boolean isBreadcrumbsVisible() {
+        return breadcrumbBar.isVisible();
     }
 
     public MinimapPane getMinimapPane() {

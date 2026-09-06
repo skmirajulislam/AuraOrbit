@@ -51,6 +51,9 @@ public class BreadcrumbBar extends HBox {
 
         getChildren().addAll(pathLabel, symbolPicker);
         HBox.setHgrow(pathLabel, Priority.NEVER);
+
+        setVisible(false);
+        setManaged(false);
     }
 
     public void setOnNavigateToLine(Consumer<Integer> callback) {

@@ -4,6 +4,7 @@ import collaboration.integration.CollaborationController;
 import collaboration.ui.HostWorkspaceDialog;
 import collaboration.ui.JoinWorkspaceDialog;
 import javafx.application.Platform;
+import javafx.geometry.Side;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -202,6 +203,7 @@ public class FxEditorController {
         if (sidebarExplorer.getRootPath() != null) {
             statusBar.updateGitBranch(sidebarExplorer.getRootPath());
         }
+        sidebarExplorer.setOnCloseAllEditorsRequested(this::closeAllTabs);
     }
 
     private void setupActivityBar() {
@@ -563,6 +565,8 @@ public class FxEditorController {
                 current.getEditorPane().toggleMinimap();
             }
         });
+        commandPalette.registerCommand("View: Toggle Breadcrumbs", "Alt+B", this::toggleBreadcrumbs);
+        commandPalette.registerCommand("View: Toggle Tab Orientation (Horizontal / Vertical Side)", "Alt+T", this::toggleTabOrientation);
         commandPalette.registerCommand("Scripts: Run Automation Script...", "", () -> {
             Path ws = sidebarExplorer.getCurrentWorkspacePath() != null ? sidebarExplorer.getCurrentWorkspacePath() : Paths.get(".");
             var scripts = ScriptPluginService.discoverScripts(ws);
@@ -845,6 +849,7 @@ public class FxEditorController {
             statusBar.setEncoding("UTF-8");
             stage.setTitle("AuraOrbit");
             if (aiAssistantPane != null) aiAssistantPane.updateActiveContext("No active file", 0, 0);
+            syncOpenEditorsSidebar();
             return;
         }
 
@@ -863,6 +868,62 @@ public class FxEditorController {
         int selectedLength = current.getEditorPane().getCodeArea().getSelectedText().length();
         if (aiAssistantPane != null) {
             aiAssistantPane.updateActiveContext(docName, current.getLineCount(), selectedLength);
+        }
+
+        syncOpenEditorsSidebar();
+    }
+
+    private void syncOpenEditorsSidebar() {
+        if (sidebarExplorer == null) return;
+        EditorTabController active = getActiveTabController();
+        List<SidebarExplorer.OpenEditorItem> items = new ArrayList<>();
+        for (EditorTabController tc : tabControllers) {
+            String title = tc.getDocument().getFileName();
+            String path = tc.getDocument().getFilePath() != null ? tc.getDocument().getFilePath().toString() : "";
+            boolean isModified = tc.isModified();
+            boolean isActive = (tc == active);
+            items.add(new SidebarExplorer.OpenEditorItem(
+                    title,
+                    path,
+                    isModified,
+                    isActive,
+                    () -> selectTabController(tc),
+                    () -> closeTab(tc)
+            ));
+        }
+        sidebarExplorer.setOpenEditors(items);
+    }
+
+    private void selectTabController(EditorTabController tc) {
+        if (tc == null) return;
+        if (tabPaneLeft.getTabs().contains(tc.getTab())) {
+            tabPaneLeft.getSelectionModel().select(tc.getTab());
+        } else if (tabPaneRight.getTabs().contains(tc.getTab())) {
+            tabPaneRight.getSelectionModel().select(tc.getTab());
+        }
+        updateActiveTabMetrics();
+    }
+
+    public void toggleTabOrientation() {
+        Side currentSide = tabPaneLeft.getSide();
+        Side newSide = (currentSide == Side.TOP) ? Side.LEFT : Side.TOP;
+        tabPaneLeft.setSide(newSide);
+        if (tabPaneRight != null) {
+            tabPaneRight.setSide(newSide);
+        }
+        if (statusBar != null) {
+            statusBar.showTemporaryMessage("Tabs position: " + (newSide == Side.LEFT ? "Vertical Side" : "Horizontal Top"), 3000);
+        }
+    }
+
+    public void toggleBreadcrumbs() {
+        EditorTabController current = getActiveTabController();
+        if (current != null && current.getEditorPane() != null) {
+            current.getEditorPane().toggleBreadcrumbs();
+            boolean isVisible = current.getEditorPane().isBreadcrumbsVisible();
+            if (statusBar != null) {
+                statusBar.showTemporaryMessage("Breadcrumbs " + (isVisible ? "enabled" : "hidden"), 2500);
+            }
         }
     }
 

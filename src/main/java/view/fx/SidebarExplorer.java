@@ -56,6 +56,31 @@ public class SidebarExplorer extends VBox {
     private TreeItem<FileItem> renamingTreeItem;
     private ModalOverlayPane modalOverlayPane;
 
+    private VBox openEditorsSection;
+    private VBox openEditorsListBox;
+    private Label openEditorsTitleLabel;
+    private FontIcon openEditorsChevron;
+    private boolean openEditorsExpanded = true;
+    private Runnable onCloseAllEditorsRequested;
+
+    public static class OpenEditorItem {
+        public final String title;
+        public final String filePath;
+        public final boolean isModified;
+        public final boolean isActive;
+        public final Runnable onSelect;
+        public final Runnable onClose;
+
+        public OpenEditorItem(String title, String filePath, boolean isModified, boolean isActive, Runnable onSelect, Runnable onClose) {
+            this.title = title;
+            this.filePath = filePath;
+            this.isModified = isModified;
+            this.isActive = isActive;
+            this.onSelect = onSelect;
+            this.onClose = onClose;
+        }
+    }
+
     public void setModalOverlayPane(ModalOverlayPane modalOverlayPane) {
         this.modalOverlayPane = modalOverlayPane;
     }
@@ -157,7 +182,44 @@ public class SidebarExplorer extends VBox {
         VBox pane = new VBox();
         VBox.setVgrow(pane, Priority.ALWAYS);
 
-        // Workspace Section Header: [⌄ WorkspaceName       [📄+] [📁+] [🔄] [🗂️]]
+        // 1. OPEN EDITORS Section: [⌄ OPEN EDITORS (count)      [🗙]]
+        openEditorsSection = new VBox();
+        openEditorsSection.getStyleClass().add("explorer-open-editors-section");
+
+        HBox openEditorsHeader = new HBox(6);
+        openEditorsHeader.setAlignment(Pos.CENTER_LEFT);
+        openEditorsHeader.getStyleClass().add("explorer-workspace-header");
+
+        openEditorsChevron = IconFactory.getIcon(Codicons.CHEVRON_DOWN, 12);
+        openEditorsTitleLabel = new Label("OPEN EDITORS");
+        openEditorsTitleLabel.getStyleClass().add("explorer-workspace-title");
+
+        HBox openEditorsTitleBox = new HBox(4, openEditorsChevron, openEditorsTitleLabel);
+        openEditorsTitleBox.setAlignment(Pos.CENTER_LEFT);
+        openEditorsTitleBox.setStyle("-fx-cursor: hand;");
+        openEditorsTitleBox.setOnMouseClicked(e -> toggleOpenEditorsVisibility());
+
+        Region openSpacer = new Region();
+        HBox.setHgrow(openSpacer, Priority.ALWAYS);
+
+        Button closeAllBtn = createActionButton(Codicons.CLOSE_ALL, "Close All Editors");
+        closeAllBtn.setOnAction(e -> {
+            if (onCloseAllEditorsRequested != null) onCloseAllEditorsRequested.run();
+        });
+
+        HBox openEditorsToolbar = new HBox(2, closeAllBtn);
+        openEditorsToolbar.setAlignment(Pos.CENTER_RIGHT);
+
+        openEditorsHeader.getChildren().addAll(openEditorsTitleBox, openSpacer, openEditorsToolbar);
+
+        openEditorsListBox = new VBox(1);
+        openEditorsListBox.getStyleClass().add("open-editors-list");
+
+        openEditorsSection.getChildren().addAll(openEditorsHeader, openEditorsListBox);
+        openEditorsSection.setVisible(false);
+        openEditorsSection.setManaged(false);
+
+        // 2. Workspace Section Header: [⌄ WorkspaceName       [📄+] [📁+] [🔄] [🗂️]]
         HBox workspaceHeader = new HBox(6);
         workspaceHeader.setAlignment(Pos.CENTER_LEFT);
         workspaceHeader.getStyleClass().add("explorer-workspace-header");
@@ -230,8 +292,79 @@ public class SidebarExplorer extends VBox {
 
         emptyWorkspaceBox.getChildren().addAll(noFolderLbl, openFolderBtn);
 
-        pane.getChildren().addAll(workspaceHeader, fileTreeView, emptyWorkspaceBox);
+        pane.getChildren().addAll(openEditorsSection, workspaceHeader, fileTreeView, emptyWorkspaceBox);
         return pane;
+    }
+
+    public void setOnCloseAllEditorsRequested(Runnable r) {
+        this.onCloseAllEditorsRequested = r;
+    }
+
+    private void toggleOpenEditorsVisibility() {
+        openEditorsExpanded = !openEditorsExpanded;
+        openEditorsListBox.setVisible(openEditorsExpanded);
+        openEditorsListBox.setManaged(openEditorsExpanded);
+        openEditorsChevron.setIconCode(openEditorsExpanded ? Codicons.CHEVRON_DOWN : Codicons.CHEVRON_RIGHT);
+    }
+
+    public void setOpenEditors(List<OpenEditorItem> items) {
+        openEditorsListBox.getChildren().clear();
+        if (items == null || items.isEmpty()) {
+            openEditorsSection.setVisible(false);
+            openEditorsSection.setManaged(false);
+            return;
+        }
+
+        openEditorsSection.setVisible(true);
+        openEditorsSection.setManaged(true);
+        openEditorsTitleLabel.setText("OPEN EDITORS (" + items.size() + ")");
+
+        for (OpenEditorItem item : items) {
+            HBox row = new HBox(6);
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.getStyleClass().add("open-editor-row");
+            if (item.isActive) {
+                row.getStyleClass().add("active");
+            }
+            row.setPadding(new Insets(4, 14, 4, 18));
+
+            FontIcon icon = IconFactory.getFileIcon(item.title, 13);
+            Label nameLabel = new Label(item.title);
+            nameLabel.getStyleClass().add("open-editor-label");
+            if (item.isActive) {
+                nameLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: -text-primary;");
+            }
+
+            Region rowSpacer = new Region();
+            HBox.setHgrow(rowSpacer, Priority.ALWAYS);
+
+            Button itemCloseBtn = createActionButton(Codicons.CLOSE, "Close");
+            itemCloseBtn.setOnAction(e -> {
+                e.consume();
+                if (item.onClose != null) item.onClose.run();
+            });
+
+            if (item.isModified) {
+                Label dirtyDot = new Label("●");
+                dirtyDot.setStyle("-fx-font-size: 10px; -fx-text-fill: -text-primary;");
+                StackPane indicatorStack = new StackPane(dirtyDot, itemCloseBtn);
+                itemCloseBtn.setVisible(false);
+                row.setOnMouseEntered(e -> { dirtyDot.setVisible(false); itemCloseBtn.setVisible(true); });
+                row.setOnMouseExited(e -> { dirtyDot.setVisible(true); itemCloseBtn.setVisible(false); });
+                row.getChildren().addAll(icon, nameLabel, rowSpacer, indicatorStack);
+            } else {
+                itemCloseBtn.setVisible(false);
+                row.setOnMouseEntered(e -> itemCloseBtn.setVisible(true));
+                row.setOnMouseExited(e -> itemCloseBtn.setVisible(false));
+                row.getChildren().addAll(icon, nameLabel, rowSpacer, itemCloseBtn);
+            }
+
+            row.setOnMouseClicked(e -> {
+                if (item.onSelect != null) item.onSelect.run();
+            });
+
+            openEditorsListBox.getChildren().add(row);
+        }
     }
 
     private Button createActionButton(Codicons codicon, String tooltipText) {
