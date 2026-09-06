@@ -28,7 +28,8 @@ public class FxStatusBar extends HBox {
 
     private final Label gitBranchLabel;
     private final Label syncIconLabel;
-    private final Label problemsLabel;
+    private final Label errorLabel;
+    private final Label warningLabel;
     private final Label syncStatusLabel;
     private final Label positionLabel;
     private final Label statsLabel;
@@ -40,6 +41,9 @@ public class FxStatusBar extends HBox {
     private final Label bellLabel;
 
     private Runnable onThemePickerRequested;
+    private Runnable onProblemsClicked;
+    private Runnable onPositionClicked;
+    private Runnable onLanguageClicked;
 
     public FxStatusBar(ThemeService themeService) {
         getStyleClass().add("status-bar");
@@ -47,7 +51,7 @@ public class FxStatusBar extends HBox {
         setSpacing(2);
         setPadding(new Insets(0, 8, 0, 8));
 
-        // 1. Left items: Git Branch + Sync + Problems
+        // 1. Left items: Git Branch + Sync + Error/Warning Diagnostic Badges
         gitBranchLabel = new Label(" " + detectGitBranch());
         gitBranchLabel.setGraphic(IconFactory.getIcon(Codicons.SOURCE_CONTROL, 12, "#ffffff"));
         gitBranchLabel.getStyleClass().add("status-item");
@@ -58,16 +62,21 @@ public class FxStatusBar extends HBox {
         syncIconLabel.getStyleClass().add("status-item");
         syncIconLabel.setTooltip(new Tooltip("AuraOrbit Sync Status"));
 
-        problemsLabel = new Label(" 0  0");
-        HBox problemGraphic = new HBox(4);
-        problemGraphic.setAlignment(Pos.CENTER_LEFT);
-        problemGraphic.getChildren().addAll(
-                IconFactory.getIcon(Codicons.ERROR, 11, "#ffffff"),
-                IconFactory.getIcon(Codicons.WARNING, 11, "#ffffff")
-        );
-        problemsLabel.setGraphic(problemGraphic);
-        problemsLabel.getStyleClass().add("status-item");
-        problemsLabel.setTooltip(new Tooltip("No problems detected"));
+        errorLabel = new Label(" 0");
+        errorLabel.setGraphic(IconFactory.getIcon(Codicons.ERROR, 11, "#f14c4c"));
+        errorLabel.getStyleClass().add("status-item");
+        errorLabel.setTooltip(new Tooltip("0 Errors (Click to view Problems)"));
+        errorLabel.setOnMouseClicked(e -> {
+            if (onProblemsClicked != null) onProblemsClicked.run();
+        });
+
+        warningLabel = new Label(" 0");
+        warningLabel.setGraphic(IconFactory.getIcon(Codicons.WARNING, 11, "#cca700"));
+        warningLabel.getStyleClass().add("status-item");
+        warningLabel.setTooltip(new Tooltip("0 Warnings (Click to view Problems)"));
+        warningLabel.setOnMouseClicked(e -> {
+            if (onProblemsClicked != null) onProblemsClicked.run();
+        });
 
         syncStatusLabel = new Label(" Saved");
         syncStatusLabel.setGraphic(IconFactory.getIcon(Codicons.CHECK, 12, "#ffffff"));
@@ -75,6 +84,10 @@ public class FxStatusBar extends HBox {
 
         positionLabel = new Label("Ln 1, Col 1");
         positionLabel.getStyleClass().add("status-item");
+        positionLabel.setTooltip(new Tooltip("Go to Line/Column (Cmd+G)"));
+        positionLabel.setOnMouseClicked(e -> {
+            if (onPositionClicked != null) onPositionClicked.run();
+        });
 
         statsLabel = new Label("0 lines | 0 chars");
         statsLabel.getStyleClass().add("status-item");
@@ -95,6 +108,10 @@ public class FxStatusBar extends HBox {
 
         languageLabel = new Label("Plain Text");
         languageLabel.getStyleClass().add("status-item");
+        languageLabel.setTooltip(new Tooltip("Select Language Mode (Click to change)"));
+        languageLabel.setOnMouseClicked(e -> {
+            if (onLanguageClicked != null) onLanguageClicked.run();
+        });
 
         themeButton = new Label(" " + themeService.getCurrentTheme().getDisplayName());
         themeButton.setGraphic(IconFactory.getIcon(Codicons.COLOR_MODE, 12, "#ffffff"));
@@ -113,7 +130,8 @@ public class FxStatusBar extends HBox {
         getChildren().addAll(
                 gitBranchLabel,
                 syncIconLabel,
-                problemsLabel,
+                errorLabel,
+                warningLabel,
                 syncStatusLabel,
                 positionLabel,
                 statsLabel,
@@ -156,13 +174,21 @@ public class FxStatusBar extends HBox {
     }
 
     public void setProblems(int errors, int warnings) {
-        problemsLabel.setText(String.format(" %d  %d", errors, warnings));
+        errorLabel.setText(" " + errors);
+        warningLabel.setText(" " + warnings);
+        errorLabel.setTooltip(new Tooltip(errors + " Errors (Click to view Problems)"));
+        warningLabel.setTooltip(new Tooltip(warnings + " Warnings (Click to view Problems)"));
+
         if (errors > 0) {
-            problemsLabel.setStyle("-fx-text-fill: #f48771;");
-        } else if (warnings > 0) {
-            problemsLabel.setStyle("-fx-text-fill: #cca700;");
+            errorLabel.setStyle("-fx-text-fill: #f14c4c; -fx-font-weight: bold;");
         } else {
-            problemsLabel.setStyle("");
+            errorLabel.setStyle("");
+        }
+
+        if (warnings > 0) {
+            warningLabel.setStyle("-fx-text-fill: #cca700; -fx-font-weight: bold;");
+        } else {
+            warningLabel.setStyle("");
         }
     }
 
@@ -191,9 +217,15 @@ public class FxStatusBar extends HBox {
     }
 
     public void setOnProblemsClicked(Runnable onProblemsClicked) {
-        problemsLabel.setOnMouseClicked(e -> {
-            if (onProblemsClicked != null) onProblemsClicked.run();
-        });
+        this.onProblemsClicked = onProblemsClicked;
+    }
+
+    public void setOnPositionClicked(Runnable onPositionClicked) {
+        this.onPositionClicked = onPositionClicked;
+    }
+
+    public void setOnLanguageClicked(Runnable onLanguageClicked) {
+        this.onLanguageClicked = onLanguageClicked;
     }
 
     public void setOnBellClicked(Runnable onBellClicked) {

@@ -225,6 +225,7 @@ public class TerminalPane extends BorderPane {
         HBox dockSegment = new HBox(2);
         dockSegment.getStyleClass().add("dock-segment");
         dockSegment.setAlignment(Pos.CENTER_LEFT);
+        dockSegment.setMinWidth(Region.USE_PREF_SIZE);
         dockSegment.getChildren().addAll(
                 problemsTabBtn, outputTabBtn, debugTabBtn, terminalTabBtn, portsTabBtn);
 
@@ -241,6 +242,7 @@ public class TerminalPane extends BorderPane {
     private Label createTabButton(String text, String badge, DockTab tab) {
         Label btn = new Label(badge != null ? text + " " + badge : text);
         btn.getStyleClass().add("dock-tab-btn");
+        btn.setMinWidth(Region.USE_PREF_SIZE);
         btn.setOnMouseClicked(e -> {
             if (tab == DockTab.TERMINAL && sessions.isEmpty()) {
                 createNewTerminal();
@@ -249,6 +251,10 @@ public class TerminalPane extends BorderPane {
             }
         });
         return btn;
+    }
+
+    public double getDockTabBtnMinWidth() {
+        return problemsTabBtn != null ? problemsTabBtn.getMinWidth() : Region.USE_COMPUTED_SIZE;
     }
 
     public void switchDockTab(DockTab tab) {

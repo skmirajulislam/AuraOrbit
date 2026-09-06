@@ -56,8 +56,14 @@ public class FxEditorController {
     private TerminalPane terminalPane;
     private SplitPane editorTerminalSplitPane;
     private ModalOverlayPane modalOverlayPane;
+    private TopCommandCenterBar topCommandCenterBar;
+    private SourceControlPane sourceControlPane;
     private Button runButton;
     private HBox runOverlay;
+
+    private final List<Path> navigationHistory = new ArrayList<>();
+    private int navigationHistoryIndex = -1;
+    private boolean isNavigatingHistory = false;
 
     private final List<EditorTabController> tabControllers = new ArrayList<>();
     private boolean isSplitEditorActive = false;
@@ -183,6 +189,12 @@ public class FxEditorController {
             if (terminalPane != null) {
                 terminalPane.scanWorkspaceForProblems();
             }
+            if (sourceControlPane != null) {
+                sourceControlPane.setWorkspacePath(path);
+            }
+            if (topCommandCenterBar != null) {
+                topCommandCenterBar.setWorkspaceName(path != null && path.getFileName() != null ? path.getFileName().toString() : "AuraOrbit");
+            }
             updateActiveTabMetrics();
         });
         sidebarExplorer.setOnFileRenamed((oldPath, newPath) -> {
@@ -196,6 +208,12 @@ public class FxEditorController {
         });
         if (sidebarExplorer.getRootPath() != null) {
             statusBar.updateGitBranch(sidebarExplorer.getRootPath());
+            if (sourceControlPane != null) {
+                sourceControlPane.setWorkspacePath(sidebarExplorer.getRootPath());
+            }
+            if (topCommandCenterBar != null) {
+                topCommandCenterBar.setWorkspaceName(sidebarExplorer.getRootPath().getFileName().toString());
+            }
         }
         sidebarExplorer.setOnCloseAllEditorsRequested(this::closeAllTabs);
     }
@@ -204,7 +222,12 @@ public class FxEditorController {
         activityBar.setOnPanelToggled(panel -> {
             if (panel == ActivityBar.Panel.EXPLORER || panel == ActivityBar.Panel.TEMPLATES) {
                 sidebarExplorer.showView(panel);
-                ensureSidebarVisible(true);
+                showPrimarySidebarPane(sidebarExplorer);
+            } else if (panel == ActivityBar.Panel.SOURCE_CONTROL) {
+                if (sourceControlPane != null) {
+                    sourceControlPane.refreshGitStatus();
+                    showPrimarySidebarPane(sourceControlPane);
+                }
             } else if (panel == ActivityBar.Panel.SEARCH) {
                 handleFind(true);
             } else if (panel == ActivityBar.Panel.AI_COPILOT) {
@@ -219,6 +242,8 @@ public class FxEditorController {
         activityBar.setOnThemeAction(this::showThemePicker);
         activityBar.setOnInfoAction(this::showAboutDialog);
         activityBar.setOnLiveShareAction(this::showLiveShareOptions);
+        activityBar.setOnSettingsAction(this::showSettingsMenu);
+        activityBar.setOnAccountAction(this::showAccountMenu);
         collaborationManager.setOnRemoteWorkspaceLoaded(tree -> {
             Platform.runLater(() -> {
                 if (modalOverlayPane != null) {
@@ -229,18 +254,51 @@ public class FxEditorController {
         });
     }
 
-    private void ensureSidebarVisible(boolean visible) {
-        if (visible) {
-            if (!masterSplitPane.getItems().contains(sidebarExplorer)) {
-                masterSplitPane.getItems().add(0, sidebarExplorer);
+    public void showPrimarySidebarPane(javafx.scene.Node pane) {
+        if (pane == null) return;
+        if (masterSplitPane.getItems().isEmpty()) {
+            masterSplitPane.getItems().add(0, pane);
+            masterSplitPane.setDividerPosition(0, 0.22);
+        } else {
+            javafx.scene.Node first = masterSplitPane.getItems().get(0);
+            if (first != pane) {
+                if (first == sidebarExplorer || first == sourceControlPane) {
+                    masterSplitPane.getItems().set(0, pane);
+                } else {
+                    masterSplitPane.getItems().add(0, pane);
+                }
                 masterSplitPane.setDividerPosition(0, 0.22);
             }
-            sidebarExplorer.setVisible(true);
-            sidebarExplorer.setManaged(true);
+        }
+        pane.setVisible(true);
+        pane.setManaged(true);
+    }
+
+    public void togglePrimarySidebar() {
+        boolean isCurrentlyOpen = masterSplitPane.getItems().contains(sidebarExplorer) ||
+                (sourceControlPane != null && masterSplitPane.getItems().contains(sourceControlPane));
+        if (isCurrentlyOpen) {
+            ensureSidebarVisible(false);
+            activityBar.setActivePanel(null, false);
         } else {
-            sidebarExplorer.setVisible(false);
-            sidebarExplorer.setManaged(false);
-            masterSplitPane.getItems().remove(sidebarExplorer);
+            activityBar.setActivePanel(ActivityBar.Panel.EXPLORER, true);
+        }
+    }
+
+    private void ensureSidebarVisible(boolean visible) {
+        if (visible) {
+            showPrimarySidebarPane(sidebarExplorer);
+        } else {
+            if (sidebarExplorer != null) {
+                sidebarExplorer.setVisible(false);
+                sidebarExplorer.setManaged(false);
+                masterSplitPane.getItems().remove(sidebarExplorer);
+            }
+            if (sourceControlPane != null) {
+                sourceControlPane.setVisible(false);
+                sourceControlPane.setManaged(false);
+                masterSplitPane.getItems().remove(sourceControlPane);
+            }
         }
     }
 
@@ -543,6 +601,9 @@ public class FxEditorController {
             terminalPane.scanWorkspaceForProblems();
         });
 
+        statusBar.setOnPositionClicked(this::showGoToLinePrompt);
+        statusBar.setOnLanguageClicked(this::showLanguagePicker);
+
         statusBar.setOnBellClicked(() -> {
             showDockPanel(TerminalPane.DockTab.OUTPUT);
             terminalPane.selectOutputChannel("AuraOrbit (System)");
@@ -561,6 +622,13 @@ public class FxEditorController {
         commandPalette.registerCommand("Edit: Format Document", "Shift+Alt+F", this::formatActiveDocument);
         commandPalette.registerCommand("Run: Run Active File", "F5", this::runActiveFile);
         commandPalette.registerCommand("Edit: Find & Replace", "Cmd+F", () -> handleFind(true));
+        commandPalette.registerCommand("Navigation: Go to Line/Column...", "Cmd+G", this::showGoToLinePrompt);
+        commandPalette.registerCommand("Navigation: Go Back", "Ctrl+-", this::navigateBack);
+        commandPalette.registerCommand("Navigation: Go Forward", "Ctrl+Shift+-", this::navigateForward);
+        commandPalette.registerCommand("View: Toggle Primary Side Bar", "Cmd+B", this::togglePrimarySidebar);
+        commandPalette.registerCommand("View: Show Source Control (Git)", "Cmd+Shift+G", () -> activityBar.setActivePanel(ActivityBar.Panel.SOURCE_CONTROL, true));
+        commandPalette.registerCommand("View: Show Explorer", "Cmd+Shift+E", () -> activityBar.setActivePanel(ActivityBar.Panel.EXPLORER, true));
+        commandPalette.registerCommand("View: Change Language Mode", "", this::showLanguagePicker);
         commandPalette.registerCommand("View: Toggle Side-by-Side Split Editor", "Cmd+\\", this::toggleSplitEditor);
         commandPalette.registerCommand("View: Toggle Word Wrap", "Alt+Z", this::toggleWordWrap);
         commandPalette.registerCommand("View: Toggle AI IDE Copilot", "Cmd+Shift+A", this::toggleAiPanel);
@@ -888,6 +956,9 @@ public class FxEditorController {
 
         EditorTabController current = getActiveTabController();
         if (current == null) {
+            if (topCommandCenterBar != null) {
+                topCommandCenterBar.setActiveFileName("");
+            }
             statusBar.updatePosition(1, 1);
             statusBar.updateStats(0, 0);
             statusBar.setModified(false);
@@ -910,6 +981,13 @@ public class FxEditorController {
         statusBar.setEncoding(current.getEncoding());
 
         String docName = current.getDocument().getFileName();
+        if (topCommandCenterBar != null) {
+            topCommandCenterBar.setActiveFileName(docName);
+        }
+        if (current.getDocument().getFilePath() != null) {
+            recordNavigationHistory(current.getDocument().getFilePath());
+        }
+
         String pathStr = current.getDocument().isPersisted() ? current.getDocument().getFilePath().toString() : "[Unsaved]";
         stage.setTitle((current.isModified() ? "● " : "") + docName + " (" + pathStr + ") — AuraOrbit");
 
@@ -1248,9 +1326,214 @@ public class FxEditorController {
         dialog.show();
     }
 
+    public void setTopCommandCenterBar(TopCommandCenterBar topCommandCenterBar) {
+        this.topCommandCenterBar = topCommandCenterBar;
+        if (topCommandCenterBar != null) {
+            topCommandCenterBar.setOnBackAction(this::navigateBack);
+            topCommandCenterBar.setOnForwardAction(this::navigateForward);
+            topCommandCenterBar.setOnSearchAction(this::showCommandPalette);
+            topCommandCenterBar.setOnToggleSidebarAction(this::togglePrimarySidebar);
+            topCommandCenterBar.setOnTogglePanelAction(this::toggleTerminal);
+            topCommandCenterBar.setOnToggleAiAction(this::toggleAiPanel);
+            if (sidebarExplorer != null && sidebarExplorer.getRootPath() != null) {
+                topCommandCenterBar.setWorkspaceName(sidebarExplorer.getRootPath().getFileName().toString());
+            }
+            updateActiveTabMetrics();
+        }
+    }
+
+    public void setSourceControlPane(SourceControlPane sourceControlPane) {
+        this.sourceControlPane = sourceControlPane;
+        if (sourceControlPane != null) {
+            if (sidebarExplorer != null && sidebarExplorer.getRootPath() != null) {
+                sourceControlPane.setWorkspacePath(sidebarExplorer.getRootPath());
+            }
+            sourceControlPane.setOnOpenFileRequested(path -> openFile(path, true));
+            sourceControlPane.setOnBadgeCountChanged(count -> {
+                if (activityBar != null) {
+                    activityBar.setSourceControlBadge(count);
+                }
+            });
+            sourceControlPane.setOnNotification(msg -> {
+                if (statusBar != null) {
+                    statusBar.showTemporaryMessage(msg, 3000);
+                }
+            });
+        }
+    }
+
+    private void recordNavigationHistory(Path path) {
+        if (path == null || isNavigatingHistory) return;
+        if (navigationHistoryIndex >= 0 && navigationHistoryIndex < navigationHistory.size() &&
+                navigationHistory.get(navigationHistoryIndex).equals(path)) {
+            return;
+        }
+        while (navigationHistory.size() > navigationHistoryIndex + 1) {
+            navigationHistory.remove(navigationHistory.size() - 1);
+        }
+        navigationHistory.add(path);
+        navigationHistoryIndex = navigationHistory.size() - 1;
+        updateNavigationButtons();
+    }
+
+    public void navigateBack() {
+        if (navigationHistoryIndex > 0) {
+            navigationHistoryIndex--;
+            isNavigatingHistory = true;
+            try {
+                openFile(navigationHistory.get(navigationHistoryIndex), true);
+            } finally {
+                isNavigatingHistory = false;
+                updateNavigationButtons();
+            }
+        }
+    }
+
+    public void navigateForward() {
+        if (navigationHistoryIndex < navigationHistory.size() - 1) {
+            navigationHistoryIndex++;
+            isNavigatingHistory = true;
+            try {
+                openFile(navigationHistory.get(navigationHistoryIndex), true);
+            } finally {
+                isNavigatingHistory = false;
+                updateNavigationButtons();
+            }
+        }
+    }
+
+    private void updateNavigationButtons() {
+        if (topCommandCenterBar != null) {
+            boolean canBack = navigationHistoryIndex > 0;
+            boolean canForward = navigationHistoryIndex < navigationHistory.size() - 1;
+            topCommandCenterBar.setNavigationState(canBack, canForward);
+        }
+    }
+
+    public void showSettingsMenu() {
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showOptionSelection(
+                    "Manage AuraOrbit Preferences",
+                    "Choose a preferences category or quick action:",
+                    "Command Palette (Cmd+P)",
+                    List.of(
+                            "Command Palette (Cmd+P)",
+                            "Color Theme Picker",
+                            "Configure AI Copilot API Keys",
+                            "Keyboard Shortcuts & Actions",
+                            "Toggle Integrated Terminal (Ctrl+`)",
+                            "About AuraOrbit"
+                    ),
+                    choice -> {
+                        if (choice.contains("Command Palette")) showCommandPalette();
+                        else if (choice.contains("Color Theme")) showThemePicker();
+                        else if (choice.contains("AI Copilot")) configureAiKeys();
+                        else if (choice.contains("Shortcuts")) showKeyboardShortcutsDialog();
+                        else if (choice.contains("Terminal")) toggleTerminal();
+                        else if (choice.contains("About")) showAboutDialog();
+                    }
+            );
+        }
+    }
+
+    public void showAccountMenu() {
+        if (modalOverlayPane != null) {
+            String liveShareStatus = collaborationManager.isHosting()
+                    ? "Hosting Active Live Share Session"
+                    : collaborationManager.isConnected()
+                    ? "Connected to Remote Live Share"
+                    : "Collaboration Offline";
+            String wsName = (sidebarExplorer != null && sidebarExplorer.getRootPath() != null)
+                    ? sidebarExplorer.getRootPath().getFileName().toString()
+                    : "None";
+
+            modalOverlayPane.showInformation(
+                    "User & Account Profile",
+                    "User: " + System.getProperty("user.name") + "\n" +
+                    "Live Share Status: " + liveShareStatus + "\n" +
+                    "Active Workspace: " + wsName + "\n\n" +
+                    "AuraOrbit Pro Edition \u2014 Zero-config collaboration, Git integration & AI Studio."
+            );
+        }
+    }
+
+    public void showGoToLinePrompt() {
+        EditorTabController current = getActiveTabController();
+        if (current == null) return;
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showTextInput(
+                    "Go to Line",
+                    "Type line number to jump to (1 - " + current.getLineCount() + "):",
+                    String.valueOf(current.getCurrentLine()),
+                    input -> {
+                        if (input == null || input.isBlank()) return;
+                        try {
+                            int line = Integer.parseInt(input.trim().split("[:;,]")[0]);
+                            current.navigateToLineAndHighlight(line);
+                            updateActiveTabMetrics();
+                        } catch (NumberFormatException ignored) {}
+                    }
+            );
+        }
+    }
+
+    public void showLanguagePicker() {
+        EditorTabController current = getActiveTabController();
+        if (current == null) return;
+        List<String> languages = List.of(
+                "Java", "Python", "JavaScript", "HTML", "CSS", "JSON", "XML", "YAML", "Markdown", "Plain Text"
+        );
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showOptionSelection(
+                    "Select Language Mode",
+                    "Choose syntax and diagnostic language for " + current.getDocument().getFileName() + ":",
+                    current.getDocument().getFileType().toUpperCase(),
+                    languages,
+                    choice -> {
+                        if (choice != null) {
+                            current.getEditorPane().setFileType(choice.toLowerCase());
+                            statusBar.setLanguage(choice);
+                            triggerLiveDiagnostics(current);
+                        }
+                    }
+            );
+        }
+    }
+
+    public void showKeyboardShortcutsDialog() {
+        if (modalOverlayPane != null) {
+            modalOverlayPane.showInformation("Keyboard Shortcuts",
+                    "Cmd/Ctrl+P : Command Palette / Quick Open\n" +
+                    "Cmd/Ctrl+S : Save File\n" +
+                    "Cmd/Ctrl+N : New File\n" +
+                    "Cmd/Ctrl+O : Open File\n" +
+                    "Cmd/Ctrl+W : Close Tab\n" +
+                    "Cmd/Ctrl+B : Toggle Primary Side Bar\n" +
+                    "Ctrl+` : Toggle Terminal Panel\n" +
+                    "Cmd/Ctrl+Shift+A : Toggle AI Copilot Studio\n" +
+                    "Cmd/Ctrl+Shift+G : Source Control Panel\n" +
+                    "Cmd/Ctrl+Shift+E : Explorer Panel\n" +
+                    "Cmd/Ctrl+G : Go to Line\n" +
+                    "Shift+Alt+F : Format Document\n" +
+                    "F5 : Run Active File\n" +
+                    "Ctrl+- / Ctrl+Shift+- : Navigate Back / Forward");
+        }
+    }
+
+    public void configureAiKeys() {
+        if (modalOverlayPane != null && aiAssistantPane != null) {
+            modalOverlayPane.showApiKeyDialog(aiAssistantPane.getAiService(), () -> {
+                modalOverlayPane.showInformation("AI Copilot", "API Keys saved successfully! You can now query your configured models.");
+            });
+        }
+    }
+
     public void shutdown() {
         diagnosticDebounceExecutor.shutdown();
         collaborationManager.stopSession();
+        if (sourceControlPane != null) {
+            sourceControlPane.shutdown();
+        }
         if (terminalPane != null) {
             terminalPane.dispose();
         }

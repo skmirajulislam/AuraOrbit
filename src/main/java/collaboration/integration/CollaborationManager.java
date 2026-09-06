@@ -68,6 +68,10 @@ public class CollaborationManager {
         return currentMode == Mode.GUEST;
     }
 
+    public synchronized boolean isConnected() {
+        return currentMode != Mode.INACTIVE;
+    }
+
     public synchronized Mode getMode() {
         return currentMode;
     }

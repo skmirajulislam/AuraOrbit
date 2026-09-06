@@ -110,8 +110,10 @@ public class JavaFxEditorApp extends Application {
         StackPane.setAlignment(runOverlay, Pos.TOP_RIGHT);
 
         // Sidebars & Studio Panes
+        TopCommandCenterBar topCommandCenterBar = new TopCommandCenterBar();
         ActivityBar activityBar = new ActivityBar();
         SidebarExplorer sidebarExplorer = new SidebarExplorer();
+        SourceControlPane sourceControlPane = new SourceControlPane();
         AiAssistantPane aiAssistantPane = new AiAssistantPane();
         TerminalPane terminalPane = new TerminalPane();
         terminalPane.setMinHeight(100);
@@ -137,6 +139,7 @@ public class JavaFxEditorApp extends Application {
         // Main Application Border Container
         BorderPane root = new BorderPane();
         root.getStyleClass().add("main-container");
+        root.setTop(topCommandCenterBar);
         root.setLeft(activityBar);
         root.setCenter(masterSplitPane);
         root.setBottom(statusBar);
@@ -164,6 +167,8 @@ public class JavaFxEditorApp extends Application {
         modalOverlayPane
     );
 
+        controller.setTopCommandCenterBar(topCommandCenterBar);
+        controller.setSourceControlPane(sourceControlPane);
         controller.setRunButton(runButton);
         controller.setRunOverlay(runOverlay);
 
@@ -172,7 +177,7 @@ public class JavaFxEditorApp extends Application {
         themeService.applyTheme(scene, ThemeService.Theme.VSCODE_DARK);
 
         // Global Keyboard Accelerators
-        setupKeyboardShortcuts(scene);
+        setupKeyboardShortcuts(scene, activityBar);
 
         // Handle Clean Window Closing (Kills background threads / prevents zombie JVM process)
         primaryStage.setOnCloseRequest(e -> {
@@ -218,7 +223,7 @@ public class JavaFxEditorApp extends Application {
         }
     }
 
-    private void setupKeyboardShortcuts(Scene scene) {
+    private void setupKeyboardShortcuts(Scene scene, ActivityBar activityBar) {
         KeyCombination cmdS = new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN);
         KeyCombination cmdShiftS = new KeyCodeCombination(KeyCode.S, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
         KeyCombination cmdO = new KeyCodeCombination(KeyCode.O, KeyCombination.SHORTCUT_DOWN);
@@ -226,12 +231,19 @@ public class JavaFxEditorApp extends Application {
         KeyCombination cmdW = new KeyCodeCombination(KeyCode.W, KeyCombination.SHORTCUT_DOWN);
         KeyCombination cmdF = new KeyCodeCombination(KeyCode.F, KeyCombination.SHORTCUT_DOWN);
         KeyCombination cmdP = new KeyCodeCombination(KeyCode.P, KeyCombination.SHORTCUT_DOWN);
+        KeyCombination cmdB = new KeyCodeCombination(KeyCode.B, KeyCombination.SHORTCUT_DOWN);
+        KeyCombination cmdG = new KeyCodeCombination(KeyCode.G, KeyCombination.SHORTCUT_DOWN);
+        KeyCombination cmdShiftG = new KeyCodeCombination(KeyCode.G, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
+        KeyCombination cmdShiftE = new KeyCodeCombination(KeyCode.E, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
         KeyCombination cmdSplit = new KeyCodeCombination(KeyCode.BACK_SLASH, KeyCombination.SHORTCUT_DOWN);
         KeyCombination cmdAi = new KeyCodeCombination(KeyCode.A, KeyCombination.SHORTCUT_DOWN, KeyCombination.SHIFT_DOWN);
 
         // Terminal shortcuts use CONTROL_DOWN (not SHORTCUT) to match VS Code behavior on all platforms
         KeyCombination ctrlBacktick = new KeyCodeCombination(KeyCode.BACK_QUOTE, KeyCombination.CONTROL_DOWN);
         KeyCombination ctrlShiftBacktick = new KeyCodeCombination(KeyCode.BACK_QUOTE, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
+
+        KeyCombination ctrlMinus = new KeyCodeCombination(KeyCode.MINUS, KeyCombination.CONTROL_DOWN);
+        KeyCombination ctrlShiftMinus = new KeyCodeCombination(KeyCode.MINUS, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
 
         KeyCombination shiftAltF = new KeyCodeCombination(KeyCode.F, KeyCombination.ALT_DOWN, KeyCombination.SHIFT_DOWN);
         KeyCombination altZ = new KeyCodeCombination(KeyCode.Z, KeyCombination.ALT_DOWN);
@@ -244,6 +256,12 @@ public class JavaFxEditorApp extends Application {
         scene.getAccelerators().put(cmdW, controller::closeActiveTab);
         scene.getAccelerators().put(cmdF, () -> controller.handleFind(true));
         scene.getAccelerators().put(cmdP, controller::showCommandPalette);
+        scene.getAccelerators().put(cmdB, controller::togglePrimarySidebar);
+        scene.getAccelerators().put(cmdG, controller::showGoToLinePrompt);
+        scene.getAccelerators().put(cmdShiftG, () -> activityBar.setActivePanel(ActivityBar.Panel.SOURCE_CONTROL, true));
+        scene.getAccelerators().put(cmdShiftE, () -> activityBar.setActivePanel(ActivityBar.Panel.EXPLORER, true));
+        scene.getAccelerators().put(ctrlMinus, controller::navigateBack);
+        scene.getAccelerators().put(ctrlShiftMinus, controller::navigateForward);
         scene.getAccelerators().put(shiftAltF, controller::formatActiveDocument);
         scene.getAccelerators().put(altZ, controller::toggleWordWrap);
         scene.getAccelerators().put(runActiveFile, controller::runActiveFile);

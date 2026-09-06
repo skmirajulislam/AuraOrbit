@@ -576,3 +576,48 @@
     -fx-font-weight: bold;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Top Command Center Bar
+   ───────────────────────────────────────────────────────────────────────────── */
+.top-command-center {
+    -fx-background-color: -bg-secondary;
+    -fx-border-color: transparent transparent -border-color transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.command-center-nav-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+    -fx-padding: 4;
+    -fx-cursor: hand;
+}
+
+.command-center-nav-btn:hover {
+    -fx-background-color: -bg-hover;
+}
+
+.command-center-nav-btn:disabled {
+    -fx-opacity: 0.35;
+}
+
+.command-center-pill {
+    -fx-background-color: -bg-control;
+    -fx-background-radius: 6;
+    -fx-border-color: -border-color;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+}
+
+.command-center-pill:hover {
+    -fx-background-color: -bg-hover;
+    -fx-border-color: -accent-color;
+}
+
+.command-center-pill-text {
+    -fx-text-fill: -text-secondary;
+    -fx-font-size: 11px;
+    -fx-font-weight: 500;
+}
+
+
