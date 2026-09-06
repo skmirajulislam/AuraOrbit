@@ -66,10 +66,20 @@ public class CodeDiagnosticsService {
         int dot = fileName.lastIndexOf('.');
         if (dot != -1) ext = fileName.substring(dot).toLowerCase();
 
-        // 1. Universal checks: TODOs, FIXMEs, bracket depth, string balances
-        checkUniversalDiagnostics(lines, fullPath, problems);
+        // 1. Task markers (TODO, FIXME, HACK) for all files
+        checkTaskMarkers(lines, fullPath, problems);
 
-        // 2. Language-specific static analysis
+        // 2. Syntax & structural checks only for actual programming languages (never for markdown or text)
+        boolean isCodeFile = switch (ext) {
+            case ".java", ".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".c", ".cpp", ".cs", ".go", ".rs" -> true;
+            default -> false;
+        };
+
+        if (isCodeFile) {
+            checkCodeBracketsAndStrings(lines, fullPath, ext, problems);
+        }
+
+        // 3. Language-specific static analysis
         switch (ext) {
             case ".java" -> analyzeJava(lines, fullPath, fileName, problems);
             case ".py" -> analyzePython(lines, fullPath, problems);
@@ -82,42 +92,121 @@ public class CodeDiagnosticsService {
         return problems;
     }
 
-    private static void checkUniversalDiagnostics(List<String> lines, String fullPath, List<TerminalPane.ProblemItem> problems) {
+    private static void checkTaskMarkers(List<String> lines, String fullPath, List<TerminalPane.ProblemItem> problems) {
+        String todoMarker = "TO" + "DO:";
+        String fixmeMarker = "FIX" + "ME:";
+        String hackMarker = "HA" + "CK:";
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line.contains(todoMarker) || line.contains(fixmeMarker) || line.contains(hackMarker)) {
+                problems.add(new TerminalPane.ProblemItem(Codicons.INFO, "Info", line.trim(), fullPath, i + 1, 1, "todo"));
+            }
+        }
+    }
+
+    private static void checkCodeBracketsAndStrings(List<String> lines, String fullPath, String ext, List<TerminalPane.ProblemItem> problems) {
         int braceDepth = 0;
         int parenDepth = 0;
         int bracketDepth = 0;
+        boolean inBlockComment = false;
+        boolean inTextBlock = false; // For Java """ or Python """
+
+        boolean isJava = ".java".equals(ext);
+        boolean isPython = ".py".equals(ext);
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             int lineNum = i + 1;
+            int len = line.length();
+            int c = 0;
 
-            // Task markers in user source are surfaced as informational diagnostics.
-            String todoMarker = "TO" + "DO:";
-            String fixmeMarker = "FIX" + "ME:";
-            String hackMarker = "HA" + "CK:";
-            if (line.contains(todoMarker) || line.contains(fixmeMarker) || line.contains(hackMarker)) {
-                String clean = line.trim();
-                problems.add(new TerminalPane.ProblemItem(Codicons.INFO, "Info", clean, fullPath, lineNum, 1, "todo"));
-            }
-
-            // Bracket balance and unclosed strings
             boolean inString = false;
             char quoteChar = 0;
-            for (int c = 0; c < line.length(); c++) {
-                char ch = line.charAt(c);
-                if (ch == '\\' && c + 1 < line.length()) {
-                    c++;
+
+            while (c < len) {
+                // If inside block comment /* ... */
+                if (inBlockComment) {
+                    int endComment = line.indexOf("*/", c);
+                    if (endComment != -1) {
+                        inBlockComment = false;
+                        c = endComment + 2;
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+
+                // If inside multi-line text block """
+                if (inTextBlock) {
+                    int endBlock = line.indexOf("\"\"\"", c);
+                    if (endBlock != -1) {
+                        inTextBlock = false;
+                        c = endBlock + 3;
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+
+                // Check for start of text block """
+                if (c + 2 < len && line.charAt(c) == '"' && line.charAt(c + 1) == '"' && line.charAt(c + 2) == '"') {
+                    int close = line.indexOf("\"\"\"", c + 3);
+                    if (close != -1) {
+                        c = close + 3;
+                        continue;
+                    } else {
+                        inTextBlock = true;
+                        break;
+                    }
+                }
+
+                // Check for start of block comment /* (only in non-Python)
+                if (!isPython && !inString && c + 1 < len && line.charAt(c) == '/' && line.charAt(c + 1) == '*') {
+                    inBlockComment = true;
+                    c += 2;
                     continue;
                 }
-                if (ch == '"' || ch == '\'') {
+
+                // Check for single-line comment (// in Java/JS, # in Python)
+                if (!inString) {
+                    if (!isPython && c + 1 < len && line.charAt(c) == '/' && line.charAt(c + 1) == '/') {
+                        break;
+                    }
+                    if (isPython && line.charAt(c) == '#') {
+                        break;
+                    }
+                }
+
+                char ch = line.charAt(c);
+
+                // Escape character
+                if (ch == '\\' && c + 1 < len) {
+                    c += 2;
+                    continue;
+                }
+
+                // Handle Character Literals in Java ('a', '\n', etc.)
+                if (isJava && !inString && ch == '\'') {
+                    int closeQuote = line.indexOf('\'', c + 1);
+                    if (closeQuote != -1 && (closeQuote - c) <= 4) {
+                        c = closeQuote + 1;
+                        continue;
+                    }
+                }
+
+                // Handle Strings
+                if (ch == '"' || (!isJava && ch == '\'')) {
                     if (!inString) {
                         inString = true;
                         quoteChar = ch;
                     } else if (ch == quoteChar) {
                         inString = false;
                     }
+                    c++;
                     continue;
                 }
+
+                // Outside strings & comments, count bracket balance
                 if (!inString) {
                     if (ch == '{') braceDepth++;
                     else if (ch == '}') braceDepth--;
@@ -126,8 +215,11 @@ public class CodeDiagnosticsService {
                     else if (ch == '[') bracketDepth++;
                     else if (ch == ']') bracketDepth--;
                 }
+
+                c++;
             }
-            if (inString && !line.trim().startsWith("//") && !line.trim().startsWith("#") && !line.trim().startsWith("*")) {
+
+            if (inString && !inTextBlock) {
                 problems.add(new TerminalPane.ProblemItem(Codicons.ERROR, "Error", "Unclosed string literal", fullPath, lineNum, line.length(), "syntax"));
             }
         }
@@ -420,7 +512,7 @@ public class CodeDiagnosticsService {
                 String cp = System.getProperty("java.class.path");
                 List<String> options = Arrays.asList(
                         "-proc:none",
-                        "-Xlint:all",
+                        "-Xlint:all,-serial,-rawtypes,-unchecked,-preview",
                         "-classpath", cp != null ? cp : ".",
                         "-d", tempClasses.toString()
                 );
