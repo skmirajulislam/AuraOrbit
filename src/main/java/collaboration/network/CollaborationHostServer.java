@@ -7,7 +7,6 @@ import collaboration.model.VirtualFileNode;
 import collaboration.sync.DocumentSyncCoordinator;
 import collaboration.workspace.RemoteWorkspaceModel;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft;
 import org.java_websocket.exceptions.InvalidDataException;
@@ -23,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**

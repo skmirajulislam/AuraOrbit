@@ -1,7 +1,5 @@
 package collaboration.integration;
 
-import collaboration.model.CursorEvent;
-import collaboration.model.TextOpEvent;
 import collaboration.model.VirtualFileNode;
 import collaboration.network.CollaborationGuestClient;
 import collaboration.network.CollaborationHostServer;

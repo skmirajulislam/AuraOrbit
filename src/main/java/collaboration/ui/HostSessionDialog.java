@@ -18,7 +18,6 @@ import org.kordamp.ikonli.codicons.Codicons;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Modern VS Code Live Share-styled dialog for managing hosted sessions.

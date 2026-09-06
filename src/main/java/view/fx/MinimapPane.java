@@ -39,8 +39,8 @@ public class MinimapPane extends StackPane {
         setMaxWidth(MINIMAP_WIDTH);
         setMinWidth(MINIMAP_WIDTH);
         getStyleClass().add("minimap-pane");
-        setVisible(false);
-        setManaged(false);
+        setVisible(true);
+        setManaged(true);
 
         this.canvas = new Canvas(MINIMAP_WIDTH, 600);
         this.canvas.widthProperty().bind(widthProperty());
@@ -74,6 +74,16 @@ public class MinimapPane extends StackPane {
         // Hook into CodeArea scroll and text changes
         codeArea.estimatedScrollYProperty().addListener((obs, o, n) -> updateSlider());
         codeArea.totalHeightEstimateProperty().addListener((obs, o, n) -> updateSlider());
+        codeArea.plainTextChanges().subscribe(ch -> Platform.runLater(this::renderMinimap));
+
+        visibleProperty().addListener((obs, oldV, newV) -> {
+            if (Boolean.TRUE.equals(newV)) {
+                Platform.runLater(() -> {
+                    renderMinimap();
+                    updateSlider();
+                });
+            }
+        });
     }
 
     private void handleMouseScroll(MouseEvent e) {

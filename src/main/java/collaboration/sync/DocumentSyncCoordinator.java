@@ -13,7 +13,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class DocumentSyncCoordinator {
 
-    private final AtomicLong globalRevision = new AtomicLong(0);
     // fileUri -> monotonic revision counter
     private final Map<String, AtomicLong> fileRevisions = new ConcurrentHashMap<>();
     // fileUri -> history of executed operations for OT rebasing
@@ -93,7 +92,7 @@ public class DocumentSyncCoordinator {
         applyToBuffer(buffer, transformed);
 
         // Advance monotonic counter
-        long newRev = revCounter.incrementAndGet();
+        revCounter.incrementAndGet();
 
         // Record in circular bounded history
         history.add(transformed);

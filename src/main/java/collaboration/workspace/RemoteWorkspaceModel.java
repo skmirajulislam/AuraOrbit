@@ -4,7 +4,6 @@ import collaboration.model.VirtualFileNode;
 import javafx.scene.control.TreeItem;
 
 import java.io.File;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
