@@ -63,13 +63,27 @@ public class BreadcrumbBar extends HBox {
     public void updateFilePath(Path filePath, String fileType) {
         if (filePath == null) {
             pathLabel.setText("Untitled");
+            pathLabel.setGraphic(null);
             symbolPicker.setVisible(false);
             return;
         }
 
-        Path parent = filePath.getParent();
-        String parentStr = parent != null ? parent.getFileName().toString() + " > " : "";
-        pathLabel.setText(parentStr + filePath.getFileName().toString());
+        List<String> segments = new ArrayList<>();
+        Path p = filePath.getParent();
+        int maxLevels = 6;
+        while (p != null && p.getFileName() != null && segments.size() < maxLevels) {
+            segments.add(0, p.getFileName().toString());
+            p = p.getParent();
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (String seg : segments) {
+            sb.append(seg).append(" > ");
+        }
+        sb.append(filePath.getFileName().toString());
+
+        pathLabel.setText(sb.toString());
+        pathLabel.setGraphic(IconFactory.getFileIcon(filePath.getFileName().toString(), 13));
     }
 
     /**

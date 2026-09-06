@@ -484,6 +484,10 @@ public class CodeEditorPane extends StackPane {
         this.currentFilePath = filePath;
         breadcrumbBar.updateFilePath(filePath, fileType);
         breadcrumbBar.indexSymbols(content, fileType);
+        if (filePath != null) {
+            breadcrumbBar.setVisible(true);
+            breadcrumbBar.setManaged(true);
+        }
         refreshGitGutter(filePath);
     }
 

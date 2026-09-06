@@ -5,6 +5,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
@@ -65,6 +66,7 @@ public class SidebarExplorer extends VBox {
     private Runnable onCloseAllEditorsRequested;
     private BiConsumer<Path, Boolean> onFileSelectedWithPreview;
     private final Map<String, int[]> fileDiagnostics = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, int[]> folderDiagnostics = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static class OpenEditorItem {
         public final String title;
@@ -394,8 +396,23 @@ public class SidebarExplorer extends VBox {
 
     public void updateDiagnostics(Map<String, int[]> diagnostics) {
         fileDiagnostics.clear();
+        folderDiagnostics.clear();
         if (diagnostics != null) {
             fileDiagnostics.putAll(diagnostics);
+            for (Map.Entry<String, int[]> entry : diagnostics.entrySet()) {
+                int[] counts = entry.getValue();
+                if (counts == null || (counts[0] == 0 && counts[1] == 0)) continue;
+                try {
+                    Path p = Paths.get(entry.getKey()).getParent();
+                    while (p != null) {
+                        String folderKey = p.toAbsolutePath().normalize().toString();
+                        int[] fc = folderDiagnostics.computeIfAbsent(folderKey, k -> new int[2]);
+                        fc[0] += counts[0];
+                        fc[1] += counts[1];
+                        p = p.getParent();
+                    }
+                } catch (Exception ignored) {}
+            }
         }
         Platform.runLater(() -> {
             if (fileTreeView != null) {
@@ -519,33 +536,70 @@ public class SidebarExplorer extends VBox {
                         Platform.runLater(inlineInput::requestFocus);
                         return;
                     }
-                    setText(item.file.getName().isEmpty() ? item.file.getAbsolutePath() : item.file.getName());
                     boolean expanded = getTreeItem() != null && getTreeItem().isExpanded();
-                    setGraphic(item.getIcon(expanded));
-                    setContextMenu(createTreeContextMenu(getTreeItem()));
+                    Node icon = item.getIcon(expanded);
+
+                    HBox cellRow = new HBox(6);
+                    cellRow.setAlignment(Pos.CENTER_LEFT);
+                    cellRow.setMaxWidth(Double.MAX_VALUE);
+                    cellRow.setMouseTransparent(true);
+
+                    Label nameLabel = new Label(item.file.getName().isEmpty() ? item.file.getAbsolutePath() : item.file.getName());
+                    nameLabel.getStyleClass().add("tree-cell-label");
+
+                    Region spacer = new Region();
+                    HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                    Label badgeLabel = new Label();
+                    badgeLabel.setAlignment(Pos.CENTER_RIGHT);
 
                     if (item.file != null) {
                         try {
                             String abs = item.file.toPath().toAbsolutePath().normalize().toString();
-                            int[] diag = fileDiagnostics.get(abs);
-                            if (diag != null && diag[0] > 0) {
-                                setStyle("-fx-text-fill: #f14c4c;");
-                                setTooltip(new Tooltip(item.file.getName() + " (" + diag[0] + " errors)"));
-                            } else if (diag != null && diag[1] > 0) {
-                                setStyle("-fx-text-fill: #cca700;");
-                                setTooltip(new Tooltip(item.file.getName() + " (" + diag[1] + " warnings)"));
+                            if (item.file.isDirectory()) {
+                                int[] fDiag = folderDiagnostics.get(abs);
+                                if (fDiag != null && fDiag[0] > 0) {
+                                    badgeLabel.setText("●");
+                                    badgeLabel.setStyle("-fx-text-fill: #f14c4c; -fx-font-size: 8px; -fx-padding: 0 4 0 0;");
+                                    setTooltip(new Tooltip(item.file.getName() + " (" + fDiag[0] + " errors in folder)"));
+                                } else if (fDiag != null && fDiag[1] > 0) {
+                                    badgeLabel.setText("●");
+                                    badgeLabel.setStyle("-fx-text-fill: #cca700; -fx-font-size: 8px; -fx-padding: 0 4 0 0;");
+                                    setTooltip(new Tooltip(item.file.getName() + " (" + fDiag[1] + " warnings in folder)"));
+                                } else {
+                                    badgeLabel.setText("");
+                                    setTooltip(null);
+                                }
                             } else {
-                                setStyle("");
-                                setTooltip(null);
+                                int[] diag = fileDiagnostics.get(abs);
+                                if (diag != null && diag[0] > 0) {
+                                    nameLabel.setStyle("-fx-text-fill: #f14c4c;");
+                                    badgeLabel.setText(String.valueOf(diag[0]));
+                                    badgeLabel.setStyle("-fx-text-fill: #f14c4c; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 0 4 0 4;");
+                                    setTooltip(new Tooltip(item.file.getName() + " (" + diag[0] + " errors)"));
+                                } else if (diag != null && diag[1] > 0) {
+                                    nameLabel.setStyle("-fx-text-fill: #cca700;");
+                                    badgeLabel.setText(String.valueOf(diag[1]));
+                                    badgeLabel.setStyle("-fx-text-fill: #cca700; -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 0 4 0 4;");
+                                    setTooltip(new Tooltip(item.file.getName() + " (" + diag[1] + " warnings)"));
+                                } else {
+                                    nameLabel.setStyle("");
+                                    badgeLabel.setText("");
+                                    setTooltip(null);
+                                }
                             }
                         } catch (Exception ignored) {
-                            setStyle("");
                             setTooltip(null);
                         }
                     } else {
-                        setStyle("");
                         setTooltip(null);
                     }
+
+                    cellRow.getChildren().addAll(icon, nameLabel, spacer, badgeLabel);
+                    setGraphic(cellRow);
+                    setText(null);
+                    setStyle("");
+                    setContextMenu(createTreeContextMenu(getTreeItem()));
                 }
             }
         });

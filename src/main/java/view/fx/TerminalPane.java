@@ -216,11 +216,11 @@ public class TerminalPane extends BorderPane {
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(4, 10, 4, 10));
 
-        problemsTabBtn = createTabButton("PROBLEMS", "0", DockTab.PROBLEMS);
-        outputTabBtn = createTabButton("OUTPUT", null, DockTab.OUTPUT);
-        debugTabBtn = createTabButton("DEBUG CONSOLE", null, DockTab.DEBUG_CONSOLE);
-        terminalTabBtn = createTabButton("TERMINAL", null, DockTab.TERMINAL);
-        portsTabBtn = createTabButton("PORTS", null, DockTab.PORTS);
+        problemsTabBtn = createTabButton("Problems", null, DockTab.PROBLEMS);
+        outputTabBtn = createTabButton("Output", null, DockTab.OUTPUT);
+        debugTabBtn = createTabButton("Debug Console", null, DockTab.DEBUG_CONSOLE);
+        terminalTabBtn = createTabButton("Terminal", null, DockTab.TERMINAL);
+        portsTabBtn = createTabButton("Ports", null, DockTab.PORTS);
 
         HBox dockSegment = new HBox(2);
         dockSegment.getStyleClass().add("dock-segment");
@@ -794,7 +794,7 @@ public class TerminalPane extends BorderPane {
         warningCountBadge.setText("▲ " + warnings + " Warnings");
         infoCountBadge.setText("ℹ " + infos + " Info");
 
-        problemsTabBtn.setText("PROBLEMS " + problemItems.size());
+        problemsTabBtn.setText(problemItems.isEmpty() ? "Problems" : "Problems " + problemItems.size());
 
         filterProblems(problemFilterField != null ? problemFilterField.getText() : "");
 
