@@ -516,7 +516,7 @@
 }
 
 .breadcrumb-symbol-picker:hover {
-    -fx-background-color: -hover-color;
+    -fx-background-color: -bg-hover;
     -fx-background-radius: 4;
 }
 
