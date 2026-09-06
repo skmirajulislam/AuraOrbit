@@ -75,6 +75,7 @@ public class EditorTestSuite {
             testCollaborationModule();
             testAutoCompleteEngine();
             testVsCodeParityAndDynamicComponents();
+            testProjectCodeDiagnosticsHygiene();
 
             System.out.println("\n-------------------------------------------------");
             System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -932,6 +933,66 @@ public class EditorTestSuite {
         System.out.println("  ✔ PASS: TopCommandCenterBar dynamic pill and navigation state configured");
         System.out.println("  ✔ PASS: ActivityBar source control badge and active state validated");
         System.out.println("  ✔ PASS: TerminalPane dock tab min width prevents truncation into ellipses");
+    }
+
+    private static void testProjectCodeDiagnosticsHygiene() {
+        System.out.println("\n[24] Testing AuraOrbit Diagnostic Engine Precision (No False Positives)...");
+
+        // 1. In-memory javac compilation of JavaFX classes
+        Path joinSessionPath = Paths.get("src/main/java/collaboration/ui/JoinSessionDialog.java");
+        Path hostSessionPath = Paths.get("src/main/java/collaboration/ui/HostSessionDialog.java");
+        if (Files.exists(joinSessionPath) && Files.exists(hostSessionPath)) {
+            List<TerminalPane.ProblemItem> compilerProblems = CodeDiagnosticsService.runJavaCompilerDiagnostics(
+                    List.of(joinSessionPath, hostSessionPath)
+            );
+            boolean hasMissingJavaFx = compilerProblems.stream().anyMatch(p -> p.message().contains("package javafx") || p.message().contains("does not exist"));
+            assertFalse(hasMissingJavaFx, "Dynamic javac resolves JavaFX and dependencies without 'package ... does not exist' errors");
+            boolean hasMissingNamedArg = compilerProblems.stream().anyMatch(p -> p.message().contains("NamedArg"));
+            assertFalse(hasMissingNamedArg, "Dynamic javac resolves annotations without NamedArg errors");
+        }
+
+        // 2. Intentional empty catch blocks (ignored/expected) should not be flagged
+        Path guestClient = Paths.get("src/main/java/collaboration/network/CollaborationGuestClient.java");
+        if (Files.exists(guestClient)) {
+            List<TerminalPane.ProblemItem> guestProblems = CodeDiagnosticsService.analyzeFile(guestClient);
+            boolean hasEmptyCatch = guestProblems.stream().anyMatch(p -> p.message().contains("Empty catch block"));
+            assertFalse(hasEmptyCatch, "Intentional catch (Exception ignored) {} is not flagged as error");
+        }
+
+        // 3. DocumentSyncCoordinator, EditorSyncBridge, AiAssistantPane, TerminalPane, FileService unused field checks
+        List<Path> filesToCheck = List.of(
+                Paths.get("src/main/java/collaboration/sync/DocumentSyncCoordinator.java"),
+                Paths.get("src/main/java/collaboration/sync/EditorSyncBridge.java"),
+                Paths.get("src/main/java/view/fx/AiAssistantPane.java"),
+                Paths.get("src/main/java/command/CommandManager.java"),
+                Paths.get("src/main/java/view/fx/TerminalPane.java"),
+                Paths.get("src/main/java/service/FileService.java"),
+                Paths.get("src/main/java/service/CodeDiagnosticsService.java")
+        );
+        for (Path p : filesToCheck) {
+            if (Files.exists(p)) {
+                List<TerminalPane.ProblemItem> problems = CodeDiagnosticsService.analyzeFile(p);
+                boolean hasUnusedField = problems.stream().anyMatch(pItem -> pItem.message().contains("is not used"));
+                assertFalse(hasUnusedField, "File " + p.getFileName() + " has zero false-positive unused field warnings");
+                boolean hasRedundantSemicolon = problems.stream().anyMatch(pItem -> pItem.message().contains("Redundant semicolon"));
+                assertFalse(hasRedundantSemicolon, "File " + p.getFileName() + " has zero false-positive redundant semicolon warnings");
+            }
+        }
+
+        // 4. Batch compiler diagnostics over ALL source files in src/main/java
+        try (var walk = Files.walk(Paths.get("src/main/java"))) {
+            List<Path> allSrc = walk.filter(p -> p.toString().endsWith(".java")).toList();
+            List<TerminalPane.ProblemItem> allCompilerProblems = CodeDiagnosticsService.runJavaCompilerDiagnostics(allSrc);
+            for (TerminalPane.ProblemItem p : allCompilerProblems) {
+                if (p.severity().equalsIgnoreCase("Error")) {
+                    System.err.println("Unexpected compiler error: " + p.message() + " in " + p.file() + ":" + p.line());
+                }
+            }
+            long errorCount = allCompilerProblems.stream().filter(p -> p.severity().equalsIgnoreCase("Error")).count();
+            assertEquals(0L, errorCount, "Zero compiler errors across entire src/main/java codebase");
+        } catch (IOException e) {
+            assertTrue(false, "Failed to walk src/main/java: " + e.getMessage());
+        }
     }
 }
 

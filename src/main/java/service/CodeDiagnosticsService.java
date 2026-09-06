@@ -23,7 +23,7 @@ public class CodeDiagnosticsService {
     private static final Pattern JAVA_IMPORT_PATTERN = Pattern.compile("^\\s*import\\s+(?:static\\s+)?([a-zA-Z0-9_.]+\\.([a-zA-Z0-9_]+))\\s*;");
     private static final Pattern JAVA_CLASS_PATTERN = Pattern.compile("public\\s+(?:class|interface|enum|record)\\s+([a-zA-Z0-9_]+)");
     private static final Pattern JAVA_PRIVATE_FIELD_PATTERN = Pattern.compile("^\\s*private\\s+(?:(?:static|final|volatile|transient)\\s+)*(?:[a-zA-Z0-9_<>,\\[\\]\\s]+?)\\s+([a-zA-Z0-9_]+)\\s*(?:=.*?)?;");
-    private static final Pattern JAVA_EMPTY_CATCH = Pattern.compile("catch\\s*\\([^)]+\\)\\s*\\{\\s*\\}");
+    private static final Pattern JAVA_EMPTY_CATCH = Pattern.compile("catch\\s*\\([^)]*?\\b([a-zA-Z0-9_]+)\\s*\\)\\s*\\{\\s*\\}");
 
     // Python Patterns
     private static final Pattern PY_IMPORT_PATTERN = Pattern.compile("^\\s*import\\s+([a-zA-Z0-9_., ]+)(?:\\s+as\\s+([a-zA-Z0-9_]+))?");
@@ -66,7 +66,7 @@ public class CodeDiagnosticsService {
         int dot = fileName.lastIndexOf('.');
         if (dot != -1) ext = fileName.substring(dot).toLowerCase();
 
-        // 1. Task markers (TODO, FIXME, HACK) for all files
+        // 1. Task markers (todo, fixme, hack) for all files
         checkTaskMarkers(lines, fullPath, problems);
 
         // 2. Syntax & structural checks only for actual programming languages (never for markdown or text)
@@ -264,13 +264,18 @@ public class CodeDiagnosticsService {
                 nonImportBody.append(line).append("\n");
             }
 
-            // Empty catch block
-            if (JAVA_EMPTY_CATCH.matcher(line).find()) {
-                problems.add(new TerminalPane.ProblemItem(Codicons.WARNING, "Warning", "Empty catch block: exception swallowed", fullPath, lineNum, 1, "Java"));
+            // Empty catch block (ignore standard intentional suppression: ignored, expected, _)
+            Matcher cm = JAVA_EMPTY_CATCH.matcher(line);
+            if (cm.find()) {
+                String param = cm.group(1);
+                if (!"ignored".equalsIgnoreCase(param) && !"expected".equalsIgnoreCase(param) && !"_".equals(param)) {
+                    problems.add(new TerminalPane.ProblemItem(Codicons.WARNING, "Warning", "Empty catch block: exception swallowed", fullPath, lineNum, 1, "Java"));
+                }
             }
 
-            // Redundant semicolon
-            if (line.contains(";;")) {
+            // Redundant semicolon (ignore inside string literals, comments, and intentional for(;;) loops)
+            String codeOnly = line.replaceAll("\"(\\\\.|[^\"])*\"", "\"\"").replaceAll("//.*", "");
+            if (!codeOnly.contains("for (;;)") && !codeOnly.contains("for(;;)") && !codeOnly.contains("for (; ;)") && codeOnly.contains(";;")) {
                 problems.add(new TerminalPane.ProblemItem(Codicons.INFO, "Info", "Redundant semicolon", fullPath, lineNum, line.indexOf(";;") + 1, "Java"));
             }
         }
@@ -298,21 +303,36 @@ public class CodeDiagnosticsService {
                 String fieldName = fm.group(1);
                 int reads = 0;
                 Pattern fieldWord = Pattern.compile("\\b" + Pattern.quote(fieldName) + "\\b");
+                Pattern paramDecl = Pattern.compile("\\b(?:[A-Z][a-zA-Z0-9_<>]*|int|long|boolean|double|float|char|byte|short)\\s+(?:final\\s+)?" + Pattern.quote(fieldName) + "\\s*[,)]");
 
                 for (int j = 0; j < lines.size(); j++) {
                     if (j == i) continue; // skip declaration line
-                    String otherLine = lines.get(j);
+                    String otherLine = lines.get(j).trim();
 
-                    // Skip constructor parameter assignment: this.fieldName = ...
-                    if (otherLine.contains("this." + fieldName + " =") || otherLine.contains("this." + fieldName + "=")) {
-                        continue;
-                    }
-                    // Skip method / constructor parameter declaration: ... fieldName, or ... fieldName)
-                    if (otherLine.contains(" " + fieldName + ",") || otherLine.contains(" " + fieldName + ")")) {
-                        continue;
+                    // Strip string literals and line comments
+                    String stripped = otherLine.replaceAll("\"(\\\\.|[^\"])*\"", "\"\"").replaceAll("//.*", "");
+
+                    // Skip pure LHS assignment (e.g. this.fieldName = ... or fieldName = ...)
+                    int eqIdx = stripped.indexOf('=');
+                    if (eqIdx != -1) {
+                        String lhs = stripped.substring(0, eqIdx).trim();
+                        if (lhs.equals("this." + fieldName) || lhs.equals(fieldName)) {
+                            // Only check RHS for reads
+                            String rhs = stripped.substring(eqIdx + 1);
+                            if (fieldWord.matcher(rhs).find()) {
+                                // If RHS is simply the method parameter with the same name, don't count as a read
+                                if (!rhs.trim().matches(Pattern.quote(fieldName) + "\\s*;?")) {
+                                    reads++;
+                                }
+                            }
+                            continue;
+                        }
                     }
 
-                    if (fieldWord.matcher(otherLine).find()) {
+                    // Remove parameter declarations like "(String fieldName," or "(int fieldName)"
+                    String cleanLine = paramDecl.matcher(stripped).replaceAll("");
+
+                    if (fieldWord.matcher(cleanLine).find()) {
                         reads++;
                     }
                 }
@@ -490,6 +510,153 @@ public class CodeDiagnosticsService {
     }
 
     /**
+     * Dynamically builds a comprehensive classpath for in-memory javac analysis.
+     * Accurately aggregates java.class.path, jdk.module.path, JVM VM launch arguments (--module-path),
+     * loaded JavaFX/third-party jar code sources, boot layer modules, and target/classes.
+     */
+    public static String buildDynamicClasspath() {
+        Set<String> entries = new LinkedHashSet<>();
+
+        // 1. Current java.class.path
+        String cp = System.getProperty("java.class.path");
+        if (cp != null && !cp.isBlank()) {
+            for (String part : cp.split(Pattern.quote(java.io.File.pathSeparator))) {
+                if (!part.isBlank() && Files.exists(Paths.get(part))) {
+                    entries.add(Paths.get(part).toAbsolutePath().toString());
+                }
+            }
+        }
+
+        // 2. Current jdk.module.path (if set)
+        String mp = System.getProperty("jdk.module.path");
+        if (mp != null && !mp.isBlank()) {
+            for (String part : mp.split(Pattern.quote(java.io.File.pathSeparator))) {
+                if (!part.isBlank() && Files.exists(Paths.get(part))) {
+                    entries.add(Paths.get(part).toAbsolutePath().toString());
+                }
+            }
+        }
+
+        // 3. JVM input arguments (--module-path or -p passed to java)
+        try {
+            List<String> vmArgs = java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments();
+            for (int i = 0; i < vmArgs.size(); i++) {
+                String arg = vmArgs.get(i);
+                String modPath = null;
+                if (arg.startsWith("--module-path=")) {
+                    modPath = arg.substring("--module-path=".length());
+                } else if (arg.startsWith("-p=")) {
+                    modPath = arg.substring("-p=".length());
+                } else if ((arg.equals("--module-path") || arg.equals("-p")) && i + 1 < vmArgs.size()) {
+                    modPath = vmArgs.get(i + 1);
+                }
+                if (modPath != null) {
+                    for (String part : modPath.split(Pattern.quote(java.io.File.pathSeparator))) {
+                        if (!part.isBlank() && Files.exists(Paths.get(part))) {
+                            entries.add(Paths.get(part).toAbsolutePath().toString());
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        // 4. Code source locations of key loaded classes (JavaFX, RichTextFX, Ikonli, Gson, WebSockets, etc.)
+        Class<?>[] probeClasses = new Class<?>[] {
+                javafx.application.Application.class,
+                javafx.stage.Stage.class,
+                javafx.scene.Scene.class,
+                javafx.scene.control.Control.class,
+                javafx.scene.layout.Pane.class,
+                javafx.geometry.Insets.class,
+                javafx.beans.NamedArg.class,
+                org.fxmisc.richtext.CodeArea.class,
+                org.reactfx.EventStreams.class,
+                org.fxmisc.flowless.VirtualizedScrollPane.class,
+                org.fxmisc.undo.UndoManager.class,
+                org.fxmisc.wellbehaved.event.EventPattern.class,
+                org.kordamp.ikonli.Ikon.class,
+                org.kordamp.ikonli.javafx.FontIcon.class,
+                org.kordamp.ikonli.codicons.Codicons.class,
+                org.kordamp.ikonli.devicons.Devicons.class,
+                com.google.gson.Gson.class,
+                org.java_websocket.client.WebSocketClient.class
+        };
+        for (Class<?> cls : probeClasses) {
+            try {
+                var cs = cls.getProtectionDomain().getCodeSource();
+                if (cs != null && cs.getLocation() != null) {
+                    Path p = Paths.get(cs.getLocation().toURI());
+                    if (Files.exists(p)) {
+                        entries.add(p.toAbsolutePath().toString());
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        // 5. Modules from Boot Layer (Java 9+ JPMS resolved modules)
+        try {
+            for (java.lang.module.ResolvedModule rm : ModuleLayer.boot().configuration().modules()) {
+                rm.reference().location().ifPresent(uri -> {
+                    try {
+                        if ("file".equalsIgnoreCase(uri.getScheme())) {
+                            Path p = Paths.get(uri);
+                            if (Files.exists(p)) {
+                                entries.add(p.toAbsolutePath().toString());
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                });
+            }
+        } catch (Throwable ignored) {}
+
+        // 6. Workspace target/classes and target/test-classes
+        Path targetClasses = Paths.get("target", "classes");
+        if (Files.isDirectory(targetClasses)) {
+            entries.add(targetClasses.toAbsolutePath().toString());
+        }
+        Path targetTestClasses = Paths.get("target", "test-classes");
+        if (Files.isDirectory(targetTestClasses)) {
+            entries.add(targetTestClasses.toAbsolutePath().toString());
+        }
+
+        // 7. Fallback: Search ~/.m2/repository for openjfx, ikonli, and fxmisc jars if still missing
+        try {
+            Path m2Repo = Paths.get(System.getProperty("user.home"), ".m2", "repository");
+            if (Files.isDirectory(m2Repo)) {
+                if (entries.stream().noneMatch(e -> e.contains("javafx-controls"))) {
+                    Path m2OpenJfx = m2Repo.resolve("org/openjfx");
+                    if (Files.isDirectory(m2OpenJfx)) {
+                        try (var stream = Files.walk(m2OpenJfx, 4)) {
+                            stream.filter(p -> p.toString().endsWith(".jar") && !p.toString().endsWith("-sources.jar") && !p.toString().endsWith("-javadoc.jar"))
+                                  .forEach(p -> entries.add(p.toAbsolutePath().toString()));
+                        }
+                    }
+                }
+                if (entries.stream().noneMatch(e -> e.contains("ikonli-codicons-pack"))) {
+                    Path m2Ikonli = m2Repo.resolve("org/kordamp/ikonli");
+                    if (Files.isDirectory(m2Ikonli)) {
+                        try (var stream = Files.walk(m2Ikonli, 4)) {
+                            stream.filter(p -> p.toString().endsWith(".jar") && !p.toString().endsWith("-sources.jar") && !p.toString().endsWith("-javadoc.jar"))
+                                  .forEach(p -> entries.add(p.toAbsolutePath().toString()));
+                        }
+                    }
+                }
+                if (entries.stream().noneMatch(e -> e.contains("richtextfx"))) {
+                    Path m2Fxmisc = m2Repo.resolve("org/fxmisc");
+                    if (Files.isDirectory(m2Fxmisc)) {
+                        try (var stream = Files.walk(m2Fxmisc, 4)) {
+                            stream.filter(p -> p.toString().endsWith(".jar") && !p.toString().endsWith("-sources.jar") && !p.toString().endsWith("-javadoc.jar"))
+                                  .forEach(p -> entries.add(p.toAbsolutePath().toString()));
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return String.join(java.io.File.pathSeparator, entries);
+    }
+
+    /**
      * Executes JDK compiler diagnostics with full project classpath and linting.
      */
     public static List<TerminalPane.ProblemItem> runJavaCompilerDiagnostics(List<Path> javaFiles) {
@@ -509,11 +676,11 @@ public class CodeDiagnosticsService {
                 tempClasses = Files.createTempDirectory("auraorbit_diag");
                 tempClasses.toFile().deleteOnExit();
 
-                String cp = System.getProperty("java.class.path");
+                String cp = buildDynamicClasspath();
                 List<String> options = Arrays.asList(
                         "-proc:none",
                         "-Xlint:all,-serial,-rawtypes,-unchecked,-preview",
-                        "-classpath", cp != null ? cp : ".",
+                        "-classpath", cp.isBlank() ? "." : cp,
                         "-d", tempClasses.toString()
                 );
 
@@ -521,6 +688,11 @@ public class CodeDiagnosticsService {
                 task.call();
 
                 for (Diagnostic<? extends JavaFileObject> d : diagnostics.getDiagnostics()) {
+                    // Only process diagnostics for actual project Java source files
+                    if (d.getSource() == null) continue;
+                    String rawName = d.getSource().getName();
+                    if (rawName.endsWith(".class")) continue; // Skip third-party classfile internal warnings
+
                     Codicons icon = Codicons.INFO;
                     String severity = "Info";
                     if (d.getKind() == Diagnostic.Kind.ERROR) {
@@ -531,14 +703,10 @@ public class CodeDiagnosticsService {
                         severity = "Warning";
                     }
 
-                    String sourcePath = "source";
-                    if (d.getSource() != null) {
-                        try {
-                            sourcePath = Paths.get(d.getSource().toUri()).toAbsolutePath().normalize().toString();
-                        } catch (Exception e) {
-                            sourcePath = d.getSource().getName();
-                        }
-                    }
+                    String sourcePath = rawName;
+                    try {
+                        sourcePath = Paths.get(d.getSource().toUri()).toAbsolutePath().normalize().toString();
+                    } catch (Exception ignored) {}
 
                     results.add(new TerminalPane.ProblemItem(
                             icon, severity,
