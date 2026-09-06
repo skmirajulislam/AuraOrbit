@@ -28,11 +28,13 @@ public class ActivityBar extends VBox {
     private final Button searchBtn;
     private final Button aiBtn;
     private final Button terminalBtn;
+    private final Button liveShareBtn;
     private final Button themeBtn;
     private final Button infoBtn;
 
     private Panel activePanel = Panel.EXPLORER;
     private Consumer<Panel> onPanelToggled;
+    private Runnable onLiveShareAction;
     private Runnable onThemeAction;
     private Runnable onInfoAction;
 
@@ -51,8 +53,13 @@ public class ActivityBar extends VBox {
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
+        liveShareBtn = createActionButton(Codicons.RADIO_TOWER, "Live Share Collaboration (WAN / Cloudflare)");
         themeBtn = createActionButton(Codicons.COLOR_MODE, "Change Theme / Shade");
         infoBtn = createActionButton(Codicons.INFO, "About & Shortcuts");
+
+        liveShareBtn.setOnAction(e -> {
+            if (onLiveShareAction != null) onLiveShareAction.run();
+        });
 
         themeBtn.setOnAction(e -> {
             if (onThemeAction != null) onThemeAction.run();
@@ -62,7 +69,7 @@ public class ActivityBar extends VBox {
             if (onInfoAction != null) onInfoAction.run();
         });
 
-        getChildren().addAll(explorerBtn, templatesBtn, searchBtn, aiBtn, terminalBtn, spacer, themeBtn, infoBtn);
+        getChildren().addAll(explorerBtn, templatesBtn, searchBtn, aiBtn, terminalBtn, spacer, liveShareBtn, themeBtn, infoBtn);
         setActivePanel(Panel.EXPLORER);
     }
 
@@ -119,6 +126,10 @@ public class ActivityBar extends VBox {
 
     public void setOnPanelToggled(Consumer<Panel> onPanelToggled) {
         this.onPanelToggled = onPanelToggled;
+    }
+
+    public void setOnLiveShareAction(Runnable onLiveShareAction) {
+        this.onLiveShareAction = onLiveShareAction;
     }
 
     public void setOnThemeAction(Runnable onThemeAction) {

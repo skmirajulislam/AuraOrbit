@@ -28,6 +28,13 @@ import view.fx.BreadcrumbBar;
 import view.fx.SidebarExplorer;
 import controller.EditorTabController;
 import java.util.Map;
+import collaboration.model.CollabPacket;
+import collaboration.model.CursorEvent;
+import collaboration.model.TextOpEvent;
+import collaboration.model.VirtualFileNode;
+import collaboration.network.TunnelProcessLauncher;
+import collaboration.sync.DocumentSyncCoordinator;
+import collaboration.workspace.RemoteWorkspaceModel;
 import java.util.HashMap;
 
 /**
@@ -65,6 +72,7 @@ public class EditorTestSuite {
             testScriptPluginDiscovery();
             testBreadcrumbSymbolIndexing();
             testPreviewModeAndDiagnostics();
+            testCollaborationModule();
 
             System.out.println("\n-------------------------------------------------");
             System.out.printf("RESULTS: %d PASSED | %d FAILED%n", testsPassed, testsFailed);
@@ -788,5 +796,58 @@ public class EditorTestSuite {
             System.err.println("  ✖ FAIL: testPreviewModeAndDiagnostics threw exception: " + e.getMessage());
             testsFailed++;
         }
+    }
+
+    private static void testCollaborationModule() {
+        System.out.println("\n[21] Testing Cloudflare Quick Tunnel Live Share & OT Collaboration Module...");
+
+        // 1. Test Server-Authoritative Operational Transformation (OT)
+        DocumentSyncCoordinator coord = new DocumentSyncCoordinator();
+        String fileUri = "src/main/java/Main.java";
+        coord.initializeDocument(fileUri, "Hello World");
+        assertEquals(0L, coord.getCurrentRevision(fileUri), "Initial revision is 0");
+        assertEquals("Hello World", coord.getDocumentContent(fileUri), "Authoritative content initialized");
+
+        // Client 1 applies insert "Beautiful " at offset 6 based on rev 0
+        TextOpEvent op1 = new TextOpEvent(fileUri, 0L, 6, 0, "Beautiful ", "", "client-1");
+        TextOpEvent rebased1 = coord.processIncomingOp(op1);
+        assertEquals(1L, rebased1.revision(), "Op 1 assigned revision 1");
+        assertEquals("Hello Beautiful World", coord.getDocumentContent(fileUri), "Document updated after Op 1");
+
+        // Client 2 applies concurrent delete "World" (5 chars) at offset 6 based on old rev 0
+        TextOpEvent op2 = new TextOpEvent(fileUri, 0L, 6, 5, "", "World", "client-2");
+        TextOpEvent rebased2 = coord.processIncomingOp(op2);
+        assertEquals(2L, rebased2.revision(), "Op 2 assigned monotonic revision 2");
+        assertEquals(16, rebased2.offset(), "Op 2 offset rebased past Op 1 insertion (6 -> 16)");
+        assertEquals("Hello Beautiful ", coord.getDocumentContent(fileUri), "OT correctly reconciled concurrent edits");
+
+        // 2. Test Low-Overhead CollabPacket Serialization & Protocols
+        CollabPacket packet1 = new CollabPacket(CollabPacket.Type.OP_DELTA, "client-1", "Alice", CollabPacket.getGson().toJson(rebased2));
+        String json1 = packet1.toJson();
+        CollabPacket restored1 = CollabPacket.fromJson(json1);
+        assertEquals(CollabPacket.Type.OP_DELTA, restored1.getType(), "CollabPacket OP_DELTA type preserved in JSON round-trip");
+        assertEquals("client-1", restored1.getSenderId(), "Sender ID preserved in JSON round-trip");
+        assertEquals("Alice", restored1.getSenderName(), "Sender Name preserved in JSON round-trip");
+
+        CursorEvent cursor = new CursorEvent("client-1", "Alice", "#007acc", fileUri, 12, 4, 150, 150);
+        CollabPacket packet2 = new CollabPacket(CollabPacket.Type.CURSOR_MOVE, "client-1", "Alice", CollabPacket.getGson().toJson(cursor));
+        CollabPacket restored2 = CollabPacket.fromJson(packet2.toJson());
+        CursorEvent restoredCursor = CollabPacket.getGson().fromJson(restored2.getPayload(), CursorEvent.class);
+        assertEquals(12, restoredCursor.line(), "Cursor line preserved in JSON round-trip");
+        assertEquals(4, restoredCursor.column(), "Cursor column preserved in JSON round-trip");
+
+        // 3. Test Zero-Disk Volatile Virtual Remote Workspace Model
+        RemoteWorkspaceModel workspaceModel = new RemoteWorkspaceModel();
+        workspaceModel.setDocumentContent("remote/Service.java", "public class Service {}", 5L);
+        assertEquals("public class Service {}", workspaceModel.getDocumentContent("remote/Service.java"), "Volatile buffer preserved in memory");
+        assertEquals(5L, workspaceModel.getRevision("remote/Service.java"), "Local revision preserved");
+
+        workspaceModel.clear();
+        assertTrue(workspaceModel.getDocumentContent("remote/Service.java") == null, "Workspace model completely purged after clear()");
+        assertEquals(0L, workspaceModel.getRevision("remote/Service.java"), "Revisions reset to 0 after clear()");
+
+        // 4. Test Cloudflare Process Binary Resolution
+        String cloudflaredPath = TunnelProcessLauncher.resolveCloudflaredPath();
+        assertTrue(cloudflaredPath != null && !cloudflaredPath.isBlank(), "Cloudflared binary resolved on system");
     }
 }

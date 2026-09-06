@@ -14,6 +14,9 @@ import service.ScriptPluginService;
 import service.ThemeService;
 import template.Template;
 import view.fx.*;
+import collaboration.integration.CollaborationManager;
+import collaboration.model.VirtualFileNode;
+import collaboration.ui.JoinSessionDialog;
 import org.kordamp.ikonli.codicons.Codicons;
 
 import java.io.File;
@@ -38,6 +41,7 @@ public class FxEditorController {
     private final ThemeService themeService;
     private final FileService fileService;
     private final CodeExecutionService codeExecutionService = new CodeExecutionService();
+    private final CollaborationManager collaborationManager = new CollaborationManager();
 
     private WelcomeWatermarkPane welcomeWatermarkPane;
     private TabPane tabPaneLeft;
@@ -214,6 +218,15 @@ public class FxEditorController {
         });
         activityBar.setOnThemeAction(this::showThemePicker);
         activityBar.setOnInfoAction(this::showAboutDialog);
+        activityBar.setOnLiveShareAction(this::showLiveShareOptions);
+        collaborationManager.setOnRemoteWorkspaceLoaded(tree -> {
+            Platform.runLater(() -> {
+                if (modalOverlayPane != null) {
+                    modalOverlayPane.showInformation("Live Share Workspace",
+                            "Connected to remote workspace: " + (tree != null ? tree.getName() : "Root"));
+                }
+            });
+        });
     }
 
     private void ensureSidebarVisible(boolean visible) {
@@ -591,6 +604,9 @@ public class FxEditorController {
             }
         });
         commandPalette.registerCommand("Help: About AuraOrbit", "", this::showAboutDialog);
+        commandPalette.registerCommand("Live Share: Start Collaboration Session (Host)", "", this::startHostingLiveShare);
+        commandPalette.registerCommand("Live Share: Join Collaboration Session (Guest)", "", this::showJoinLiveShareDialog);
+        commandPalette.registerCommand("Live Share: Stop Active Session", "", () -> collaborationManager.stopSession());
 
         for (ThemeService.Theme theme : ThemeService.Theme.values()) {
             commandPalette.registerCommand("Preferences: Color Theme - " + theme.getDisplayName(), "", () -> {
@@ -1198,8 +1214,43 @@ public class FxEditorController {
         }
     }
 
+    public void showLiveShareOptions() {
+        if (collaborationManager.isHosting() || collaborationManager.isGuest()) {
+            ContextMenu menu = new ContextMenu();
+            MenuItem statusItem = new MenuItem("Session Active (" + (collaborationManager.isHosting() ? "Host" : "Guest") + ")");
+            statusItem.setDisable(true);
+            MenuItem stopItem = new MenuItem("End Collaboration Session");
+            stopItem.setOnAction(e -> collaborationManager.stopSession());
+            menu.getItems().addAll(statusItem, new SeparatorMenuItem(), stopItem);
+            menu.show(stage, stage.getX() + 50, stage.getY() + 300);
+        } else {
+            ContextMenu menu = new ContextMenu();
+            MenuItem hostItem = new MenuItem("Host Collaboration Session (Cloudflare Quick Tunnel)...");
+            hostItem.setOnAction(e -> startHostingLiveShare());
+            MenuItem joinItem = new MenuItem("Join Collaboration Session (Invite Link)...");
+            joinItem.setOnAction(e -> showJoinLiveShareDialog());
+            menu.getItems().addAll(hostItem, joinItem);
+            menu.show(stage, stage.getX() + 50, stage.getY() + 300);
+        }
+    }
+
+    public void startHostingLiveShare() {
+        File ws = (sidebarExplorer != null && sidebarExplorer.getCurrentWorkspacePath() != null)
+                ? sidebarExplorer.getCurrentWorkspacePath().toFile()
+                : new File(".");
+        collaborationManager.startHosting(ws, stage);
+    }
+
+    public void showJoinLiveShareDialog() {
+        JoinSessionDialog dialog = new JoinSessionDialog(stage, (url, name) -> {
+            collaborationManager.joinSession(url, name, stage);
+        });
+        dialog.show();
+    }
+
     public void shutdown() {
         diagnosticDebounceExecutor.shutdown();
+        collaborationManager.stopSession();
         if (terminalPane != null) {
             terminalPane.dispose();
         }
