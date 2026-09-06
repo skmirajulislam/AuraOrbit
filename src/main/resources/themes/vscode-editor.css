@@ -601,7 +601,7 @@
 }
 
 .command-center-pill {
-    -fx-background-color: -bg-control;
+    -fx-background-color: -bg-secondary;
     -fx-background-radius: 6;
     -fx-border-color: -border-color;
     -fx-border-radius: 6;
