@@ -250,14 +250,14 @@
     -fx-background-color: -bg-editor;
     -fx-padding: 3.5px 0 3.5px 0;
 }
-.styled-text-area .lineno {
-    -fx-background-color: -bg-gutter;
+.styled-text-area .lineno,
+.code-line-number {
+    -fx-background-color: transparent;
     -fx-text-fill: -text-gutter;
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
-    -fx-font-size: 13px;
-    -fx-padding: 3.5px 16px 3.5px 12px;
-    -fx-border-color: transparent -border-color transparent transparent;
-    -fx-border-width: 0 1 0 0;
+    -fx-font-size: 12.5px;
+    -fx-padding: 0 4 0 0;
+    -fx-alignment: center-right;
 }
 .styled-text-area .caret {
     -fx-stroke: #ffffff;

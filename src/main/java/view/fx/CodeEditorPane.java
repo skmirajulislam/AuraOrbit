@@ -834,18 +834,20 @@ public class CodeEditorPane extends StackPane {
     private Node createGutterGraphic(int paragraphIndex) {
         int line1Indexed = paragraphIndex + 1;
         int totalLines = Math.max(10, codeArea.getParagraphs().size());
-        int digits = String.valueOf(totalLines).length();
-        double minNumberWidth = Math.max(26.0, digits * 8.5 + 4.0);
+        int digits = Math.max(2, String.valueOf(totalLines).length());
+        double minNumberWidth = Math.max(32.0, digits * 9.5 + 8.0);
 
-        HBox gutter = new HBox(8);
+        HBox gutter = new HBox(6);
         gutter.setAlignment(Pos.CENTER_RIGHT);
-        gutter.setPadding(new Insets(0, 8, 0, 4));
+        gutter.setPadding(new Insets(0, 4, 0, 8));
+        gutter.getStyleClass().add("code-editor-gutter");
 
         Label lineNum = new Label(String.valueOf(line1Indexed));
-        lineNum.getStyleClass().add("lineno");
+        lineNum.getStyleClass().addAll("lineno", "code-line-number");
         lineNum.setMinWidth(minNumberWidth);
         lineNum.setPrefWidth(minNumberWidth);
         lineNum.setAlignment(Pos.CENTER_RIGHT);
+        lineNum.setStyle("-fx-padding: 0 4 0 0; -fx-background-color: transparent; -fx-border-width: 0; -fx-text-fill: -text-gutter; -fx-alignment: center-right; -fx-font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Menlo', 'Consolas', monospace; -fx-font-size: 12.5px;");
 
         Region gitIndicator = new Region();
         gitIndicator.setPrefWidth(3);

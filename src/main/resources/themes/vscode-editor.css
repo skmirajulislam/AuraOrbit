@@ -39,10 +39,14 @@
 }
 
 .vscode-code-editor .lineno,
-.styled-text-area .lineno {
+.styled-text-area .lineno,
+.code-line-number {
     -fx-font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Menlo", "Consolas", monospace;
     -fx-font-size: 12.5px;
     -fx-text-fill: -text-gutter;
+    -fx-alignment: center-right;
+    -fx-padding: 0 4 0 0;
+    -fx-background-color: transparent;
     -fx-opacity: 0.85;
     -fx-font-smoothing-type: gray;
 }

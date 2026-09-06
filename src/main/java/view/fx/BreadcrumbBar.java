@@ -75,10 +75,11 @@ public class BreadcrumbBar extends HBox {
      * Scans document and extracts symbols.
      */
     public void indexSymbols(String content, String fileType) {
-        String ft = (fileType != null) ? fileType.toLowerCase() : "";
-        List<SymbolItem> newSymbols = new ArrayList<>();
+        symbols.clear();
+        this.currentFileType = (fileType != null) ? fileType.toLowerCase() : "";
         if (content != null && !content.isEmpty()) {
             String[] lines = content.split("\\R", -1);
+            String ft = currentFileType;
 
             for (int i = 0; i < lines.length; i++) {
                 String line = lines[i];
@@ -87,53 +88,42 @@ public class BreadcrumbBar extends HBox {
                 if (ft.equals("java")) {
                     Matcher cm = JAVA_CLASS_PATTERN.matcher(line);
                     if (cm.find()) {
-                        newSymbols.add(new SymbolItem(cm.group(1), "class", lineNum));
+                        symbols.add(new SymbolItem(cm.group(1), "class", lineNum));
                     }
                     Matcher mm = JAVA_METHOD_PATTERN.matcher(line);
                     if (mm.find()) {
                         String name = mm.group(1);
                         if (!name.equals("if") && !name.equals("while") && !name.equals("for") && !name.equals("switch") && !name.equals("catch")) {
-                            newSymbols.add(new SymbolItem(name + "()", "method", lineNum));
+                            symbols.add(new SymbolItem(name + "()", "method", lineNum));
                         }
                     }
                 } else if (ft.equals("python") || ft.equals("py")) {
                     Matcher cm = PY_CLASS_PATTERN.matcher(line);
                     if (cm.find()) {
-                        newSymbols.add(new SymbolItem(cm.group(1), "class", lineNum));
+                        symbols.add(new SymbolItem(cm.group(1), "class", lineNum));
                     }
                     Matcher dm = PY_DEF_PATTERN.matcher(line);
                     if (dm.find()) {
-                        newSymbols.add(new SymbolItem(dm.group(1) + "()", "method", lineNum));
+                        symbols.add(new SymbolItem(dm.group(1) + "()", "method", lineNum));
                     }
                 } else if (ft.contains("js") || ft.contains("ts")) {
                     Matcher jm = JS_FUNCTION_PATTERN.matcher(line);
                     if (jm.find()) {
                         String name = jm.group(1) != null ? jm.group(1) : jm.group(2);
                         if (name != null) {
-                            newSymbols.add(new SymbolItem(name + "()", "function", lineNum));
+                            symbols.add(new SymbolItem(name + "()", "function", lineNum));
                         }
                     }
                 } else if (ft.equals("markdown") || ft.equals("md")) {
                     Matcher mdm = MD_HEADING_PATTERN.matcher(line);
                     if (mdm.find()) {
-                        newSymbols.add(new SymbolItem(mdm.group(2), "heading", lineNum));
+                        symbols.add(new SymbolItem(mdm.group(2), "heading", lineNum));
                     }
                 }
             }
         }
 
-        Runnable updateTask = () -> {
-            this.currentFileType = ft;
-            this.symbols.clear();
-            this.symbols.addAll(newSymbols);
-            rebuildSymbols();
-        };
-
-        if (javafx.application.Platform.isFxApplicationThread()) {
-            updateTask.run();
-        } else {
-            javafx.application.Platform.runLater(updateTask);
-        }
+        rebuildSymbols();
     }
 
     /**
